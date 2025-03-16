@@ -1,0 +1,4 @@
+[submodule "app/services/sing/DDSP-SVC"]
+    path = app/services/sing/DDSP-SVC
+    url = https://github.com/yxlllc/DDSP-SVC.git
+    branch = master

@@ -1,6 +1,14 @@
+<div align="center">
+
+<img alt="LOGO" src="https://github.com/user-attachments/assets/fe654813-bf37-4e5f-9c7d-98d867016618" width=427 height=276/>
+
 # Pallas-Bot-AI
 
+<br>
+
 Pallas-Bot AI Backend, 与 Pallas-Bot 本体解耦的 AI 功能服务端。
+
+</div>
 
 ## 项目结构
 

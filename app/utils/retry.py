@@ -15,5 +15,7 @@ def async_retry(max_attempts=3, delay=1):
                     if attempts == max_attempts:
                         raise
                     await asyncio.sleep(delay)
+
         return wrapper
+
     return decorator

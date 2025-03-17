@@ -18,10 +18,7 @@ class Settings(BaseSettings):
     callback_max_retries: int = 3
 
     sing_callback_endpoint: str = "/callback/sing"
-    sing_speakers: dict = {
-        "帕拉斯": "pallas",
-        "牛牛": "pallas"
-    }
+    sing_speakers: dict = {"帕拉斯": "pallas", "牛牛": "pallas"}
     sing_length: int = 60
     sing_cuda_device: int = 0
     song_cache_size: int = 100
@@ -31,7 +28,7 @@ class Settings(BaseSettings):
     ncm_password: str = ""
     ncm_ctcode: int = 86
 
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()

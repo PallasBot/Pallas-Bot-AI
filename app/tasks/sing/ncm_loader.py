@@ -1,26 +1,14 @@
-import os
 from pathlib import Path
 
-from pydantic import BaseModel
 from pyncm import apis as ncm
 
 from app.core.config import settings
 from app.utils.download_tool import DownloadTools
 
-
-class Config(BaseModel, extra='ignore'):
-    ncm_phone: str = ""
-    ncm_email: str = ""
-    ncm_password: str = ""
-    ncm_ctcode: int = 86
-
-
 if settings.ncm_phone and settings.ncm_password:
-    ncm.login.LoginViaCellphone(
-        phone=settings.ncm_phone, password=settings.ncm_password, ctcode=settings.ncm_ctcode)
+    ncm.login.LoginViaCellphone(phone=settings.ncm_phone, password=settings.ncm_password, ctcode=settings.ncm_ctcode)
 elif settings.ncm_email and settings.ncm_password:
-    ncm.login.LoginViaEmail(email=settings.ncm_email,
-                            password=settings.ncm_password)
+    ncm.login.LoginViaEmail(email=settings.ncm_email, password=settings.ncm_password)
 else:
     ncm.login.LoginViaAnonymousAccount()
 
@@ -39,8 +27,8 @@ def download(song_id):
     if not content:
         return None
 
-    os.makedirs(folder, exist_ok=True)
-    with open(path, mode='wb+') as voice:
+    folder.mkdir(exist_ok=True)
+    with path.open(mode="wb+") as voice:
         voice.write(content)
 
     return path

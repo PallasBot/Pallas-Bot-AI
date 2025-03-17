@@ -10,40 +10,40 @@
 
 ### 步骤
 
-1. 安装 Poetry
+1. 安装 uv
 
     ```bash
     # 如果没有安装 pipx，首先安装 pipx
     python -m pip install --user pipx
     python -m pipx ensurepath
-    # 安装 Poetry
-    pipx install poetry
+    # 安装 uv
+    pipx install uv
     ```
 
 2. 配置虚拟环境并安装依赖
 
     ```bash
-    poetry env use $(which python3.9)
-    poetry lock
+    uv venv --python 3.9
+    uv lock
     # 使用 CPU 推理
-    poetry install --without dev cuda
+    uv sync --all-groups --extra cpu
     # 使用 GPU 推理
-    poetry install --without dev
+    uv sync --all-groups --extra gpu
     ```
 
     如果只需要启用部分功能，可仅安装对应依赖：
 
     ```bash
-    poetry install --with sing cuda
+    uv sync --group sing --extra cpu
     ```
 
     依赖 `group` 对应的功能如下：
 
+    - `dev`: 开发环境
+    - `lint`: 代码检查
     - `chat`: 聊天
     - `sing`: 唱歌
     - `tts`: 语音合成
-    - `cuda`: 启用 GPU 推理
-    - `dev`: 开发环境
 
 3. 配置环境变量
 

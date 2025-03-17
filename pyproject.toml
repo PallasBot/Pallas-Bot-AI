@@ -12,60 +12,100 @@ dependencies = [
     "loguru (>=0.7.3,<0.8.0)",
     "pydantic-settings (>=2.8.0,<3.0.0)",
     "celery[redis] (>=5.4.0,<6.0.0)",
+    "apscheduler (>=3.11.0,<3.12.0)",
 ]
 
-[tool.poetry]
-package-mode = false
+[project.optional-dependencies]
+cpu = ["torch (==2.0.0)"]
+gpu = ["torch (==2.0.0)"]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.4"
+[dependency-groups]
+dev = ["pytest>=8.3.5"]
+lint = ["ruff>=0.11.0"]
+sing = [
+    "asyncer>=0.0.8",
+    "demucs>=4.0.1",
+    "einops>=0.8.1",
+    "fairseq>=0.12.2",
+    "flask>=3.1.0",
+    "flask-cors>=5.0.1",
+    "freesimplegui>=5.2.0",
+    "gin>=0.1.6",
+    "gin-config>=0.5.0",
+    "gradio>=4.44.1",
+    "librosa>=0.11.0",
+    "local-attention>=1.10.0",
+    "matplotlib>=3.9.4",
+    "numpy==1.26.4",
+    "praat-parselmouth>=0.4.5",
+    "pydub>=0.25.1",
+    "pyncm>=1.7.1",
+    "pyworld>=0.3.5",
+    "pyyaml>=6.0.2",
+    "resampy>=0.4.3",
+    "scikit-learn>=1.6.1",
+    "scipy>=1.13.1",
+    "sounddevice>=0.5.1",
+    "soundfile>=0.13.1",
+    "tensorboard>=2.19.0",
+    "torchcrepe>=0.0.23",
+    "torchfcpe>=0.0.4",
+    "tqdm>=4.66.5",
+    "transformers>=4.49.0",
+    "wave>=0.0.2",
+]
 
-[tool.poetry.group.sing.dependencies]
-gradio = "^4.44.1"
-scipy = "^1.13.1"
-pyncm = "^1.7.1"
-pydub = "^0.25.1"
-demucs = "^4.0.1"
-asyncer = "^0.0.8"
-einops = "^0.8.1"
-fairseq = "^0.12.2"
-librosa = "^0.10.2.post1"
-local-attention = "^1.11.1"
-numpy = "1.26.4"
-praat-parselmouth = "^0.4.5"
-pyworld = "^0.3.5"
-pyyaml = "^6.0.2"
-resampy = "^0.4.3"
-scikit-learn = "^1.6.1"
-soundfile = "^0.13.1"
-tensorboard = "^2.19.0"
-torchcrepe = "^0.0.23"
-torchfcpe = "^0.0.4"
-tqdm = "^4.67.1"
-transformers = "^4.49.0"
-wave = "^0.0.2"
-freesimplegui = "^5.1.1"
-sounddevice = "^0.5.1"
-flask = "^3.1.0"
-flask-cors = "^5.0.1"
-gin = "^0.1.6"
-gin-config = "^0.5.0"
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
+
+[tool.uv.sources]
 torch = [
-    { version = "^2.6.0", markers = "extra != 'cuda'", source = "pytorch-cpu" },
-    { version = "^2.6.0", markers = "extra == 'cuda'", source = "pytorch-cuda" },
+    { index = "torch-cpu", extra = "cpu" },
+    { index = "torch-gpu", extra = "gpu" },
 ]
-apscheduler = "^3.11.0"
 
-[[tool.poetry.source]]
-name = "pytorch-cpu"
+[[tool.uv.index]]
+name = "torch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
-priority = "explicit"
+explicit = true
 
-[[tool.poetry.source]]
-name = "pytorch-cuda"
+[[tool.uv.index]]
+name = "torch-gpu"
 url = "https://download.pytorch.org/whl/cu118"
-priority = "explicit"
+explicit = true
 
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+preview = true
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+    "UP",
+    "N",
+    "PL",
+    "ASYNC",
+    "B",
+    "A",
+    "C4",
+    "FA",
+    "ICN",
+    "LOG",
+    "G",
+    "PIE",
+    "PT",
+    "Q",
+    "RSE",
+    "TC",
+    "PTH",
+    "NPY",
+    "PERF",
+    "FURB",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]

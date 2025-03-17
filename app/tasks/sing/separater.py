@@ -1,14 +1,13 @@
 import os
 import platform
 from pathlib import Path
-from threading import Lock
 
 import librosa
 import soundfile as sf
 
 from app.utils.gpu_locker import GPULockManager
 
-cuda_devices = ''
+cuda_devices = ""
 
 
 def set_separate_cuda_devices(devices: str):
@@ -17,28 +16,30 @@ def set_separate_cuda_devices(devices: str):
 
 
 def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockManager = None):
-    MODEL = 'hdemucs_mmi'
+    MODEL = "hdemucs_mmi"
     STEM = song_path.stem
 
     vocals = output_dir / MODEL / STEM / "vocals.mp3"
     no_vocals_0key = output_dir / MODEL / STEM / "no_vocals.mp3"
 
-    if platform.system() == 'Windows':
-        no_vocals = output_dir / MODEL / STEM / f'no_vocals_{key}key.wav'
+    if platform.system() == "Windows":
+        no_vocals = output_dir / MODEL / STEM / f"no_vocals_{key}key.wav"
     else:
-        no_vocals = output_dir / MODEL / STEM / f'no_vocals_{key}key.mp3'
+        no_vocals = output_dir / MODEL / STEM / f"no_vocals_{key}key.mp3"
 
-    vocals_with_stem = vocals.parent / f'{STEM}.mp3'
+    vocals_with_stem = vocals.parent / f"{STEM}.mp3"
 
     if (not vocals_with_stem.exists() and not vocals_with_stem.exists()) or not no_vocals_0key.exists():
         # 这个库没提供 APIs，暂时简单粗暴用命令行了
-        cmd = ''
+        cmd = ""
         if cuda_devices:
-            if platform.system() == 'Windows':
-                cmd = f'set CUDA_VISIBLE_DEVICES={cuda_devices} && '
+            if platform.system() == "Windows":
+                cmd = f"set CUDA_VISIBLE_DEVICES={cuda_devices} && "
             else:
-                cmd = f'CUDA_VISIBLE_DEVICES={cuda_devices} '
-        cmd += f'python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {MODEL} {str(song_path)} -o {output_dir}'
+                cmd = f"CUDA_VISIBLE_DEVICES={cuda_devices} "
+        cmd += (
+            f"python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {MODEL} {str(song_path)} -o {output_dir}"
+        )
         try:
             with locker.acquire():
                 print(cmd)
@@ -64,6 +65,6 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
             return None
 
     if not vocals_with_stem.exists():
-        os.rename(vocals, vocals_with_stem)
+        vocals.rename(vocals_with_stem)
 
     return vocals_with_stem, no_vocals

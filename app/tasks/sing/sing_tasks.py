@@ -4,7 +4,7 @@ from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 from asyncer import asyncify
 
-from app.core.celery.celery_app import celery_app
+from app.core.celery import celery_app
 from app.core.config import settings
 from app.core.logger import logger
 from app.services.callback import sing_failed, sing_success

@@ -1,4 +1,3 @@
 [submodule "app/tasks/sing/DDSP-SVC"]
-    path = app/tasks/sing/DDSP-SVC
-    url = https://github.com/yxlllc/DDSP-SVC.git
-    branch = master
+	path = app/tasks/sing/DDSP-SVC
+	url = https://github.com/yxlllc/DDSP-SVC.git

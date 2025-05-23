@@ -1,3 +1,4 @@
+import asyncio
 import time
 from pathlib import Path
 
@@ -12,20 +13,24 @@ from app.utils.gpu_locker import GPULockManager
 
 from .mixer import mix, splice
 from .ncm_loader import download
-from .separater import separate, set_separate_cuda_devices
+from .separater import separate
 from .slicer import slice
-from .svc_inference import inference, set_svc_cuda_devices
-
-if settings.sing_cuda_device:
-    set_separate_cuda_devices(settings.sing_cuda_device)
-    set_svc_cuda_devices(settings.sing_cuda_device)
-
+from .svc_inference import inference
 
 gpu_locker = GPULockManager(settings.sing_cuda_device)
 
 
 @celery_app.task(name="sing")
-async def sing_task(speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
+def sing_task(speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_sing_task_async(speaker, song_id, sing_length, chunk_index, key))
+    finally:
+        loop.close()
+
+
+async def _sing_task_async(speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
     # 下载 -> 切片 -> 人声分离 -> 音色转换（SVC） -> 混音
     # 其中 人声分离和音色转换是吃 GPU 的，所以要加锁，不然显存不够用
 
@@ -78,7 +83,7 @@ async def sing_task(speaker: str, song_id: int, sing_length: int, chunk_index: i
     vocals, no_vocals = separated
 
     # 音色转换（SVC）
-    svc = await asyncify(inference)(vocals, Path("resource/sing/svc"), speaker=speaker, locker=gpu_locker, key=key)
+    svc = await asyncify(inference)(vocals, Path("resource/sing/svc"), key=key, speaker=speaker, locker=gpu_locker)
     if not svc:
         logger.error("svc failed", song_id)
         await sing_failed()
@@ -113,7 +118,7 @@ def cleanup_cache():
     current_time = time.time()
     song_atime = {}
 
-    for file_path in Path(SONG_PATH).glob("**\\*.*"):
+    for file_path in Path(SONG_PATH).glob("**/*.*"):
         try:
             last_access_time = file_path.stat().st_atime
         except OSError:
@@ -127,7 +132,7 @@ def cleanup_cache():
     removed_files = 0
 
     for dir_path in cache_dirs:
-        for file_path in dir_path.glob("**\\*.*"):
+        for file_path in dir_path.glob("**/*.*"):
             if file_path in recent_songs:
                 continue
             try:

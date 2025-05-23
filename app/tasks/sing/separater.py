@@ -5,40 +5,34 @@ from pathlib import Path
 import librosa
 import soundfile as sf
 
+from app.core.config import settings
 from app.utils.gpu_locker import GPULockManager
-
-cuda_devices = ""
-
-
-def set_separate_cuda_devices(devices: str):
-    global cuda_devices
-    cuda_devices = devices
 
 
 def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockManager = None):
-    MODEL = "hdemucs_mmi"
-    STEM = song_path.stem
+    model = "hdemucs_mmi"
+    stem = song_path.stem
 
-    vocals = output_dir / MODEL / STEM / "vocals.mp3"
-    no_vocals_0key = output_dir / MODEL / STEM / "no_vocals.mp3"
+    vocals = output_dir / model / stem / "vocals.mp3"
+    no_vocals_0key = output_dir / model / stem / "no_vocals.mp3"
 
     if platform.system() == "Windows":
-        no_vocals = output_dir / MODEL / STEM / f"no_vocals_{key}key.wav"
+        no_vocals = output_dir / model / stem / f"no_vocals_{key}key.wav"
     else:
-        no_vocals = output_dir / MODEL / STEM / f"no_vocals_{key}key.mp3"
+        no_vocals = output_dir / model / stem / f"no_vocals_{key}key.mp3"
 
-    vocals_with_stem = vocals.parent / f"{STEM}.mp3"
+    vocals_with_stem = vocals.parent / f"{stem}.mp3"
 
     if (not vocals_with_stem.exists() and not vocals_with_stem.exists()) or not no_vocals_0key.exists():
         # 这个库没提供 APIs，暂时简单粗暴用命令行了
         cmd = ""
-        if cuda_devices:
+        if settings.sing_cuda_device:
             if platform.system() == "Windows":
-                cmd = f"set CUDA_VISIBLE_DEVICES={cuda_devices} && "
+                cmd = f"set CUDA_VISIBLE_DEVICES={settings.sing_cuda_device} && "
             else:
-                cmd = f"CUDA_VISIBLE_DEVICES={cuda_devices} "
+                cmd = f"CUDA_VISIBLE_DEVICES={settings.sing_cuda_device} "
         cmd += (
-            f"python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {MODEL} {str(song_path)} -o {output_dir}"
+            f"python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
         )
         try:
             with locker.acquire():

@@ -1,6 +1,9 @@
-from app.api.endpoints import router
+from fastapi import APIRouter
+
 from app.schemas.sing import SingRequest, SingResponse
 from app.services.sing import play, sing
+
+router = APIRouter()
 
 
 @router.post("/sing", response_model=SingResponse)

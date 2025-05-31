@@ -1,2 +1,6 @@
-*
-!.gitignore
+hdemucs_mmi/
+mix/
+ncm/
+slices/
+splices/
+svc/

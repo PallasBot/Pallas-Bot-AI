@@ -27,3 +27,27 @@ async def sing_success(speaker: str, song_id: int, key: int, chunk_index: int, p
             {"status": "success", "speaker": speaker, "song_id": song_id, "key": key, "chunk_index": chunk_index},
             files={"file": file},
         )
+
+
+async def chat_failed():
+    callback_url = f"http://{settings.callback_host}:{settings.callback_port}/{settings.chat_callback_endpoint}"
+    await send_callback(callback_url, {"status": "failed"})
+
+
+async def chat_text_success(text: str):
+    callback_url = f"http://{settings.callback_host}:{settings.callback_port}/{settings.chat_callback_endpoint}"
+    await send_callback(
+        callback_url,
+        {"status": "success", "text": text},
+    )
+
+
+async def chat_tts_success(text: str, path: str):
+    callback_url = f"http://{settings.callback_host}:{settings.callback_port}/{settings.chat_callback_endpoint}"
+    async with await anyio.open_file(path, "rb") as f:
+        file = await f.read()
+        await send_callback(
+            callback_url,
+            {"status": "success", "text": text},
+            files={"file": file},
+        )

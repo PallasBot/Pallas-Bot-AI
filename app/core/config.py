@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ncm_password: str = ""
     ncm_ctcode: int = 86
 
+    chat_callback_endpoint: str = "/callback/chat"
+    chat_strategy: str = "cpu fp32"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

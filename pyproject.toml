@@ -16,10 +16,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cpu = ["torch (==2.0.0)"]
-gpu = ["torch (==2.0.0)"]
+cpu = ["torch (==2.4.1)"]
+gpu = ["torch (==2.4.1)"]
 
 [dependency-groups]
+chat = ["rwkv>=0.8.29"]
 dev = ["pytest>=8.3.5"]
 lint = ["ruff>=0.11.0"]
 sing = [
@@ -87,7 +88,9 @@ select = [
     "I",
     "UP",
     "N",
-    "PL",
+    "PLC",
+    "PLE",
+    "PLW",
     "ASYNC",
     "B",
     "A",

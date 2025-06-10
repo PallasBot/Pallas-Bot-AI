@@ -1,7 +1,5 @@
 import asyncio
 
-from asyncer import asyncify
-
 from app.core.celery import celery_app
 from app.core.config import settings
 from app.services.callback import chat_failed, chat_text_success, chat_tts_success
@@ -10,7 +8,7 @@ from app.utils.gpu_locker import GPULockManager
 from .model import Chat
 
 chat = Chat(settings.chat_strategy)
-gpu_locker = GPULockManager(settings.sing_cuda_device)
+gpu_locker = GPULockManager(0)
 
 
 @celery_app.task(name="chat")
@@ -24,10 +22,12 @@ def chat_task(session: str, text: str, token_count: int, tts: bool):
 
 
 async def _chat_task_async(session: str, text: str, token_count: int, tts: bool):
-    ans = await asyncify(chat.chat)(session, text)
+    with gpu_locker.acquire():
+        ans = chat.chat(session, text)
     if tts:
         await chat_tts_success(ans, ans.path)
     elif ans:
+        print(f"Chat response: {ans}")
         await chat_text_success(ans)
     else:
         await chat_failed()

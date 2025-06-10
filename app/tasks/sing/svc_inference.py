@@ -42,7 +42,9 @@ def inference(song_path: Path, output_dir: Path, key: int = 0, speaker: str = "p
             else:
                 cmd = f"CUDA_VISIBLE_DEVICES={settings.sing_cuda_device} "
 
-        cmd += f"python {DDSP}  -i {song_path.absolute()} -m {dm_current_path.absolute()} -o {result.absolute()} -k {key} -step 50 -ts 0.4 -method euler"
+        cmd += (
+            f"python {DDSP} -i {song_path.absolute()} -m {dm_current_path.absolute()} -o {result.absolute()} -k {key}"
+        )
 
         try:
             with locker.acquire():

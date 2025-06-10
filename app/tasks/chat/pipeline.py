@@ -5,8 +5,9 @@
 
 import numpy as np
 import torch
-from tokenizers import Tokenizer
 from torch.nn import functional
+
+from .rwkv_tokenizer import TRIE_TOKENIZER
 
 
 class PipelineArgs:
@@ -40,7 +41,7 @@ class PipelineArgs:
 class Pipeline:
     def __init__(self, model, word_name):
         self.model = model
-        self.tokenizer = Tokenizer.from_file(word_name)
+        self.tokenizer = TRIE_TOKENIZER(word_name)
 
     def refine_context(self, context):
         context = context.strip().split("\n")
@@ -97,11 +98,12 @@ class Pipeline:
             out = torch.multinomial(probs, num_samples=1)[0]
             return int(out)
 
-    def generate(self, ctx, token_count=100, args=PipelineArgs(), callback=None, state=None):
+    def generate(self, ctx, token_count=100, args=PipelineArgs(), callback=None, state=None, occurrence=None):
         all_tokens = []
         out_last = 0
         out_str = ""
-        occurrence = {}
+        if occurrence is None:
+            occurrence = {}
         for i in range(token_count):
             # forward & adjust prob.
             tokens = self.encode(ctx) if i == 0 else [token]
@@ -145,4 +147,4 @@ class Pipeline:
                 break
             if i > token_count / 2 and out_str.endswith(args.ends_if_too_long):
                 break
-        return out_str
+        return out_str, state, occurrence

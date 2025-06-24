@@ -3,15 +3,15 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.logger import logger
-from app.services.callback import sing_failed, sing_success
+from app.services.callback import callback_audio, callback_failed
 from app.tasks.sing import sing_task
 
 SONG_PATH = "resource/sing/splices/"
 MUSIC_PATH = "resource/music/"
 
 
-async def sing(speaker: str, song_id: int, key: int, chunk_index: int):
-    task = sing_task.delay(speaker, song_id, settings.sing_length, chunk_index, key)
+async def sing(request_id: str, speaker: str, song_id: int, key: int, chunk_index: int):
+    task = sing_task.delay(request_id, speaker, song_id, settings.sing_length, chunk_index, key)
     logger.info(f"Task {task.id} started")
     return task.id
 
@@ -36,7 +36,7 @@ def get_random_song(speaker: str = ""):
 async def play(speaker: str = ""):
     rand_music = get_random_song(speaker)
     if not rand_music:
-        await sing_failed()
+        await callback_failed()
         return
 
     if "_spliced" in rand_music:
@@ -50,4 +50,4 @@ async def play(speaker: str = ""):
         song_id = ""
         chunk_index = 114514
 
-    await sing_success(speaker, song_id, 0, chunk_index, rand_music)
+    await callback_audio(speaker, song_id, 0, chunk_index, rand_music)

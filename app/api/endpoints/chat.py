@@ -7,9 +7,9 @@ from app.tasks.chat.chat_tasks import del_session
 router = APIRouter()
 
 
-@router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    task_id = await chat(request.session, request.text, request.token_count, request.tts)
+@router.post("/chat/{request_id}", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest, request_id: str):
+    task_id = await chat(request_id, request.session, request.text, request.token_count, request.tts)
     return ChatResponse(task_id=task_id, status="processing")
 
 

@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     chat_callback_endpoint: str = "/callback/chat"
     chat_strategy: str = "cpu fp32"
 
+    tts_callback_endpoint: str = "/callback/tts"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

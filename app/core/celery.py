@@ -15,4 +15,5 @@ celery_app.conf.update(
     task_track_started=True,
     worker_pool="threads",
     worker_concurrency=4,
+    broker_connection_retry_on_startup=True,
 )

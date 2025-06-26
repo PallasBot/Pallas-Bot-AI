@@ -1,8 +1,7 @@
 from fastapi import APIRouter
 
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.chat import chat
-from app.tasks.chat.chat_tasks import del_session
+from app.services.chat import chat, del_session
 
 router = APIRouter()
 

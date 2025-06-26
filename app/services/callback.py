@@ -7,9 +7,9 @@ CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callba
 
 
 @async_retry(max_attempts=settings.callback_max_retries, delay=3)
-async def send_callback(url: str, json_payload: dict, files: dict = None):
+async def send_callback(url: str, data: dict, files: dict = None):
     async with httpx.AsyncClient() as client:
-        resp = await client.post(url, json=json_payload, files=files, timeout=settings.callback_timeout)
+        resp = await client.post(url, data=data, files=files, timeout=settings.callback_timeout)
         resp.raise_for_status()
         return resp.json()
 

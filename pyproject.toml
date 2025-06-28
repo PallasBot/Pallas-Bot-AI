@@ -21,16 +21,12 @@ gpu = ["torch (==2.5.1)"]
 
 [dependency-groups]
 chat = ["rwkv>=0.8.29"]
-dev = ["pytest>=8.3.5"]
-lint = ["ruff>=0.11.0"]
+dev = ["ruff>=0.11.0"]
 sing = [
     "asyncer>=0.0.8",
     "demucs>=4.0.1",
     "einops>=0.8.1",
     "fairseq>=0.12.2",
-    "flask>=3.1.0",
-    "flask-cors>=5.0.1",
-    "freesimplegui>=5.2.0",
     "gin>=0.1.6",
     "gin-config>=0.5.0",
     "gradio>=4.44.1",
@@ -53,14 +49,12 @@ sing = [
     "torchfcpe>=0.0.4",
     "tqdm>=4.66.5",
     "transformers>=4.49.0",
-    "wave>=0.0.2",
 ]
 tts = [
     "numpy==1.26.4",
     "scipy>=1.13.1",
     "tensorboard>=2.19.0",
     "librosa==0.10.2",
-    "torch==2.5.1",
     "torchaudio==2.5.1",
     "pytorch-lightning>=2.5.2",
     "onnxruntime-gpu>=1.22.0",

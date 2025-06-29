@@ -36,7 +36,6 @@ services:
     volumes:
       - ./pallas-bot-ai/resource:/server/resource
       - ./pallas-bot-ai/logs:/server/logs
-      - ./pallas-bot-ai/model_cache:/home/appuser/.cache
     depends_on:
       redis:
         condition: service_healthy

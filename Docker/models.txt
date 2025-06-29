@@ -1,0 +1,8 @@
+https://hf-mirror.com/pallasbot/Pallas-Bot/resolve/main/chat/models/models.zip
+  out=resource/chat/models/models.zip
+https://hf-mirror.com/pallasbot/Pallas-Bot/resolve/main/sing/models/pallas/pallas.zip
+  out=resource/sing/models/pallas/pallas.zip
+https://hf-mirror.com/pallasbot/Pallas-Bot/resolve/main/sing/models/pretrain/pretrain.zip
+  out=resource/sing/models/pretrain/pretrain.zip
+https://hf-mirror.com/pallasbot/Pallas-Bot/resolve/main/tts/tts.zip
+  out=resource/tts/tts.zip

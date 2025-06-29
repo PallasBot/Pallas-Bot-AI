@@ -95,6 +95,12 @@ explicit = true
 line-length = 120
 target-version = "py310"
 preview = true
+exclude = [
+    "app/tasks/sing/DDSP-SVC",
+    "app/tasks/tts/GPT_SoVITS",
+    "app/tasks/chat/rwkv_tokenizer.py",
+    "app/tasks/chat/pipeline.py",
+]
 
 [tool.ruff.lint]
 select = [

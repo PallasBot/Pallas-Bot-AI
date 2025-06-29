@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: pallas-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    networks:
+      - pallasbot
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  pallasbot-ai:
+    image: pallasbot/pallas-bot-ai:latest
+    container_name: pallas-bot-ai
+    ports:
+      - "9099:9099"
+    env_file:
+      - ".env"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CALLBACK_HOST=pallasbot
+      - CALLBACK_PORT=8088
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    networks:
+      - pallasbot
+    volumes:
+      - ./pallas-bot-ai/resource:/server/resource
+      - ./pallas-bot-ai/logs:/server/logs
+      - ./pallas-bot-ai/model_cache:/home/appuser/.cache
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9099/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+  
+  pallasbot:
+    container_name: pallasbot
+    image: pallasbot/pallas-bot
+    restart: always
+    ports:
+      - 8088:8088
+    env_file:
+      - ".env.prod"
+    environment:
+      TZ: Asia/Shanghai
+      ENVIRONMENT: prod
+      APP_MODULE: bot:app
+      MAX_WORKERS: 1
+      WAIT_HOSTS: mongodb:27017
+      TIMEOUT: 480
+    networks:
+      - pallasbot
+    volumes:
+      - ./pallas-bot/resource/:/app/resource
+      - ./pallas-bot/.env.prod:/app/.env.prod
+    depends_on:
+      - mongodb
+
+  mongodb:
+    container_name: mongodb
+    image: mongo:8.0.10-noble
+    restart: always
+    ports:
+      - 27017:27017
+    environment:
+      TZ: Asia/Shanghai
+      wiredTigerCacheSizeGB: 1.5
+    networks:
+      - pallasbot
+    volumes:
+      - ./mongo/data:/data/db
+      - ./mongo/logs:/var/log/mongodb
+
+  napcat:
+    container_name: napcat
+    image: mlikiowa/napcat-docker:latest
+    restart: always
+    environment:
+      - NAPCAT_UID=${NAPCAT_UID:-1000}
+      - NAPCAT_GID=${NAPCAT_GID:-1000}
+    network_mode: bridge
+    ports:
+        - 6099:6099
+    volumes:
+      - ./NapCat/QQ:/app/.config/QQ
+      - ./NapCat/config:/app/napcat/config
+
+networks:
+  pallasbot:
+
+volumes:
+  redis_data:
+  model_cache:

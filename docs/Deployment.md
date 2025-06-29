@@ -2,6 +2,59 @@
 
 ## 方式一（推荐）：使用 Docker 部署
 
+本项目的 `docker-compose.yml` 提供了全栈服务一键部署。
+
+### 前置条件
+
+- **Docker 和 Docker Compose**
+  
+  请确保已[安装 Docker 和 Docker Compose](https://github.com/PallasBot/Pallas-Bot/blob/master/docs/DockerDeployment.md#%E5%AE%89%E8%A3%85-docker-%E4%B8%8E-docker-compose)。
+
+- **NVIDIA Docker 支持（GPU 版本）**
+  
+  请确保已在宿主机上 [安装 CUDA 12.4](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html) ，[安装 container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)（Windows 用户请使用 WSL2 环境安装 `container toolkit`）。
+
+  可以使用 `nvidia-smi` 命令检查 GPU 是否可用、CUDA 是否已安装：
+
+  ```bash
+   nvidia-smi
+   ```
+
+### 快速部署
+
+1. **复制 `docker-compose.yml` 文件**
+
+   无需克隆本项目，只需将本项目根目录下的 `docker-compose.yml` 文件复制到你的工作目录。
+
+2. **配置环境变量**
+
+   在当前工作目录下创建 `pallas-bot-ai` 目录并将项目根目录下的 `.env` 文件复制到其中。
+   同样地，在当前工作目录下创建 `pallas-bot` 目录，复制一份 `Pallas-Bot` 项目的 `.env.prod` 文件到其中。
+   根据你的需要修改两份文件中的配置。
+
+3. **一键启动！**
+
+   ```bash
+   docker compose up -d
+   ```
+
+   注意，首次启动时会自动下载 Docker 镜像、模型文件和语音文件，可能需要一些时间。
+
+4. **查看服务状态**
+
+   ```bash
+   docker compose ps
+   docker compose logs -f
+   ```
+
+### 服务管理
+
+- **停止服务**: `docker compose down`
+- **拉取最新镜像**: `docker compose pull`
+- **重启服务**: `docker compose restart`
+- **查看日志**: `docker compose logs -f [service_name]`
+- **进入容器**: `docker compose exec [service_name] bash`
+
 ## 方式二：手动部署
 
 ### 前置条件

@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ master, dev ]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -101,6 +106,9 @@ jobs:
 
   security-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -118,3 +126,21 @@ jobs:
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
+        wait-for-processing: true
+
+    - name: Security Scan Summary
+      if: always()
+      run: |
+        echo "## 🔒 安全扫描完成" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Trivy 漏洞扫描执行完成" >> $GITHUB_STEP_SUMMARY
+        if [ -f trivy-results.sarif ]; then
+          echo "- 📊 扫描结果已生成" >> $GITHUB_STEP_SUMMARY
+          # 统计发现的问题数量（如果有的话）
+          if command -v jq &> /dev/null; then
+            ISSUES=$(cat trivy-results.sarif | jq '.runs[0].results | length' 2>/dev/null || echo "未知")
+            echo "- 🔍 发现问题数量: $ISSUES" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "- ⚠️ 扫描结果文件未找到" >> $GITHUB_STEP_SUMMARY
+        fi

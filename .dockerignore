@@ -1,6 +1,7 @@
 # Git
 .git
 .gitignore
+!.gitmodules
 
 # Python
 __pycache__
@@ -22,18 +23,21 @@ coverage.xml
 .cache
 .pytest_cache/
 
-# Documentation
-README.md
-docs/
-
-# Development
+# Development and IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.env.local
+.env.dev
 
-# OS
+# Documentation and non-essential files
+README.md
+docs/
+LICENSE
+
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -46,17 +50,31 @@ Thumbs.db
 *.tmp
 *.temp
 
-# Logs
+# Logs (will be created at runtime)
 logs/
 *.log
 
-# Resource files (will be downloaded)
-resource/
+# Resource files (will be downloaded or mounted)
+resource/chat/models/
+resource/sing/models/
+resource/tts/
 
 # Test files
 tests/
 
-# Docker
-Dockerfile
-.dockerignore
+# Docker and CI/CD
+Dockerfile.optimized
 docker-compose.yml
+.github/
+
+# Large files that aren't needed
+*.mp3
+*.wav
+*.mp4
+*.avi
+*.mkv
+*.model
+*.pt
+*.pth
+*.bin
+*.safetensors

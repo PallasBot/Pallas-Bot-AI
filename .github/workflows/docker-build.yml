@@ -13,6 +13,29 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Free up disk space
+      run: |
+        echo "Available disk space before cleanup:"
+        df -h
+        
+        # 删除不必要的软件和文件
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/lib/jvm
+        sudo rm -rf /usr/share/swift
+        
+        # 清理APT缓存
+        sudo apt-get clean
+        
+        # 清理Docker系统
+        docker system prune -af
+        
+        echo "Available disk space after cleanup:"
+        df -h
+
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
@@ -55,6 +78,12 @@ jobs:
         cache-to: type=gha,mode=max
         build-args: |
           BUILDKIT_INLINE_CACHE=1
+        
+    - name: Clean up build cache
+      if: always()
+      run: |
+        docker builder prune -af
+        docker system prune -af
 
     - name: Image digest
       run: echo ${{ steps.build.outputs.digest }}

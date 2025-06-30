@@ -1,6 +1,6 @@
 # 部署指南
 
-## 方式一（推荐）：使用 Docker 部署
+## 方式一：使用 Docker 部署
 
 本项目的 `docker-compose.yml` 提供了全栈服务一键部署。
 
@@ -12,13 +12,7 @@
 
 - **NVIDIA Docker 支持（GPU 版本）**
   
-  请确保已在宿主机上 [安装 CUDA 12.4](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html) ，[安装 container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)（Windows 用户请使用 WSL2 环境安装 `container toolkit`）。
-
-  可以使用 `nvidia-smi` 命令检查 GPU 是否可用、CUDA 是否已安装：
-
-  ```bash
-   nvidia-smi
-   ```
+  请确保已在宿主机上[安装 container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)（Windows 用户请使用 WSL2 环境安装 `container toolkit`）。
 
 ### 快速部署
 
@@ -26,10 +20,10 @@
 
    无需克隆本项目，只需将本项目根目录下的 `docker-compose.yml` 文件复制到你的工作目录。
 
-2. **配置环境变量**
+2. （可选）**配置环境变量**
 
    在当前工作目录下创建 `pallas-bot-ai` 目录并将项目根目录下的 `.env` 文件复制到其中。
-   同样地，在当前工作目录下创建 `pallas-bot` 目录，复制一份 `Pallas-Bot` 项目的 `.env.prod` 文件到其中。
+   同样地，在当前工作目录下创建 `pallas-bot` 目录，复制一份 `Pallas-Bot` 项目的 `.env` 文件到其中。
    根据你的需要修改两份文件中的配置。
 
 3. **一键启动！**
@@ -38,7 +32,7 @@
    docker compose up -d
    ```
 
-   注意，首次启动时会自动下载 Docker 镜像、模型文件和语音文件，可能需要一些时间。
+   注意，首次启动时会自动下载 Docker 镜像、模型文件和语音文件，可能需要一些时间（15-20分钟）。
 
 4. **查看服务状态**
 
@@ -46,6 +40,8 @@
    docker compose ps
    docker compose logs -f
    ```
+
+   首次启动时，可以通过 `docker compose logs -f pallasbot-ai` 查看 AI 服务端的日志，确认当前下载进度。
 
 ### 服务管理
 
@@ -72,6 +68,8 @@
 ```bash
 docker run -d --name redis -p 6379:6379 redis
 ```
+
+当然其他方式部署 Redis 也是可以的。
 
 ### 步骤
 
@@ -118,7 +116,33 @@ docker run -d --name redis -p 6379:6379 redis
 
 4. 下载模型
 
-    从 [huggingface](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 为你启用的 AI 功能下载模型，放到 `resource` 的对应目录下。
+    从 [huggingface](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 为你启用的 AI 功能下载模型，解压并放到 `resource` 的对应目录下。
+    目录结构如下：
+
+    ```
+    resource
+    ├─chat
+    │  └─models
+    ├─sing
+    │  └─models
+    │     ├─pallas
+    │     └─pretrain
+    │         ├─contentvec
+    │         ├─nsf_hifigan
+    │         ├─pc_nsf_hifigan_44.1k_hop512_128bin_2025.02
+    │         └─rmvpe
+    └─tts
+        ├─configs
+        ├─G2PWModel
+        ├─ja_userdic
+        ├─pallas
+        ├─pretrained_models
+        │  ├─chinese-hubert-base
+        │  ├─chinese-roberta-wwm-ext-large
+        │  ├─fast_langdetect
+        │  └─gsv-v4-pretrained
+        └─ref_audio
+    ```
 
 5. 配置环境变量
 
@@ -135,3 +159,5 @@ docker run -d --name redis -p 6379:6379 redis
     ```bash
     uv run uvicorn app.main:app --reload --port 9099
     ```
+
+同样地，Windows 用户请勿关闭终端，Linux 用户推荐使用 [termux](https://termux.dev/) 或 [GNU Screen](https://zhuanlan.zhihu.com/p/405968623) 来保持服务在后台运行。

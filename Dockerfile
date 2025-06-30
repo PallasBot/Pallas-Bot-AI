@@ -18,7 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -s /usr/bin/python3.10 /usr/bin/python \
     && pip3 install --no-cache-dir uv \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/tmp/* \
+    && rm -rf /root/.cache
 
 WORKDIR /build
 
@@ -29,7 +32,9 @@ COPY pyproject.toml uv.lock ./
 RUN uv venv --python 3.10 \
     && uv sync --all-groups --extra gpu \
     && find /build/.venv -name "*.pyc" -delete \
-    && find /build/.venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    && find /build/.venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
+    && rm -rf /tmp/uv-cache \
+    && rm -rf /root/.cache
 
 # 运行时阶段
 FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime

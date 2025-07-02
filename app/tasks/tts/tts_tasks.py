@@ -39,7 +39,7 @@ def tts_task(request_id: str, text: str, media_type: str = "wav"):
 
 async def _tts_task_async(request_id: str, text: str, media_type: str = "wav"):
     with gpu_locker.acquire():
-        audio_data = tts_handle(text, media_type)
+        audio_data = tts_handle({"text": text, "media_type": media_type})
     if audio_data:
         await callback_audio(request_id, audio_data)
     else:

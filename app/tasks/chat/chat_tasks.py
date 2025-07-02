@@ -48,4 +48,4 @@ async def _chat_task_async(request_id: str, session: str, text: str, token_count
         if audio:
             await callback_audio(request_id, audio)
             return
-    await callback_text(session, ans)
+    await callback_text(request_id, ans)

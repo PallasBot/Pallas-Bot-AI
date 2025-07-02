@@ -82,7 +82,7 @@ echo "✅ 模型文件处理完成"
 
 # 启动 Celery Worker (后台运行)
 echo "启动 Celery Worker..."
-nohup uv run celery -A app.core.celery worker --loglevel=info --concurrency=1 > logs/celery.log 2>&1 &
+nohup /server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=info --concurrency=1 > logs/celery.log 2>&1 &
 CELERY_PID=$!
 
 # 等待 Celery 启动并检查状态
@@ -103,4 +103,4 @@ echo "================="
 # 捕获信号以优雅关闭
 trap 'echo "正在关闭服务..."; kill $CELERY_PID 2>/dev/null || true; exit 0' SIGTERM SIGINT
 
-uv run uvicorn app.main:app --host 0.0.0.0 --port 9099 --log-level info
+/server/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 9099 --log-level info

@@ -2,9 +2,9 @@ name: CI - Code Quality and Test Build
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [ master, main, dev ]
   pull_request:
-    branches: [ master, dev ]
+    branches: [ master, main, dev ]
 
 permissions:
   contents: read
@@ -71,6 +71,7 @@ jobs:
 
   test-build:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref_name == 'dev'
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -103,6 +104,7 @@ jobs:
         echo "- ✅ docker-compose 配置验证通过" >> $GITHUB_STEP_SUMMARY
         echo "- 🏗 平台: linux/amd64" >> $GITHUB_STEP_SUMMARY
         echo "- 📝 提交: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- ℹ️ 注意: 实际镜像推送由 docker-build.yml 处理" >> $GITHUB_STEP_SUMMARY
 
   security-scan:
     runs-on: ubuntu-latest

@@ -1,7 +1,6 @@
 import random
 from pathlib import Path
 
-from app.core.config import settings
 from app.core.logger import logger
 from app.services.callback import callback_audio, callback_failed
 from app.tasks.sing import sing_task

@@ -10,8 +10,8 @@ SONG_PATH = "resource/sing/splices/"
 MUSIC_PATH = "resource/music/"
 
 
-async def sing(request_id: str, speaker: str, song_id: int, key: int, chunk_index: int):
-    task = sing_task.delay(request_id, speaker, song_id, settings.sing_length, chunk_index, key)
+async def sing(request_id: str, speaker: str, song_id: int, sing_length: int, key: int, chunk_index: int):
+    task = sing_task.delay(request_id, speaker, song_id, sing_length, chunk_index, key)
     logger.info(f"Task {task.id} started")
     return task.id
 

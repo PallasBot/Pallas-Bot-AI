@@ -12,7 +12,7 @@ async def sing_endpoint(request_id: str, request: SingRequest):
     return SingResponse(task_id=task_id, status="processing")
 
 
-@router.get("/play/{request_id}", response_model=SingResponse)
-async def play_endpoint(request_id: str, speaker: str = ""):
-    await play(request_id, speaker)
-    return SingResponse(task_id="", status="processing")
+@router.get("/play/{speaker}", response_model=SingResponse)
+async def play_endpoint(speaker: str):
+    task_id = await play(speaker)
+    return SingResponse(task_id=task_id, status="processing")

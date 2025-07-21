@@ -31,3 +31,17 @@ async def callback_audio(request_id: str, audio: bytes):
         {"status": "success"},
         files={"file": audio},
     )
+
+
+async def callback_audio_with_info(request_id: str, audio: bytes, song_id: str, chunk_index: int, key: int):
+    callback_url = f"{CALLBACK_URL}/{request_id}"
+    await send_callback(
+        callback_url,
+        {
+            "status": "success",
+            "song_id": song_id,
+            "chunk_index": chunk_index,
+            "key": key,
+        },
+        files={"file": audio},
+    )

@@ -12,7 +12,6 @@ MUSIC_PATH = "resource/music/"
 
 
 def get_random_song(speaker: str = ""):
-
     all_song = []
     song_dir = Path(SONG_PATH)
     if song_dir.exists():
@@ -21,10 +20,7 @@ def get_random_song(speaker: str = ""):
     if not all_song:
         music_dir = Path(MUSIC_PATH)
         if music_dir.exists():
-            all_song = [
-                str(s)
-                for s in music_dir.iterdir()
-            ]
+            all_song = [str(s) for s in music_dir.iterdir()]
 
     if not all_song:
         return None

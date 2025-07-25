@@ -43,5 +43,8 @@ async def verify_sms(request: CellphoneSMSLoginRequest):
 
 @router.post("/login/logout", response_model=LogoutResponse)
 async def logout():
-    ncm_login_manager.session = None
-    return LogoutResponse(success=True, message="已登出")
+    result = ncm_login_manager.logout()
+    if result.get("code") == 200:
+        return LogoutResponse(success=True, message="已登出")
+    else:
+        return LogoutResponse(success=False, message=result.get("message", "登出失败"))

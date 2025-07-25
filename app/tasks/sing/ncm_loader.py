@@ -5,13 +5,6 @@ from pyncm import apis as ncm
 from app.core.config import settings
 from app.utils.download_tool import DownloadTools
 
-if settings.ncm_phone and settings.ncm_password:
-    ncm.login.LoginViaCellphone(phone=settings.ncm_phone, password=settings.ncm_password, ctcode=settings.ncm_ctcode)
-elif settings.ncm_email and settings.ncm_password:
-    ncm.login.LoginViaEmail(email=settings.ncm_email, password=settings.ncm_password)
-else:
-    ncm.login.LoginViaAnonymousAccount()
-
 
 def download(song_id):
     folder = Path("resource/sing/ncm")

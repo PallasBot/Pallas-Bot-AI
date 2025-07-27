@@ -90,7 +90,10 @@ class NCMLoginManager:
     def set_session(self, session_str: str):
         """设置session"""
         try:
-            session = LoadSessionFromString(session_str)
+            if hasattr(session_str, '__class__') and 'Session' in session_str.__class__.__name__:
+                session = session_str
+            else:
+                session = LoadSessionFromString(session_str)
             self.session = session
             SetCurrentSession(session)
             self.save_current_session()

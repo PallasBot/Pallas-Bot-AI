@@ -90,7 +90,7 @@ class NCMLoginManager:
     def set_session(self, session_str: str):
         """设置session"""
         try:
-            if hasattr(session_str, '__class__') and 'Session' in session_str.__class__.__name__:
+            if hasattr(session_str, "__class__") and "Session" in session_str.__class__.__name__:
                 session = session_str
             else:
                 session = LoadSessionFromString(session_str)

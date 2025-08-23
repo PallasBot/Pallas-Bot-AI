@@ -2,7 +2,7 @@ import asyncio
 
 from app.core.celery import celery_app
 from app.core.config import settings
-from app.services.callback import callback_audio, callback_failed, callback_text
+from app.services.callback import callback
 from app.tasks.tts.tts_tasks import tts_req
 from app.utils.gpu_locker import GPULockManager
 
@@ -41,11 +41,11 @@ async def _chat_task_async(request_id: str, session: str, text: str, token_count
         chat = ChatManager.get_chat()
         ans = chat.chat(session, text, token_count)
     if not ans:
-        await callback_failed(request_id)
+        await callback(request_id, status="failed")
         return
     if tts:
         audio = tts_req(ans)
         if audio:
-            await callback_audio(request_id, audio)
+            await callback(request_id, text=ans, audio=audio)
             return
-    await callback_text(request_id, ans)
+    await callback(request_id, text=ans)

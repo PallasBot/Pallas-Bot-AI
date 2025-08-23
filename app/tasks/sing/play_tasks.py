@@ -5,7 +5,7 @@ from pathlib import Path
 import anyio
 
 from app.core.celery import celery_app
-from app.services.callback import callback_audio_with_info, callback_failed
+from app.services.callback import callback
 
 SONG_PATH = "resource/sing/splices/"
 MUSIC_PATH = "resource/music/"
@@ -41,7 +41,7 @@ async def _play_task_async(request_id: str, speaker: str = ""):
     try:
         rand_music = get_random_song(speaker)
         if not rand_music:
-            await callback_failed(request_id)
+            await callback(request_id, status="failed")
             return False
 
         if "_spliced" in rand_music:
@@ -72,11 +72,11 @@ async def _play_task_async(request_id: str, speaker: str = ""):
             async with await anyio.open_file(rand_music, "rb") as f:
                 audio_content = await f.read()
         except Exception:
-            await callback_failed(request_id)
+            await callback(request_id, status="failed")
             return False
 
-        await callback_audio_with_info(request_id, audio_content, song_id=song_id, chunk_index=chunk_index, key=key)
+        await callback(request_id, audio=audio_content, song_id=song_id, chunk_index=chunk_index, key=key)
         return True
     except Exception:
-        await callback_failed(request_id)
+        await callback(request_id, status="failed")
         return False

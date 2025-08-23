@@ -110,6 +110,33 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     return True
 
 
+@celery_app.task(name="request")
+def request_task(request_id: str, song_id: int):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_request_task_async(request_id, song_id))
+    finally:
+        loop.close()
+
+
+async def _request_task_async(request_id: str, song_id: int):
+    # 从网易云下载
+    origin = await asyncify(download)(song_id)
+    if not origin:
+        logger.error("download failed", song_id)
+        await callback(request_id, status="failed")
+        return False
+
+    # 直接回调回去
+
+    async with await anyio.open_file(origin, "rb") as f:
+        file = await f.read()
+        await callback(request_id, audio=file)
+
+    return True
+
+
 SONG_PATH = "resource/sing/splices/"
 MUSIC_PATH = "resource/music/"
 

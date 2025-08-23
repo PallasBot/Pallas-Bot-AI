@@ -9,6 +9,10 @@ class SingRequest(BaseModel):
     key: int
 
 
+class RequestMusicRequest(BaseModel):
+    song_id: int
+
+
 class SingResponse(BaseModel):
     task_id: str
     status: str

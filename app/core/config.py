@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     ncm_password: str = ""
     ncm_ctcode: int = 86
 
+    translator_enable: bool = False
+    baidu_app_id: str = ""
+    baidu_secret_key: str = ""
+    youdao_app_key: str = ""
+    youdao_app_secret: str = ""
+    default_translator: str = "baidu"
+
     chat_strategy: str = "cpu fp32"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

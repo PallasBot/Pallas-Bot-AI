@@ -14,34 +14,33 @@ async def send_callback(url: str, data: dict, files: dict = None):
         return resp.json()
 
 
-async def callback_failed(request_id: str):
+async def callback(
+    request_id: str,
+    status: str = "success",
+    text: str = None,
+    audio: bytes = None,
+    song_id: str = None,
+    chunk_index: int = None,
+    key: int = None,
+):
     callback_url = f"{CALLBACK_URL}/{request_id}"
-    await send_callback(callback_url, {"status": "failed"})
 
+    data = {"status": status}
 
-async def callback_text(request_id: str, text: str):
-    callback_url = f"{CALLBACK_URL}/{request_id}"
-    await send_callback(callback_url, {"status": "success", "text": text})
+    if status == "failed":
+        await send_callback(callback_url, data)
+        return
 
+    if text:
+        data["text"] = text
+    if song_id:
+        data["song_id"] = song_id
+    if chunk_index is not None:
+        data["chunk_index"] = chunk_index
+    if key is not None:
+        data["key"] = key
 
-async def callback_audio(request_id: str, audio: bytes):
-    callback_url = f"{CALLBACK_URL}/{request_id}"
-    await send_callback(
-        callback_url,
-        {"status": "success"},
-        files={"file": audio},
-    )
-
-
-async def callback_audio_with_info(request_id: str, audio: bytes, song_id: str, chunk_index: int, key: int):
-    callback_url = f"{CALLBACK_URL}/{request_id}"
-    await send_callback(
-        callback_url,
-        {
-            "status": "success",
-            "song_id": song_id,
-            "chunk_index": chunk_index,
-            "key": key,
-        },
-        files={"file": audio},
-    )
+    if audio:
+        await send_callback(callback_url, data, files={"file": audio})
+    else:
+        await send_callback(callback_url, data)

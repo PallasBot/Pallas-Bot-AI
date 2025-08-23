@@ -9,7 +9,7 @@ from asyncer import asyncify
 from app.core.celery import celery_app
 from app.core.config import settings
 from app.core.logger import logger
-from app.services.callback import callback_audio, callback_failed
+from app.services.callback import callback
 from app.utils.gpu_locker import GPULockManager
 
 from .mixer import mix, splice
@@ -40,12 +40,12 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             if cache_path.name.startswith(f"{song_id}_full_"):
                 async with await anyio.open_file(cache_path, "rb") as f:
                     file = await f.read()
-                    await callback_audio(request_id, file)
+                    await callback(request_id, audio=file)
                 return True
             elif cache_path.name.startswith(f"{song_id}_spliced"):
                 async with await anyio.open_file(cache_path, "rb") as f:
                     file = await f.read()
-                    await callback_audio(request_id, file)
+                    await callback(request_id, audio=file)
                 return True
     else:
         cache_path = Path("resource/sing/mix") / f"{song_id}_chunk{chunk_index}_{key}key_{speaker}.mp3"
@@ -55,14 +55,14 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             )
             async with await anyio.open_file(cache_path, "rb") as f:
                 file = await f.read()
-                await callback_audio(request_id, file)
+                await callback(request_id, audio=file)
             return True
 
     # 从网易云下载
     origin = await asyncify(download)(song_id)
     if not origin:
         logger.error("download failed", song_id)
-        await callback_failed(request_id)
+        await callback(request_id, status="failed")
         return False
 
     # 音频切片
@@ -73,7 +73,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
                 Path("NotExists"), Path("resource/sing/splices"), True, song_id, chunk_index, speaker, key=key
             )
         logger.error("slice failed", song_id)
-        await callback_failed(request_id)
+        await callback(request_id, status="failed")
         return False
 
     chunk = slices_list[chunk_index]
@@ -82,7 +82,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     separated = await asyncify(separate)(chunk, Path("resource/sing"), locker=gpu_locker, key=key)
     if not separated:
         logger.error("separate failed", song_id)
-        await callback_failed(request_id)
+        await callback(request_id, status="failed")
         return False
 
     vocals, no_vocals = separated
@@ -91,14 +91,14 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     svc = await asyncify(inference)(vocals, Path("resource/sing/svc"), key=key, speaker=speaker, locker=gpu_locker)
     if not svc:
         logger.error("svc failed", song_id)
-        await callback_failed(request_id)
+        await callback(request_id, status="failed")
         return False
 
     # 混合人声和伴奏
     result = await asyncify(mix)(svc, no_vocals, vocals, Path("resource/sing/mix"), svc.stem)
     if not result:
         logger.error("mix failed", song_id)
-        await callback_failed(request_id)
+        await callback(request_id, status="failed")
         return False
 
     # 混音后合并混音结果
@@ -106,7 +106,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     await asyncify(splice)(result, Path("resource/sing/splices"), finished, song_id, chunk_index, speaker, key=key)
     async with await anyio.open_file(result, "rb") as f:
         file = await f.read()
-        await callback_audio(request_id, file)
+        await callback(request_id, audio=file)
     return True
 
 

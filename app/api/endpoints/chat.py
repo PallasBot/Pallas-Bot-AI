@@ -12,7 +12,7 @@ async def chat_endpoint(request: ChatRequest, request_id: str):
     return ChatResponse(task_id=task_id, status="processing")
 
 
-@router.delete("/del_session", response_model=ChatResponse)
-async def del_session_endpoint(session: str = ""):
+@router.delete("/del_session/{session}", response_model=ChatResponse)
+async def del_session_endpoint(session: str):
     await del_session(session)
     return ChatResponse(task_id="", status="processing")

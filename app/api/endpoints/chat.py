@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.core.logger import logger
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat import chat, del_session
 
@@ -14,5 +15,6 @@ async def chat_endpoint(request: ChatRequest, request_id: str):
 
 @router.delete("/del_session/{session}", response_model=ChatResponse)
 async def del_session_endpoint(session: str):
+    logger.debug(f"Deleting session: {session}")
     await del_session(session)
     return ChatResponse(task_id="", status="processing")

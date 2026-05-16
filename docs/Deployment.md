@@ -8,7 +8,7 @@
 
 - **Docker 和 Docker Compose**
   
-  请确保已[安装 Docker 和 Docker Compose](https://github.com/PallasBot/Pallas-Bot/blob/master/docs/DockerDeployment.md#%E5%AE%89%E8%A3%85-docker-%E4%B8%8E-docker-compose)。
+  请确保已[安装 Docker 和 Docker Compose](https://github.com/PallasBot/Pallas-Bot/blob/main/docs/DockerDeployment.md#%E5%AE%89%E8%A3%85-docker-%E4%B8%8E-docker-compose)。
 
 - **NVIDIA Docker 支持（GPU 版本）**
   

@@ -5,8 +5,16 @@ from app.core.logger import logger
 from app.tasks.sing import play_task, request_task, sing_task
 
 
-async def sing(request_id: str, speaker: str, song_id: int, key: int, chunk_index: int):
-    task = sing_task.delay(request_id, speaker, song_id, settings.sing_length, chunk_index, key)
+async def sing(
+    request_id: str,
+    speaker: str,
+    song_id: int,
+    key: int,
+    chunk_index: int,
+    sing_length: int | None = None,
+):
+    length = sing_length if sing_length is not None and sing_length > 0 else settings.sing_length
+    task = sing_task.delay(request_id, speaker, song_id, length, chunk_index, key)
     logger.info(f"Task {task.id} started")
     return task.id
 

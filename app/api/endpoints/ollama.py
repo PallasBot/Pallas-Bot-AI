@@ -22,6 +22,12 @@ router = APIRouter()
 async def ollama_chat_endpoint(request_id: str, request: OllamaChatRequest):
     if not settings.ollama_enable:
         raise HTTPException(status_code=503, detail="Ollama backend disabled")
+    logger.info(
+        "ollama chat api: request_id={} session={} text_len={}",
+        request_id,
+        request.session,
+        len(request.text or ""),
+    )
     task_id = await ollama_chat(
         request_id,
         request.session,
@@ -34,7 +40,7 @@ async def ollama_chat_endpoint(request_id: str, request: OllamaChatRequest):
 
 @router.delete("/ollama/del_session/{session}", response_model=OllamaResponse)
 async def ollama_del_session_endpoint(session: str):
-    logger.debug("Deleting ollama session: {}", session)
+    logger.info("ollama del_session api: session={}", session)
     await del_session(session)
     return OllamaResponse(task_id="", status="ok")
 
@@ -50,6 +56,7 @@ async def ollama_get_model_endpoint():
 async def ollama_set_model_endpoint(request: OllamaModelUpdateRequest):
     if not settings.ollama_enable:
         raise HTTPException(status_code=503, detail="Ollama backend disabled")
+    logger.info("ollama set model api: model={} pull={}", request.model, request.pull)
     try:
         model = await switch_ollama_model(request.model, pull=request.pull)
     except Exception as e:
@@ -70,7 +77,10 @@ async def ollama_reload_model_endpoint():
 async def ollama_unload_endpoint():
     if not settings.ollama_enable:
         raise HTTPException(status_code=503, detail="Ollama backend disabled")
+    logger.info("ollama unload api")
     status, body = await unload(None)
     if status == 200:
+        logger.info("ollama unload ok")
         return OllamaResponse(task_id="", status="ok")
+    logger.warning("ollama unload failed: status={} body={}", status, body)
     raise HTTPException(status_code=status, detail=body)

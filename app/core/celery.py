@@ -2,7 +2,8 @@ from celery import Celery
 from celery.signals import worker_ready
 
 from app.core.config import settings
-from app.core.ollama_runtime import ensure_ollama_ready_sync
+from app.core.logger import logger
+from app.core.ollama_runtime import ensure_ollama_ready_sync, get_ollama_model
 
 celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_url)
 
@@ -11,7 +12,9 @@ celery_app.autodiscover_tasks(["app.tasks"])
 
 @worker_ready.connect
 def on_celery_worker_ready(**kwargs):
+    logger.info("celery worker ready, checking ollama (enable={})", settings.ollama_enable)
     ensure_ollama_ready_sync()
+    logger.info("celery worker ollama check finished, model={}", get_ollama_model())
 
 
 celery_app.conf.update(

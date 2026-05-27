@@ -36,6 +36,20 @@ class Settings(BaseSettings):
 
     chat_strategy: str = "cpu fp32"
 
+    ollama_enable: bool = True
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "qwen2.5:7b"
+    ollama_auto_start: bool = False
+    ollama_binary: str = "ollama"
+    ollama_auto_pull: bool = True
+    ollama_startup_timeout: float = 60.0
+    ollama_max_histories: int = 100
+    ollama_temperature: float = 0.55
+    ollama_num_gpu: int | None = 12
+    ollama_request_timeout: float = 90.0
+    ollama_max_retries: int = 1
+    ollama_retry_backoff: float = 1.0
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

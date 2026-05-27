@@ -15,6 +15,49 @@ services:
       retries: 3
       start_period: 10s
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pallas-ollama
+    networks:
+      - pallasbot
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: pallas-ollama-init
+    networks:
+      - pallasbot
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        ollama pull "$${OLLAMA_MODEL:-qwen2.5:7b}"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
   pallasbot-ai:
     image: pallasbot/pallas-bot-ai:latest
     container_name: pallasbot-ai
@@ -24,6 +67,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CALLBACK_HOST=pallasbot
       - CALLBACK_PORT=8088
+      - OLLAMA_ENABLE=true
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - OLLAMA_AUTO_START=false
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     networks:
@@ -33,6 +80,8 @@ services:
       - ./pallas-bot-ai/logs:/server/logs
     depends_on:
       redis:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     restart: unless-stopped
     runtime: nvidia
@@ -114,3 +163,4 @@ networks:
 
 volumes:
   redis_data:
+  ollama_data:

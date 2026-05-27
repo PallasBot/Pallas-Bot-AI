@@ -1,10 +1,18 @@
 from celery import Celery
+from celery.signals import worker_ready
 
 from app.core.config import settings
+from app.core.ollama_runtime import ensure_ollama_ready_sync
 
 celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_url)
 
 celery_app.autodiscover_tasks(["app.tasks"])
+
+
+@worker_ready.connect
+def on_celery_worker_ready(**kwargs):
+    ensure_ollama_ready_sync()
+
 
 celery_app.conf.update(
     task_serializer="json",

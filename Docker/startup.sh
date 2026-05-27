@@ -80,6 +80,11 @@ extract_model "resource/tts/tts.zip" "resource/tts" "resource/tts/.extracted"
 
 echo "✅ 模型文件处理完成"
 
+if [ "${OLLAMA_ENABLE:-true}" != "false" ]; then
+  echo "检查 Ollama 服务..."
+  /server/.venv/bin/python -c "from app.core.ollama_runtime import ensure_ollama_ready_sync; ensure_ollama_ready_sync()"
+fi
+
 # 启动 Celery Worker (后台运行)
 echo "启动 Celery Worker..."
 nohup /server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=info --concurrency=1 > logs/celery.log 2>&1 &

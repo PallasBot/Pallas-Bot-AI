@@ -27,10 +27,12 @@ WORKDIR /build
 
 # 复制依赖文件
 COPY pyproject.toml uv.lock ./
+COPY tools/patch_pyncm_async_py310.py tools/patch_pyncm_async_py310.py
 
 # 创建虚拟环境并安装依赖
 RUN uv venv --python 3.10 \
     && uv sync --all-groups --extra gpu \
+    && python tools/patch_pyncm_async_py310.py /build/.venv/lib/python3.10/site-packages \
     && find /build/.venv -name "*.pyc" -delete \
     && find /build/.venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
     && rm -rf /tmp/uv-cache \

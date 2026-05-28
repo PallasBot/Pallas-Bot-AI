@@ -21,14 +21,24 @@ from .svc_inference import inference
 gpu_locker = GPULockManager(settings.sing_cuda_device)
 
 
-@celery_app.task(name="sing")
-def sing_task(request_id: str, speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
+def run_celery_async(coro):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        return loop.run_until_complete(_sing_task_async(request_id, speaker, song_id, sing_length, chunk_index, key))
+        return loop.run_until_complete(coro)
     finally:
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass
         loop.close()
+
+
+@celery_app.task(name="sing")
+def sing_task(request_id: str, speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
+    return run_celery_async(
+        _sing_task_async(request_id, speaker, song_id, sing_length, chunk_index, key)
+    )
 
 
 async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
@@ -59,7 +69,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             return True
 
     # 从网易云下载
-    origin = await asyncify(download)(song_id)
+    origin = await download(song_id)
     if not origin:
         logger.error("download failed", song_id)
         await callback(request_id, status="failed")
@@ -112,17 +122,12 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
 
 @celery_app.task(name="request")
 def request_task(request_id: str, song_id: int):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_request_task_async(request_id, song_id))
-    finally:
-        loop.close()
+    return run_celery_async(_request_task_async(request_id, song_id))
 
 
 async def _request_task_async(request_id: str, song_id: int):
     # 从网易云下载
-    origin = await asyncify(download)(song_id)
+    origin = await download(song_id)
     if not origin:
         logger.error("download failed", song_id)
         await callback(request_id, status="failed")

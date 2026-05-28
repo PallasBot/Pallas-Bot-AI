@@ -26,9 +26,7 @@ async def send_sms(request: SendSMSRequest):
 
 @router.post("/login/cellphone/verify-sms", response_model=LoginResponse)
 async def verify_sms(request: CellphoneSMSLoginRequest):
-    result = await ncm_login_manager.verify_sms(
-        phone=request.phone, captcha=request.captcha, ctcode=request.ctcode
-    )
+    result = await ncm_login_manager.verify_sms(phone=request.phone, captcha=request.captcha, ctcode=request.ctcode)
     if result.get("code") == 200:
         return LoginResponse(
             success=True,

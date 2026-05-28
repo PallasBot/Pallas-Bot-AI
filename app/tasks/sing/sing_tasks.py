@@ -36,9 +36,7 @@ def run_celery_async(coro):
 
 @celery_app.task(name="sing")
 def sing_task(request_id: str, speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
-    return run_celery_async(
-        _sing_task_async(request_id, speaker, song_id, sing_length, chunk_index, key)
-    )
+    return run_celery_async(_sing_task_async(request_id, speaker, song_id, sing_length, chunk_index, key))
 
 
 async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):

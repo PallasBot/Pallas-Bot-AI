@@ -1,12 +1,13 @@
 import httpx
 
 from app.core.config import settings
+from app.core.logger import logger
 from app.utils.retry import async_retry
 
 CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callback"
 
 
-@async_retry(max_attempts=settings.callback_max_retries, delay=3)
+@async_retry(max_attempts=settings.callback_max_retries, delay=3, retry_filter=lambda exc: not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code >= 500)
 async def send_callback(url: str, data: dict, files: dict = None):
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=data, files=files, timeout=settings.callback_timeout)
@@ -28,7 +29,15 @@ async def callback(
     data = {"status": status}
 
     if status == "failed":
-        await send_callback(callback_url, data)
+        try:
+            await send_callback(callback_url, data)
+        except httpx.HTTPStatusError as err:
+            logger.warning(
+                "callback failed permanently: request_id={} status={} url={}",
+                request_id,
+                err.response.status_code,
+                callback_url,
+            )
         return
 
     if text:
@@ -40,7 +49,15 @@ async def callback(
     if key is not None:
         data["key"] = key
 
-    if audio:
-        await send_callback(callback_url, data, files={"file": audio})
-    else:
-        await send_callback(callback_url, data)
+    try:
+        if audio:
+            await send_callback(callback_url, data, files={"file": audio})
+        else:
+            await send_callback(callback_url, data)
+    except httpx.HTTPStatusError as err:
+        logger.warning(
+            "callback failed permanently: request_id={} status={} url={}",
+            request_id,
+            err.response.status_code,
+            callback_url,
+        )

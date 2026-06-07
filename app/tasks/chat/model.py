@@ -12,7 +12,7 @@ import torch
 os.environ["RWKV_V7_ON"] = "1"
 os.environ["RWKV_JIT_ON"] = "1"
 # 这个要配个 ninja 啥的环境，能大幅提高推理速度，有需要可以自己弄下（仅支持 cuda 显卡）
-os.environ["RWKV_CUDA_ON"] = "0"
+os.environ["RWKV_CUDA_ON"] = "1"
 
 from rwkv.model import RWKV
 

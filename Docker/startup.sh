@@ -87,7 +87,7 @@ fi
 
 # 启动 Celery Worker (后台运行)
 echo "启动 Celery Worker..."
-nohup /server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=info --concurrency=1 > logs/celery.log 2>&1 &
+nohup /server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=info > logs/celery.log 2>&1 &
 CELERY_PID=$!
 
 # 等待 Celery 启动并检查状态

@@ -26,6 +26,7 @@ class BaiduTranslator:
             "appid": self.app_id,
             "salt": salt,
             "sign": sign,
+            "needIntervene": 1,
         }
 
         try:

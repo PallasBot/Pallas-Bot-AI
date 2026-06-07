@@ -7,7 +7,15 @@ from app.utils.retry import async_retry
 CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callback"
 
 
-@async_retry(max_attempts=settings.callback_max_retries, delay=3, retry_filter=lambda exc: not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code >= 500)
+def should_retry_callback(exc: BaseException) -> bool:
+    return not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code >= 500
+
+
+@async_retry(
+    max_attempts=settings.callback_max_retries,
+    delay=3,
+    retry_filter=should_retry_callback,
+)
 async def send_callback(url: str, data: dict, files: dict = None):
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=data, files=files, timeout=settings.callback_timeout)

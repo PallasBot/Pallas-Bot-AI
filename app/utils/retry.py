@@ -1,14 +1,13 @@
 import asyncio
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
 
 def async_retry(max_attempts=3, delay=1, retry_filter: Callable[[BaseException], bool] | None = None):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            attempts = 0
-            while attempts < max_attempts:
+            async def attempt_once(attempts: int):
                 try:
                     return await func(*args, **kwargs)
                 except BaseException as exc:
@@ -17,6 +16,9 @@ def async_retry(max_attempts=3, delay=1, retry_filter: Callable[[BaseException],
                     if attempts == max_attempts or not should_retry:
                         raise
                     await asyncio.sleep(delay)
+                    return await attempt_once(attempts)
+
+            return await attempt_once(0)
 
         return wrapper
 

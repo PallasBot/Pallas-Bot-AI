@@ -15,7 +15,7 @@ from app.utils.gpu_locker import GPULockManager
 from .mixer import mix, splice
 from .ncm_loader import download
 from .separater import separate
-from .slicer import slice
+from .slicer import slice as slice_audio
 from .svc_inference import inference
 
 gpu_locker = GPULockManager(settings.sing_cuda_device)
@@ -104,7 +104,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         return False
 
     # 音频切片
-    slices_list = await asyncify(slice)(origin, Path("resource/sing/slices"), song_id, size_ms=sing_length * 1000)
+    slices_list = await asyncify(slice_audio)(origin, Path("resource/sing/slices"), song_id, size_ms=sing_length * 1000)
     if not slices_list or chunk_index >= len(slices_list):
         if chunk_index == len(slices_list):
             await asyncify(splice)(

@@ -44,6 +44,7 @@ async def _play_task_async(request_id: str, speaker: str = ""):
             await callback(request_id, status="failed")
             return False
 
+        progress_kwargs: dict = {}
         if "_spliced" in rand_music:
             splited = Path(rand_music).stem.split("_")
             song_id = splited[0]
@@ -59,14 +60,7 @@ async def _play_task_async(request_id: str, speaker: str = ""):
                     key = 0
             else:
                 key = 0
-        elif "_full_" in rand_music:
-            song_id = Path(rand_music).stem.split("_")[0]
-            chunk_index = 114514
-            key = 0
-        else:
-            song_id = ""
-            chunk_index = 114514
-            key = 0
+            progress_kwargs = {"song_id": song_id, "chunk_index": chunk_index, "key": key}
 
         try:
             async with await anyio.open_file(rand_music, "rb") as f:
@@ -75,7 +69,7 @@ async def _play_task_async(request_id: str, speaker: str = ""):
             await callback(request_id, status="failed")
             return False
 
-        await callback(request_id, audio=audio_content, song_id=song_id, chunk_index=chunk_index, key=key)
+        await callback(request_id, audio=audio_content, **progress_kwargs)
         return True
     except Exception:
         await callback(request_id, status="failed")

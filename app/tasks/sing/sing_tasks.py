@@ -21,6 +21,32 @@ from .svc_inference import inference
 gpu_locker = GPULockManager(settings.sing_cuda_device)
 
 
+async def sing_audio_callback(
+    request_id: str,
+    audio: bytes,
+    song_id: int,
+    chunk_index: int,
+    key: int,
+) -> None:
+    await callback(
+        request_id,
+        audio=audio,
+        song_id=str(song_id),
+        chunk_index=chunk_index,
+        key=key,
+    )
+
+
+def spliced_chunk_index(path: Path) -> int | None:
+    for part in path.stem.split("_"):
+        if part.startswith("spliced"):
+            try:
+                return int(part.replace("spliced", ""))
+            except ValueError:
+                return None
+    return None
+
+
 def run_celery_async(coro):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -53,7 +79,11 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             elif cache_path.name.startswith(f"{song_id}_spliced"):
                 async with await anyio.open_file(cache_path, "rb") as f:
                     file = await f.read()
+                cached_chunk = spliced_chunk_index(cache_path)
+                if cached_chunk is None:
                     await callback(request_id, audio=file)
+                else:
+                    await sing_audio_callback(request_id, file, song_id, cached_chunk, key)
                 return True
     else:
         cache_path = Path("resource/sing/mix") / f"{song_id}_chunk{chunk_index}_{key}key_{speaker}.mp3"
@@ -63,7 +93,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             )
             async with await anyio.open_file(cache_path, "rb") as f:
                 file = await f.read()
-                await callback(request_id, audio=file)
+            await sing_audio_callback(request_id, file, song_id, chunk_index, key)
             return True
 
     # 从网易云下载
@@ -114,7 +144,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     await asyncify(splice)(result, Path("resource/sing/splices"), finished, song_id, chunk_index, speaker, key=key)
     async with await anyio.open_file(result, "rb") as f:
         file = await f.read()
-        await callback(request_id, audio=file)
+    await sing_audio_callback(request_id, file, song_id, chunk_index, key)
     return True
 
 

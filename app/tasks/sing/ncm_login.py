@@ -1,6 +1,7 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, Optional
 
 from pyncm_async import (
     CreateNewSession,
@@ -8,7 +9,6 @@ from pyncm_async import (
     GetCurrentSession,
     LoadSessionFromString,
     Session,
-    SetCurrentSession,
 )
 from pyncm_async.apis.login import (
     GetCurrentLoginStatus,

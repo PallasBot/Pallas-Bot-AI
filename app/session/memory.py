@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from typing import Any
 
 _lock = threading.Lock()
 _sessions: dict[str, list[dict[str, str]]] = {}
@@ -21,6 +22,11 @@ def get_messages(session: str, system_prompt: str) -> list[dict[str, str]]:
         else:
             messages.append({"role": "system", "content": system_prompt})
         return messages
+
+
+def save_messages(session: str, messages: list[dict[str, Any]]) -> None:
+    with _lock:
+        _sessions[session] = [dict(item) for item in messages]
 
 
 def reset_session(session: str, system_prompt: str) -> None:

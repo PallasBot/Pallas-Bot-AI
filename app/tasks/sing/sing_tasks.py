@@ -74,14 +74,14 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             if cache_path.name.startswith(f"{song_id}_full_"):
                 async with await anyio.open_file(cache_path, "rb") as f:
                     file = await f.read()
-                    await callback(request_id, audio=file)
+                    await sing_audio_callback(request_id, file, song_id, 0, key)
                 return True
             elif cache_path.name.startswith(f"{song_id}_spliced"):
                 async with await anyio.open_file(cache_path, "rb") as f:
                     file = await f.read()
                 cached_chunk = spliced_chunk_index(cache_path)
                 if cached_chunk is None:
-                    await callback(request_id, audio=file)
+                    await sing_audio_callback(request_id, file, song_id, chunk_index, key)
                 else:
                     await sing_audio_callback(request_id, file, song_id, cached_chunk, key)
                 return True

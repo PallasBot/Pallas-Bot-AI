@@ -80,14 +80,14 @@ extract_model "resource/tts/tts.zip" "resource/tts" "resource/tts/.extracted"
 
 echo "✅ 模型文件处理完成"
 
-if [ "${OLLAMA_ENABLE:-true}" != "false" ]; then
-  echo "检查 Ollama 服务..."
-  /server/.venv/bin/python -c "from app.core.ollama_runtime import ensure_ollama_ready_sync; ensure_ollama_ready_sync()"
+if [ "${LLM_CHAT_ENABLED:-true}" != "false" ]; then
+  echo "检查本地 LLM 后端..."
+  /server/.venv/bin/python -c "from app.core.llm_backend_runtime import ensure_local_backend_ready_sync; ensure_local_backend_ready_sync()"
 fi
 
 # 启动 Celery Worker (后台运行)
 echo "启动 Celery Worker..."
-nohup /server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=info > logs/celery.log 2>&1 &
+nohup /server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=warning > logs/celery.log 2>&1 &
 CELERY_PID=$!
 
 # 等待 Celery 启动并检查状态
@@ -105,7 +105,7 @@ echo "=== 服务已启动 ==="
 echo "API 地址: http://0.0.0.0:9099"
 echo "================="
 
-# 捕获信号以优雅关闭
-trap 'echo "正在关闭服务..."; kill $CELERY_PID 2>/dev/null || true; exit 0' SIGTERM SIGINT
+# 捕获信号：先 TERM 等待 celery 退出，超时再 KILL
+trap 'echo "正在关闭服务..."; kill -TERM $CELERY_PID 2>/dev/null || true; for i in $(seq 1 20); do kill -0 $CELERY_PID 2>/dev/null || break; sleep 1; done; kill -KILL $CELERY_PID 2>/dev/null || true; exit 0' SIGTERM SIGINT
 
-/server/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 9099 --log-level info
+/server/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 9099 --log-level warning

@@ -1,7 +1,7 @@
 import httpx
 
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logger import log_id_suffix, logger
 from app.utils.retry import async_retry
 
 CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callback"
@@ -31,6 +31,8 @@ async def callback(
     song_id: str = None,
     chunk_index: int = None,
     key: int = None,
+    history_summary: str | None = None,
+    history_keep_messages: int | None = None,
 ):
     callback_url = f"{CALLBACK_URL}/{request_id}"
 
@@ -41,8 +43,8 @@ async def callback(
             await send_callback(callback_url, data)
         except httpx.HTTPStatusError as err:
             logger.warning(
-                "callback failed permanently: request_id={} status={} url={}",
-                request_id,
+                "回调 Bot 失败{} http={} url={}",
+                log_id_suffix(request_id),
                 err.response.status_code,
                 callback_url,
             )
@@ -56,6 +58,10 @@ async def callback(
         data["chunk_index"] = chunk_index
     if key is not None:
         data["key"] = key
+    if history_summary:
+        data["history_summary"] = history_summary
+    if history_keep_messages is not None:
+        data["history_keep_messages"] = str(int(history_keep_messages))
 
     try:
         if audio:
@@ -64,8 +70,8 @@ async def callback(
             await send_callback(callback_url, data)
     except httpx.HTTPStatusError as err:
         logger.warning(
-            "callback failed permanently: request_id={} status={} url={}",
-            request_id,
+            "回调 Bot 失败{} http={} url={}",
+            log_id_suffix(request_id),
             err.response.status_code,
             callback_url,
         )

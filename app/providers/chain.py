@@ -1,0 +1,152 @@
+from __future__ import annotations
+
+from typing import Any
+
+from app.core.config import settings
+from app.core.logger import log_id_clause, logger
+from app.services.llm_token_metrics import record_llm_token_usage
+from app.services.vision_messages import enrich_local_messages_for_vision
+
+from . import local_backend, remote_backend
+from .registry import load_provider_registry
+from .router import infer_task, normalize_chain_failure, resolve_model_name, resolve_provider_order
+from .tool_loop import complete_with_tool_loop, tool_schemas_for_metadata
+from .types import ChatCompletionParams, ProviderError
+
+
+def record_usage_from_message(metadata: dict[str, Any] | None, message: dict[str, Any] | None) -> None:
+    if not isinstance(message, dict):
+        return
+    usage = message.get("_usage")
+    if not isinstance(usage, dict):
+        return
+    meta = metadata if isinstance(metadata, dict) else {}
+    record_llm_token_usage(
+        task=infer_task(meta),
+        prompt_tokens=int(usage.get("prompt_tokens") or 0),
+        completion_tokens=int(usage.get("completion_tokens") or 0),
+    )
+
+
+async def run_provider_chain(
+    params: ChatCompletionParams,
+    messages: list[dict[str, str]],
+) -> tuple[str, dict[str, str]]:
+    provider_ids = resolve_provider_order(metadata=params.metadata, user_text=params.user_text)
+    failure_mode = normalize_chain_failure(settings.llm_chain_on_failure)
+    registry = load_provider_registry()
+    tool_schemas = tool_schemas_for_metadata(params.metadata, user_text=params.user_text)
+    if tool_schemas:
+        logger.info(
+            "已启用工具调用：{}数量={}",
+            log_id_clause(params.request_id),
+            len(tool_schemas),
+        )
+
+    last_error: Exception | None = None
+    for index, provider_id in enumerate(provider_ids):
+        model = resolve_model_name(
+            provider=provider_id,
+            metadata=params.metadata,
+            user_text=params.user_text,
+            request_model=params.model,
+        )
+        logger.info(
+            "尝试 LLM 提供方：{}provider={} model={} {}/{}",
+            log_id_clause(params.request_id),
+            provider_id,
+            model,
+            index + 1,
+            len(provider_ids),
+        )
+        try:
+            active_provider_id = provider_id
+            if tool_schemas:
+
+                async def complete_once(
+                    working_messages: list[dict[str, Any]],
+                    *,
+                    model: str,
+                    options: dict[str, Any],
+                    tools: list[dict[str, Any]] | None,
+                    provider_name: str = active_provider_id,
+                ) -> dict[str, Any]:
+                    if registry.kind_of(provider_name) == "remote":
+                        message_obj = await remote_backend.complete_remote_message(
+                            working_messages,
+                            model=model,
+                            options=options,
+                            tools=tools,
+                            provider_id=provider_name,
+                        )
+                    else:
+                        vision_messages = await enrich_local_messages_for_vision(
+                            working_messages,
+                            metadata=params.metadata,
+                            user_text=params.user_text,
+                            provider_id=provider_name,
+                        )
+                        message_obj = await local_backend.complete_local_message(
+                            vision_messages,
+                            model=model,
+                            options=options,
+                            tools=tools,
+                            provider_id=provider_name,
+                        )
+                    record_usage_from_message(params.metadata, message_obj)
+                    return message_obj
+
+                meta = params.metadata if isinstance(params.metadata, dict) else {}
+                reply, assistant_message = await complete_with_tool_loop(
+                    complete_once=complete_once,
+                    messages=messages,
+                    tool_schemas=tool_schemas,
+                    metadata=meta,
+                    model=model,
+                    options=params.options,
+                    user_text=params.user_text,
+                )
+            elif registry.kind_of(provider_id) == "remote":
+                message_obj = await remote_backend.complete_remote_message(
+                    messages,
+                    model=model,
+                    options=params.options,
+                    tools=None,
+                    provider_id=provider_id,
+                )
+                record_usage_from_message(params.metadata, message_obj)
+                reply = str(message_obj.get("content", "") or "").strip()
+                assistant_message = {"role": "assistant", "content": reply}
+            else:
+                vision_messages = await enrich_local_messages_for_vision(
+                    messages,
+                    metadata=params.metadata,
+                    user_text=params.user_text,
+                    provider_id=provider_id,
+                )
+                message_obj = await local_backend.complete_local_message(
+                    vision_messages,
+                    model=model,
+                    options=params.options,
+                    tools=None,
+                    provider_id=provider_id,
+                )
+                record_usage_from_message(params.metadata, message_obj)
+                reply = str(message_obj.get("content", "") or "").strip()
+                assistant_message = {"role": "assistant", "content": reply}
+            return reply, assistant_message
+        except (ProviderError, ValueError) as exc:
+            last_error = exc
+            logger.warning(
+                "LLM 提供方不可用，切换下一个：{}provider={} err={}",
+                log_id_clause(params.request_id),
+                provider_id,
+                exc,
+            )
+            if failure_mode == "fail" or index >= len(provider_ids) - 1:
+                break
+            continue
+
+    if last_error is not None:
+        raise last_error
+    raise ProviderError("chain", "no provider available")

@@ -1,0 +1,19 @@
+# 4.0 联调最小栈：Redis + AI 服务（无 Ollama/GPU）
+# 用法：
+#   LLM_PROVIDER_MODE=remote_only 且配置 LLM_REMOTE_* 后：
+#   docker compose -f docker-compose.4.0-ci.yml up -d
+#   uv run uvicorn app.main:app --host 0.0.0.0 --port 9099
+#   uv run celery -A app.core.celery worker --loglevel=info
+# Bot 侧：tools/integration_llm_chat.py --ai-port 9099
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: pallas-ai-ci-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

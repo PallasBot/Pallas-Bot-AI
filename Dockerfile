@@ -9,13 +9,17 @@ ENV UV_CACHE_DIR=/tmp/uv-cache
 
 # 安装构建依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.10 \
-    python3.10-dev \
+    software-properties-common \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
     python3-pip \
     build-essential \
     pkg-config \
     git \
-    && ln -s /usr/bin/python3.10 /usr/bin/python \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python \
     && pip3 install --no-cache-dir uv \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
@@ -27,12 +31,10 @@ WORKDIR /build
 
 # 复制依赖文件
 COPY pyproject.toml uv.lock ./
-COPY tools/patch_pyncm_async_py310.py tools/patch_pyncm_async_py310.py
 
 # 创建虚拟环境并安装依赖
-RUN uv venv --python 3.10 \
+RUN uv venv --python 3.12 \
     && uv sync --all-groups --extra gpu \
-    && python tools/patch_pyncm_async_py310.py /build/.venv/lib/python3.10/site-packages \
     && find /build/.venv -name "*.pyc" -delete \
     && find /build/.venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
     && rm -rf /tmp/uv-cache \
@@ -57,8 +59,11 @@ LABEL org.opencontainers.image.cuda.version="${CUDA_VERSION}"
 
 # 只安装运行时依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.10 \
-    python3.10-venv \
+    software-properties-common \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
     wget \
     curl \
     aria2 \
@@ -66,7 +71,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
     git \
-    && ln -s /usr/bin/python3.10 /usr/bin/python \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/* \

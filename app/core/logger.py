@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import logging
 import sys
 from pathlib import Path
 
@@ -5,17 +8,122 @@ from loguru import logger as loguru_logger
 
 from app.core.config import settings
 
+# 框架日志默认 WARNING
+_QUIET_LOGGER_NAMES = (
+    "uvicorn",
+    "uvicorn.access",
+    "uvicorn.error",
+    "uvicorn.asgi",
+    "celery",
+    "celery.worker",
+    "celery.worker.strategy",
+    "celery.worker.consumer",
+    "celery.worker.consumer.connection",
+    "celery.worker.consumer.mingle",
+    "celery.apps.worker",
+    "celery.app.trace",
+    "celery.redirected",
+    "kombu",
+    "amqp",
+    "billiard",
+    "asyncio",
+    "httpx",
+    "httpcore",
+    "watchfiles",
+)
+
+
+class InterceptHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level = loguru_logger.level(record.levelname).name
+        except ValueError:
+            level = str(record.levelno)
+        frame = logging.currentframe()
+        depth = 2
+        while frame is not None and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+        loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
+def resolve_log_level(name: str, *, fallback: str = "INFO") -> str:
+    text = str(name or "").strip().upper()
+    if text in {"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"}:
+        return text
+    return fallback
+
+
+def stdlib_level(name: str, *, fallback: str = "INFO") -> int:
+    text = resolve_log_level(name, fallback=fallback)
+    return int(getattr(logging, text, getattr(logging, fallback, logging.INFO)))
+
+
+def short_log_id(value: str | None) -> str:
+    """按 LOG_ID_CHARS 截断任务/请求 ID；0 表示省略。"""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    limit = int(settings.log_id_chars)
+    if limit <= 0:
+        return ""
+    return text[:limit] if len(text) > limit else text
+
+
+def log_id_clause(value: str | None, *, label: str = "单号") -> str:
+    """返回可拼进日志的前缀，如「单号=01KV95T5 」；省略时返回空串。"""
+    short = short_log_id(value)
+    if not short:
+        return ""
+    return f"{label}={short} "
+
+
+def log_id_suffix(value: str | None, *, label: str = "单号", prefix: str = " ") -> str:
+    """附在句末的 ID 片段，如「 单号=01KV95T5」；省略时返回空串。"""
+    short = short_log_id(value)
+    if not short:
+        return ""
+    return f"{prefix}{label}={short}"
+
+
+def configure_stdlib_logging() -> None:
+    """接入 stdlib logging。"""
+    server_level_no = stdlib_level(settings.server_log_level, fallback="WARNING")
+
+    logging.root.handlers = [InterceptHandler()]
+    logging.root.setLevel(server_level_no)
+
+    for name in _QUIET_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(server_level_no)
+
+
+def patch_log_record(record: dict) -> None:
+    name = str(record.get("name") or "")
+    module = name.rsplit(".", 1)[-1] or name
+    record["extra"]["loc"] = f"{module}:{record['line']}"
+
+
+def effective_log_format() -> str:
+    if settings.log_loc_short:
+        return (
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+            "<level>{level: <7}</level> | "
+            "<cyan>{extra[loc]:<16}</cyan> | "
+            "<level>{message}</level>"
+        )
+    return settings.log_format
+
 
 def configure_logger():
     """初始化 Loguru 配置"""
 
-    # 移除默认配置
     loguru_logger.remove()
+    loguru_logger.configure(patcher=patch_log_record)
 
-    # 控制台输出配置
-    loguru_logger.add(sys.stderr, level=settings.log_level, format=settings.log_format)
+    app_level = resolve_log_level(settings.log_level, fallback="INFO")
+    log_format = effective_log_format()
+    loguru_logger.add(sys.stderr, level=app_level, format=log_format)
 
-    # 文件日志配置
     if settings.log_file_enabled:
         log_path = Path(settings.log_path)
         log_path.mkdir(exist_ok=True)
@@ -25,8 +133,8 @@ def configure_logger():
             rotation=settings.log_rotation,
             retention=settings.log_retention,
             compression=settings.log_compression,
-            level=settings.log_level,
-            format=settings.log_format,
+            level=app_level,
+            format=log_format,
             filter=lambda record: "access" not in record["extra"],
         )
 
@@ -38,6 +146,7 @@ def configure_logger():
             filter=lambda record: "access" in record["extra"],
         )
 
+    configure_stdlib_logging()
     return loguru_logger
 
 

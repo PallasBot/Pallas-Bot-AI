@@ -1,5 +1,6 @@
 from celery import Celery
 from celery.signals import setup_logging, worker_ready
+from kombu import Queue
 
 from app.core.config import settings
 from app.core.llm_backend_runtime import get_llm_model, prepare_local_backend_for_worker_sync
@@ -14,6 +15,17 @@ _TASK_PACKAGE_ALIASES = {
     "chat": "app.tasks.chat",
     "sing": "app.tasks.sing",
     "tts": "app.tasks.tts",
+}
+
+_TASK_QUEUE_ROUTES = {
+    "llm_chat": "default",
+    "llm_del_session": "default",
+    "unload_local_backend_model": "default",
+    "chat": "media",
+    "sing": "media",
+    "play": "media",
+    "request": "media",
+    "tts": "media",
 }
 
 
@@ -46,6 +58,11 @@ def require_celery_task_package(alias: str) -> None:
     raise RuntimeError(
         f"Celery 未注册 {alias} 任务：请在 .env 设置 CELERY_TASK_PACKAGES=all 或包含 {alias}，并重启 worker"
     )
+
+
+def resolve_celery_queue_for_task(task_name: str, default: str = "default") -> str:
+    name = str(task_name or "").strip()
+    return _TASK_QUEUE_ROUTES.get(name, default)
 
 
 celery_app.autodiscover_tasks(resolve_celery_task_packages())
@@ -81,6 +98,11 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="Asia/Shanghai",
     enable_utc=True,
+    task_queues=(
+        Queue("default"),
+        Queue("media"),
+    ),
+    task_routes={task_name: {"queue": queue} for task_name, queue in _TASK_QUEUE_ROUTES.items()},
     task_track_started=True,
     worker_pool="threads",
     worker_concurrency=settings.celery_worker_concurrency,

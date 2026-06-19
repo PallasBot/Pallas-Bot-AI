@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logger import logger, task_log
 
 from .registry import LlmProviderSpec, load_provider_registry, local_base_url_for_spec
 from .token_usage import usage_from_local_chat_response
@@ -86,7 +86,7 @@ async def complete_local_message(
     payload["think"] = bool(think)
     if tools:
         payload["tools"] = tools
-    logger.info(
+    task_log(
         "local llm backend request: provider={} model={} num_gpu={}",
         pid,
         model,

@@ -1,7 +1,7 @@
 import httpx
 
 from app.core.config import settings
-from app.core.logger import log_id_suffix, logger
+from app.core.logger import log_id_suffix, logger, task_log
 from app.utils.retry import async_retry
 
 CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callback"
@@ -37,7 +37,7 @@ async def callback(
     callback_url = f"{CALLBACK_URL}/{request_id}"
 
     data = {"status": status}
-    logger.info(
+    task_log(
         "准备回调 Bot{} status={} has_text={} has_audio={} song_id={} chunk_index={} key={} history_summary={} history_keep_messages={}",
         log_id_suffix(request_id),
         status,
@@ -53,7 +53,7 @@ async def callback(
     if status == "failed":
         try:
             result = await send_callback(callback_url, data)
-            logger.info("回调 Bot 完成{} status=failed result={}", log_id_suffix(request_id), result)
+            task_log("回调 Bot 完成{} status=failed result={}", log_id_suffix(request_id), result)
         except httpx.HTTPStatusError as err:
             logger.warning(
                 "回调 Bot 失败{} http={} url={}",
@@ -83,7 +83,7 @@ async def callback(
             result = await send_callback(callback_url, data, files={"file": audio})
         else:
             result = await send_callback(callback_url, data)
-        logger.info("回调 Bot 完成{} status={} result={}", log_id_suffix(request_id), status, result)
+        task_log("回调 Bot 完成{} status={} result={}", log_id_suffix(request_id), status, result)
     except httpx.HTTPStatusError as err:
         logger.warning(
             "回调 Bot 失败{} http={} url={}",

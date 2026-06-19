@@ -11,16 +11,22 @@ API_LOG_FILE="${AI_SERVICE_API_LOG_FILE:-$ROOT/logs/api.log}"
 API_STOP_WAIT_SEC="${AI_SERVICE_API_STOP_WAIT_SEC:-20}"
 DEFAULT_WORKER_PID_FILE="${AI_SERVICE_DEFAULT_WORKER_PID_FILE:-$ROOT/logs/celery.pid}"
 DEFAULT_WORKER_LOG_FILE="${AI_SERVICE_DEFAULT_WORKER_LOG_FILE:-$ROOT/logs/celery.log}"
+MEDIA_WORKER_PID_FILE="${AI_SERVICE_MEDIA_WORKER_PID_FILE:-$ROOT/logs/celery-media.pid}"
+MEDIA_WORKER_LOG_FILE="${AI_SERVICE_MEDIA_WORKER_LOG_FILE:-$ROOT/logs/celery-media.log}"
+DEFAULT_WORKER_PACKAGES="${AI_SERVICE_DEFAULT_WORKER_PACKAGES:-llm}"
+MEDIA_WORKER_PACKAGES="${AI_SERVICE_MEDIA_WORKER_PACKAGES:-sing,tts,chat}"
 
 run_worker() {
   local action="$1"
   local queue="$2"
   local pid_file="$3"
   local log_file="$4"
+  local packages="$5"
   env \
     CELERY_PID_FILE="$pid_file" \
     CELERY_LOG_FILE="$log_file" \
     CELERY_WORKER_QUEUE="$queue" \
+    CELERY_TASK_PACKAGES="$packages" \
     "$WORKER_SCRIPT" "$action"
 }
 
@@ -95,14 +101,22 @@ stop_api() {
 }
 
 start_service() {
-  run_worker start "" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE"
+  run_worker start "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
+  run_worker start "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
   start_api
   echo "AI service 已启动"
+  echo "API PID file: $API_PID_FILE"
+  echo "API log file: $API_LOG_FILE"
+  echo "default worker PID file: $DEFAULT_WORKER_PID_FILE"
+  echo "default worker log file: $DEFAULT_WORKER_LOG_FILE"
+  echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
+  echo "media worker log file: $MEDIA_WORKER_LOG_FILE"
 }
 
 stop_service() {
   stop_api
-  run_worker stop "" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE"
+  run_worker stop "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  run_worker stop "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
   echo "AI service 已停止"
 }
 
@@ -113,16 +127,22 @@ status_service() {
   else
     echo "API 未运行"
   fi
-  run_worker status "" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE"
+  echo "API PID file: $API_PID_FILE"
+  run_worker status "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
+  echo "default worker PID file: $DEFAULT_WORKER_PID_FILE"
+  run_worker status "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
 }
 
 purge_stale_service() {
-  run_worker purge-stale "" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE"
+  run_worker purge-stale "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
+  run_worker purge-stale "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
 }
 
 restart_clean_service() {
   stop_api
-  run_worker restart-clean "" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE"
+  run_worker restart-clean "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
+  run_worker restart-clean "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
   start_api
   echo "AI service 已启动"
 }

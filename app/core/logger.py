@@ -86,6 +86,11 @@ def log_id_suffix(value: str | None, *, label: str = "单号", prefix: str = " "
     return f"{prefix}{label}={short}"
 
 
+def task_log(message: str, *args, **kwargs) -> None:
+    level = "INFO" if settings.log_verbose_tasks else "DEBUG"
+    loguru_logger.log(level, message, *args, **kwargs)
+
+
 def configure_stdlib_logging() -> None:
     """接入 stdlib logging。"""
     server_level_no = stdlib_level(settings.server_log_level, fallback="WARNING")

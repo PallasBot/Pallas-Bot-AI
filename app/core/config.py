@@ -21,6 +21,10 @@ class Settings(BaseSettings):
         le=32,
         validation_alias=AliasChoices("log_id_chars", "LOG_ID_CHARS"),
     )
+    log_verbose_tasks: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("log_verbose_tasks", "LOG_VERBOSE_TASKS"),
+    )
     log_file_enabled: bool = True
     log_path: str = "logs"
     log_rotation: str = "10 MB"

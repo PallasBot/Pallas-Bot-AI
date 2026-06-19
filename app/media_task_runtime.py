@@ -6,7 +6,12 @@ from typing import Any
 
 from ulid import ULID
 
-from app.core.celery import celery_app, celery_task_package_enabled, require_celery_task_package
+from app.core.celery import (
+    celery_app,
+    celery_task_package_enabled,
+    require_celery_task_package,
+    resolve_celery_queue_for_task,
+)
 from app.core.config import settings
 from app.core.logger import logger
 from app.image_runtime import load_image_backend, submit_image_generate
@@ -374,7 +379,8 @@ def dispatch_sing_task(record: MediaTaskRecord, body: MediaTaskSubmitRequest) ->
             length,
             parsed.chunk_index,
             parsed.key,
-        )
+        ),
+        queue=resolve_celery_queue_for_task("sing"),
     )
     update_task_record(record.task_id, celery_task_id=str(celery_result.id))
     logger.info("media task {} queued sing celery={}", record.task_id, celery_result.id)

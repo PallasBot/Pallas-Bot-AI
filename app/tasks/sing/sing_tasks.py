@@ -8,7 +8,7 @@ from asyncer import asyncify
 
 from app.core.celery import celery_app
 from app.core.config import settings
-from app.core.logger import log_id_suffix, logger
+from app.core.logger import log_id_suffix, logger, task_log
 from app.services.callback import callback
 from app.utils.gpu_locker import GPULockManager
 
@@ -68,7 +68,7 @@ def sing_task(request_id: str, speaker: str, song_id: int, sing_length: int, chu
 async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_length: int, chunk_index: int, key: int):
     # 下载 -> 切片 -> 人声分离 -> 音色转换（SVC） -> 混音
     # 其中 人声分离和音色转换是吃 GPU 的，所以要加锁，不然显存不够用
-    logger.info(
+    task_log(
         "sing task started{} speaker={} song_id={} sing_length={} chunk_index={} key={}",
         log_id_suffix(request_id),
         speaker,
@@ -81,7 +81,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     if chunk_index == 0:
         for cache_path in Path("resource/sing/splices").glob(f"{song_id}_*_{key}key_{speaker}.mp3"):
             if cache_path.name.startswith(f"{song_id}_full_"):
-                logger.info(
+                task_log(
                     "sing task hit full cache{} path={} song_id={} key={} speaker={}",
                     log_id_suffix(request_id),
                     cache_path,
@@ -91,7 +91,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
                 )
                 async with await anyio.open_file(cache_path, "rb") as f:
                     file = await f.read()
-                    logger.info(
+                    task_log(
                         "sing task sending cached full callback{} path={} bytes={}",
                         log_id_suffix(request_id),
                         cache_path,
@@ -100,7 +100,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
                     await sing_audio_callback(request_id, file, song_id, 0, key)
                 return True
             elif cache_path.name.startswith(f"{song_id}_spliced"):
-                logger.info(
+                task_log(
                     "sing task hit spliced cache{} path={} song_id={} key={} speaker={}",
                     log_id_suffix(request_id),
                     cache_path,
@@ -111,7 +111,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
                 async with await anyio.open_file(cache_path, "rb") as f:
                     file = await f.read()
                 cached_chunk = spliced_chunk_index(cache_path)
-                logger.info(
+                task_log(
                     "sing task sending cached chunk callback{} path={} bytes={} cached_chunk={}",
                     log_id_suffix(request_id),
                     cache_path,
@@ -126,7 +126,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     else:
         cache_path = Path("resource/sing/mix") / f"{song_id}_chunk{chunk_index}_{key}key_{speaker}.mp3"
         if cache_path.exists():
-            logger.info(
+            task_log(
                 "sing task hit mix cache{} path={} song_id={} chunk_index={} key={} speaker={}",
                 log_id_suffix(request_id),
                 cache_path,
@@ -140,7 +140,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             )
             async with await anyio.open_file(cache_path, "rb") as f:
                 file = await f.read()
-            logger.info(
+            task_log(
                 "sing task sending cached mix callback{} path={} bytes={}",
                 log_id_suffix(request_id),
                 cache_path,
@@ -150,16 +150,16 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
             return True
 
     # 从网易云下载
-    logger.info("sing task downloading source{} song_id={}", log_id_suffix(request_id), song_id)
+    task_log("sing task downloading source{} song_id={}", log_id_suffix(request_id), song_id)
     origin = await download(song_id)
     if not origin:
         logger.error("sing task download failed{} song_id={}", log_id_suffix(request_id), song_id)
         await callback(request_id, status="failed")
         return False
-    logger.info("sing task download completed{} song_id={} path={}", log_id_suffix(request_id), song_id, origin)
+    task_log("sing task download completed{} song_id={} path={}", log_id_suffix(request_id), song_id, origin)
 
     # 音频切片
-    logger.info("sing task slicing audio{} origin={} size_ms={}", log_id_suffix(request_id), origin, sing_length * 1000)
+    task_log("sing task slicing audio{} origin={} size_ms={}", log_id_suffix(request_id), origin, sing_length * 1000)
     slices_list = await asyncify(slice_audio)(origin, Path("resource/sing/slices"), song_id, size_ms=sing_length * 1000)
     if not slices_list or chunk_index >= len(slices_list):
         if chunk_index == len(slices_list):
@@ -177,7 +177,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         return False
 
     chunk = slices_list[chunk_index]
-    logger.info(
+    task_log(
         "sing task selected chunk{} song_id={} chunk_index={} total_chunks={} path={}",
         log_id_suffix(request_id),
         song_id,
@@ -187,7 +187,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     )
 
     # 人声分离
-    logger.info("sing task separating vocals{} chunk={} key={}", log_id_suffix(request_id), chunk, key)
+    task_log("sing task separating vocals{} chunk={} key={}", log_id_suffix(request_id), chunk, key)
     separated = await asyncify(separate)(chunk, Path("resource/sing"), locker=gpu_locker, key=key)
     if not separated:
         logger.error(
@@ -202,7 +202,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         return False
 
     vocals, no_vocals = separated
-    logger.info(
+    task_log(
         "sing task separate completed{} vocals={} no_vocals={}",
         log_id_suffix(request_id),
         vocals,
@@ -210,7 +210,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     )
 
     # 音色转换（SVC）
-    logger.info(
+    task_log(
         "sing task running svc{} vocals={} speaker={} key={}",
         log_id_suffix(request_id),
         vocals,
@@ -230,10 +230,10 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         )
         await callback(request_id, status="failed")
         return False
-    logger.info("sing task svc completed{} output={}", log_id_suffix(request_id), svc)
+    task_log("sing task svc completed{} output={}", log_id_suffix(request_id), svc)
 
     # 混合人声和伴奏
-    logger.info(
+    task_log(
         "sing task mixing audio{} svc={} no_vocals={} vocals={}",
         log_id_suffix(request_id),
         svc,
@@ -251,11 +251,11 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         )
         await callback(request_id, status="failed")
         return False
-    logger.info("sing task mix completed{} result={}", log_id_suffix(request_id), result)
+    task_log("sing task mix completed{} result={}", log_id_suffix(request_id), result)
 
     # 混音后合并混音结果
     finished = chunk_index == len(slices_list) - 1
-    logger.info(
+    task_log(
         "sing task splicing result{} result={} finished={} chunk_index={}",
         log_id_suffix(request_id),
         result,
@@ -265,7 +265,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     await asyncify(splice)(result, Path("resource/sing/splices"), finished, song_id, chunk_index, speaker, key=key)
     async with await anyio.open_file(result, "rb") as f:
         file = await f.read()
-    logger.info(
+    task_log(
         "sing task sending callback{} result={} bytes={} song_id={} chunk_index={} key={}",
         log_id_suffix(request_id),
         result,
@@ -275,7 +275,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         key,
     )
     await sing_audio_callback(request_id, file, song_id, chunk_index, key)
-    logger.info("sing task completed{} song_id={} chunk_index={} key={}", log_id_suffix(request_id), song_id, chunk_index, key)
+    task_log("sing task completed{} song_id={} chunk_index={} key={}", log_id_suffix(request_id), song_id, chunk_index, key)
     return True
 
 
@@ -286,7 +286,7 @@ def request_task(request_id: str, song_id: int):
 
 async def _request_task_async(request_id: str, song_id: int):
     # 从网易云下载
-    logger.info("request task started{} song_id={}", log_id_suffix(request_id), song_id)
+    task_log("request task started{} song_id={}", log_id_suffix(request_id), song_id)
     origin = await download(song_id)
     if not origin:
         logger.error("request task download failed{} song_id={}", log_id_suffix(request_id), song_id)
@@ -297,7 +297,7 @@ async def _request_task_async(request_id: str, song_id: int):
 
     async with await anyio.open_file(origin, "rb") as f:
         file = await f.read()
-        logger.info(
+        task_log(
             "request task sending callback{} song_id={} path={} bytes={}",
             log_id_suffix(request_id),
             song_id,
@@ -306,7 +306,7 @@ async def _request_task_async(request_id: str, song_id: int):
         )
         await callback(request_id, audio=file)
 
-    logger.info("request task completed{} song_id={} path={}", log_id_suffix(request_id), song_id, origin)
+    task_log("request task completed{} song_id={} path={}", log_id_suffix(request_id), song_id, origin)
     return True
 
 

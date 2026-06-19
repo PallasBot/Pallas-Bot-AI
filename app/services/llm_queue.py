@@ -1,3 +1,4 @@
+from app.core.celery import resolve_celery_queue_for_task
 from app.core.logger import log_id_clause, logger, short_log_id
 from app.providers.router import infer_task
 from app.services.llm_task_metrics import record_ai_llm_task_state
@@ -15,15 +16,18 @@ async def queue_llm_chat(
     metadata: dict | None = None,
     request_messages: list[dict[str, str]] | None = None,
 ) -> str:
-    task = llm_chat_task.delay(
-        request_id,
-        session,
-        text,
-        system_prompt,
-        model,
-        chat_options,
-        metadata,
-        request_messages,
+    task = llm_chat_task.apply_async(
+        args=(
+            request_id,
+            session,
+            text,
+            system_prompt,
+            model,
+            chat_options,
+            metadata,
+            request_messages,
+        ),
+        queue=resolve_celery_queue_for_task("llm_chat"),
     )
     record_ai_llm_task_state(str(task.id), infer_task(metadata if isinstance(metadata, dict) else {}), "queued")
     celery_id = short_log_id(task.id)
@@ -39,7 +43,10 @@ async def queue_llm_chat(
 
 async def delete_chat_session(session: str) -> None:
     logger.info("已排队删除 LLM 会话 session={}", session)
-    llm_del_session_task.delay(session)
+    llm_del_session_task.apply_async(
+        args=(session,),
+        queue=resolve_celery_queue_for_task("llm_del_session"),
+    )
 
 
 async def unload_local_model(model: str | None = None) -> tuple[int, str]:

@@ -12,7 +12,7 @@ from app.core.llm_backend_runtime import (
     is_llm_gpu_config_dirty,
     unload_resident_backend_model,
 )
-from app.core.logger import log_id_clause, log_id_suffix, logger
+from app.core.logger import log_id_clause, log_id_suffix, logger, task_log
 from app.providers.categorizer import classify_request_async, request_tier_for_metadata
 from app.providers.chain import run_provider_chain
 from app.providers.local_backend import unload_local_model
@@ -56,7 +56,7 @@ def llm_chat_task(
     request_messages: list | None = None,
 ):
     meta = metadata if isinstance(metadata, dict) else {}
-    logger.info(
+    task_log(
         "LLM 任务入队：{}{}字数={}",
         log_id_clause(request_id),
         f"task={infer_task(meta)} ",
@@ -80,7 +80,7 @@ def llm_chat_task(
             )
         )
     finally:
-        logger.info(
+        task_log(
             "LLM 任务完成：{}耗时={:.2f}s",
             log_id_clause(request_id),
             time.monotonic() - started,
@@ -144,7 +144,7 @@ async def llm_chat_async(
             )
             if pending_summary:
                 history_count = count_history_messages(meta, session, request_messages, text)
-        logger.info(
+        task_log(
             "LLM 开始推理：{}提供方={} 模型={} 历史={}",
             log_id_clause(request_id),
             primary_provider,
@@ -177,7 +177,7 @@ async def llm_chat_async(
             meta["classification"] = classification.to_dict()
             effective_tier = request_tier_for_metadata(text, meta)
             meta["classification"]["tier"] = effective_tier
-            logger.info(
+            task_log(
                 "请求分类：{}tools={} tier={} vision={} source={}",
                 log_id_clause(request_id),
                 classification.needs_tools,
@@ -231,7 +231,7 @@ async def llm_chat_async(
                 if session_mode == "redis":
                     messages.append(assistant_message)
                     save_messages(session, messages)
-                logger.info(
+                task_log(
                     "LLM 回复成功：{}字数={} 尝试={}/{}",
                     log_id_clause(request_id),
                     len(reply),

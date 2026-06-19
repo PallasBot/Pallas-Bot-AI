@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from unittest.mock import MagicMock
 
 from app.core.logger import (
     configure_stdlib_logging,
@@ -10,6 +11,7 @@ from app.core.logger import (
     resolve_log_level,
     short_log_id,
     stdlib_level,
+    task_log,
 )
 
 
@@ -50,3 +52,23 @@ def test_patch_log_record_short_module() -> None:
 def test_effective_log_format_uses_short_loc_when_enabled(monkeypatch) -> None:
     monkeypatch.setattr("app.core.logger.settings.log_loc_short", True)
     assert "extra[loc]" in effective_log_format()
+
+
+def test_task_log_defaults_to_debug_when_verbose_disabled(monkeypatch) -> None:
+    fake_logger = MagicMock()
+    monkeypatch.setattr("app.core.logger.loguru_logger", fake_logger)
+    monkeypatch.setattr("app.core.logger.settings.log_verbose_tasks", False)
+
+    task_log("hello {}", "world")
+
+    fake_logger.log.assert_called_once_with("DEBUG", "hello {}", "world")
+
+
+def test_task_log_uses_info_when_verbose_enabled(monkeypatch) -> None:
+    fake_logger = MagicMock()
+    monkeypatch.setattr("app.core.logger.loguru_logger", fake_logger)
+    monkeypatch.setattr("app.core.logger.settings.log_verbose_tasks", True)
+
+    task_log("hello {}", "world")
+
+    fake_logger.log.assert_called_once_with("INFO", "hello {}", "world")

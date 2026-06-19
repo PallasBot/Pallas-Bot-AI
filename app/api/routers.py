@@ -8,6 +8,7 @@ DEFAULT_ENDPOINTS = frozenset({
     "images",
     "llm_chat",
     "llm_manage",
+    "llm_providers",
     "llm_stats",
     "media_tasks",
     "ncm_login",
@@ -46,6 +47,10 @@ def _load_llm_manage() -> tuple[APIRouter, APIRouter]:
     return module.router, module.legacy_router
 
 
+def _load_llm_providers() -> APIRouter:
+    return import_module("app.api.endpoints.llm_providers").router
+
+
 def _load_tts() -> APIRouter:
     return import_module("app.api.endpoints.tts").router
 
@@ -66,6 +71,7 @@ ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
     "llm_chat": _load_llm_chat,
     "llm_stats": _load_llm_stats,
     "llm_manage": _load_llm_manage,
+    "llm_providers": _load_llm_providers,
     "tts": _load_tts,
     "ncm_login": _load_ncm_login,
     "persona_affect": _load_persona_affect,

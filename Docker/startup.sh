@@ -11,6 +11,21 @@ mkdir -p logs
 
 echo "=== Pallas-Bot AI 启动脚本 ==="
 
+detect_cuda_home() {
+    if [ -n "${CUDA_HOME:-}" ] && [ -d "${CUDA_HOME:-}" ]; then
+        return 0
+    fi
+    for candidate in /usr/local/cuda /usr/local/cuda-12.4 /usr/local/cuda-12; do
+        if [ -d "$candidate" ]; then
+            export CUDA_HOME="$candidate"
+            echo "✅ CUDA_HOME=$CUDA_HOME"
+            return 0
+        fi
+    done
+}
+
+detect_cuda_home
+
 # 检查 GPU 可用性
 echo "检查 GPU 可用性..."
 if nvidia-smi > /dev/null 2>&1; then
@@ -85,27 +100,76 @@ if [ "${LLM_CHAT_ENABLED:-true}" != "false" ]; then
   /server/.venv/bin/python -c "from app.core.llm_backend_runtime import ensure_local_backend_ready_sync; ensure_local_backend_ready_sync()"
 fi
 
+stop_child() {
+    local pid="$1"
+    local name="$2"
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "停止 $name (PID: $pid)..."
+        kill -TERM "$pid" 2>/dev/null || true
+        for _ in $(seq 1 20); do
+            kill -0 "$pid" 2>/dev/null || return 0
+            sleep 1
+        done
+        echo "$name 超时，强制 SIGKILL"
+        kill -KILL "$pid" 2>/dev/null || true
+    fi
+}
+
+shutdown_all() {
+    echo "正在关闭服务..."
+    stop_child "${UVICORN_PID:-0}" "FastAPI"
+    stop_child "${CELERY_PID:-0}" "Celery Worker"
+}
+
+trap 'shutdown_all; exit 0' SIGTERM SIGINT
+
 # 启动 Celery Worker (后台运行)
 echo "启动 Celery Worker..."
-nohup /server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=warning > logs/celery.log 2>&1 &
+/server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=warning >> logs/celery.log 2>&1 &
 CELERY_PID=$!
 
 # 等待 Celery 启动并检查状态
 sleep 5
-if kill -0 $CELERY_PID 2>/dev/null; then
+if kill -0 "$CELERY_PID" 2>/dev/null; then
     echo "✅ Celery Worker 启动成功 (PID: $CELERY_PID)"
 else
     echo "❌ Celery Worker 启动失败"
     exit 1
 fi
 
-# 启动 FastAPI 服务器
+# 启动 FastAPI 服务器 (后台运行，由当前脚本统一托管两个子进程)
 echo "启动 FastAPI 服务器..."
+/server/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 9099 --log-level warning >> logs/uvicorn.log 2>&1 &
+UVICORN_PID=$!
+
+sleep 3
+if kill -0 "$UVICORN_PID" 2>/dev/null; then
+    echo "✅ FastAPI 启动成功 (PID: $UVICORN_PID)"
+else
+    echo "❌ FastAPI 启动失败"
+    stop_child "$CELERY_PID" "Celery Worker"
+    exit 1
+fi
+
 echo "=== 服务已启动 ==="
 echo "API 地址: http://0.0.0.0:9099"
+echo "Celery PID: $CELERY_PID"
+echo "Uvicorn PID: $UVICORN_PID"
 echo "================="
 
-# 捕获信号：先 TERM 等待 celery 退出，超时再 KILL
-trap 'echo "正在关闭服务..."; kill -TERM $CELERY_PID 2>/dev/null || true; for i in $(seq 1 20); do kill -0 $CELERY_PID 2>/dev/null || break; sleep 1; done; kill -KILL $CELERY_PID 2>/dev/null || true; exit 0' SIGTERM SIGINT
-
-/server/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 9099 --log-level warning
+# 任何一个子进程退出，都结束另一边并让容器退出，避免只剩半边服务。
+while true; do
+    if ! kill -0 "$CELERY_PID" 2>/dev/null; then
+        echo "❌ Celery Worker 已退出"
+        stop_child "$UVICORN_PID" "FastAPI"
+        wait "$CELERY_PID"
+        exit 1
+    fi
+    if ! kill -0 "$UVICORN_PID" 2>/dev/null; then
+        echo "❌ FastAPI 已退出"
+        stop_child "$CELERY_PID" "Celery Worker"
+        wait "$UVICORN_PID"
+        exit 1
+    fi
+    sleep 2
+done

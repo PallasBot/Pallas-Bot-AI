@@ -34,7 +34,6 @@ from app.services.media_task_callback import notify_image_media_task_result, not
 from app.tasks.sing import sing_task
 
 _BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
-MEDIA_TASK_QUEUE = "media"
 
 
 def clear_media_task_runtime() -> None:
@@ -375,8 +374,7 @@ def dispatch_sing_task(record: MediaTaskRecord, body: MediaTaskSubmitRequest) ->
             length,
             parsed.chunk_index,
             parsed.key,
-        ),
-        queue=MEDIA_TASK_QUEUE,
+        )
     )
     update_task_record(record.task_id, celery_task_id=str(celery_result.id))
     logger.info("media task {} queued sing celery={}", record.task_id, celery_result.id)

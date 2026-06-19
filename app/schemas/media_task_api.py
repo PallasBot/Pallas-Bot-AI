@@ -73,6 +73,7 @@ class MediaTaskRuntimeStatus(BaseModel):
     queue_depth: int = 0
     active_tasks: int = 0
     total_tasks: int = 0
+    state_counts: dict[str, int] = Field(default_factory=dict)
     health_state: Literal["healthy", "degraded", "unhealthy", "unknown"] = "unknown"
     degraded_state: Literal["normal", "degraded", "busy", "overloaded"] = "normal"
     circuit_state: Literal["closed", "open", "half_open"] = "closed"

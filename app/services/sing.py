@@ -6,8 +6,6 @@ from app.core.config import settings
 from app.core.logger import logger
 from app.tasks.sing import play_task, request_task, sing_task
 
-MEDIA_TASK_QUEUE = "media"
-
 
 def ensure_sing_worker() -> None:
     try:
@@ -26,10 +24,7 @@ async def sing(
 ):
     ensure_sing_worker()
     length = sing_length if sing_length is not None and sing_length > 0 else settings.sing_length
-    task = sing_task.apply_async(
-        args=(request_id, speaker, song_id, length, chunk_index, key),
-        queue=MEDIA_TASK_QUEUE,
-    )
+    task = sing_task.apply_async(args=(request_id, speaker, song_id, length, chunk_index, key))
     logger.info(f"Task {task.id} started")
     return task.id
 
@@ -37,13 +32,13 @@ async def sing(
 async def play(speaker: str = ""):
     ensure_sing_worker()
     request_id = str(ULID())
-    task = play_task.apply_async(args=(request_id, speaker), queue=MEDIA_TASK_QUEUE)
+    task = play_task.apply_async(args=(request_id, speaker))
     logger.info(f"Task {task.id} started")
     return request_id
 
 
 async def download(request_id: str, song_id: int):
     ensure_sing_worker()
-    task = request_task.apply_async(args=(request_id, song_id), queue=MEDIA_TASK_QUEUE)
+    task = request_task.apply_async(args=(request_id, song_id))
     logger.info(f"Task {task.id} started")
     return task.id

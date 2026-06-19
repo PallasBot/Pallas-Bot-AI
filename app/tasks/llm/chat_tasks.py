@@ -2,6 +2,8 @@ import asyncio
 import time
 from typing import Any
 
+from celery import current_task
+
 from app.core.celery import celery_app
 from app.core.config import settings
 from app.core.llm_backend_runtime import (
@@ -15,11 +17,27 @@ from app.providers.categorizer import classify_request_async, request_tier_for_m
 from app.providers.chain import run_provider_chain
 from app.providers.local_backend import unload_local_model
 from app.providers.registry import load_provider_registry
-from app.providers.router import infer_task, provider_configuration_error, resolve_model_name, resolve_provider_order
+from app.providers.router import (
+    infer_task,
+    provider_configuration_error,
+    resolve_model_name,
+    resolve_provider_order,
+)
 from app.providers.types import ChatCompletionParams, ProviderError
 from app.services.callback import callback
-from app.services.llm_messages import build_chat_messages, count_history_messages, is_pg_session
-from app.services.llm_task_metrics import record_ai_llm_classification, record_ai_llm_task_from_metadata
+from app.services.llm_messages import (
+    build_chat_messages,
+    count_history_messages,
+    is_pg_session,
+)
+from app.services.llm_rewrite import rewrite_llm_reply
+from app.services.llm_task_metrics import (
+    clear_ai_llm_task_state,
+    record_ai_llm_shaping,
+    record_ai_llm_classification,
+    record_ai_llm_task_from_metadata,
+    record_ai_llm_task_state,
+)
 from app.services.session_summary import maybe_compact_request_messages
 from app.session import del_session, reset_session, save_messages
 
@@ -58,6 +76,7 @@ def llm_chat_task(
                 chat_options,
                 metadata,
                 request_messages,
+                str(getattr(getattr(current_task, "request", None), "id", "") or ""),
             )
         )
     finally:
@@ -78,9 +97,11 @@ async def llm_chat_async(
     chat_options: dict | None,
     metadata: dict | None,
     request_messages: list | None = None,
+    celery_task_id: str = "",
 ):
     meta = metadata if isinstance(metadata, dict) else {}
     succeeded = False
+    record_ai_llm_task_state(celery_task_id, infer_task(meta), "running")
     try:
         if not settings.llm_chat_enabled:
             logger.warning("LLM 已关闭，跳过任务{}", log_id_suffix(request_id))
@@ -200,6 +221,13 @@ async def llm_chat_async(
         for attempt in range(1, max_attempts + 1):
             try:
                 reply, assistant_message = await run_provider_chain(params, messages)
+                rewrite_result = await rewrite_llm_reply(reply, metadata=meta)
+                reply = rewrite_result.reply
+                if rewrite_result.applied_rules:
+                    meta = dict(meta)
+                    meta["rewrite_applied_rules"] = list(rewrite_result.applied_rules)
+                assistant_message["content"] = reply
+                record_ai_llm_shaping(meta)
                 if session_mode == "redis":
                     messages.append(assistant_message)
                     save_messages(session, messages)
@@ -244,6 +272,7 @@ async def llm_chat_async(
         logger.error("LLM 重试耗尽{} err={}", log_id_suffix(request_id), last_error)
         await callback(request_id, status="failed")
     finally:
+        clear_ai_llm_task_state(celery_task_id)
         record_ai_llm_task_from_metadata(meta, "task_ok" if succeeded else "task_fail")
 
 

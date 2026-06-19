@@ -101,7 +101,7 @@ def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.
     assert body["result_state"] == "accepted"
     apply_mock.assert_called_once()
     _, kwargs = apply_mock.call_args
-    assert kwargs["queue"] == "media"
+    assert "queue" not in kwargs
     task = get_media_task(body["task_id"])
     assert task is not None
     assert task.state == "queued"

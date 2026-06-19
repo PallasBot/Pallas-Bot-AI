@@ -37,10 +37,23 @@ async def callback(
     callback_url = f"{CALLBACK_URL}/{request_id}"
 
     data = {"status": status}
+    logger.info(
+        "准备回调 Bot{} status={} has_text={} has_audio={} song_id={} chunk_index={} key={} history_summary={} history_keep_messages={}",
+        log_id_suffix(request_id),
+        status,
+        bool(text),
+        audio is not None,
+        song_id,
+        chunk_index,
+        key,
+        bool(history_summary),
+        history_keep_messages,
+    )
 
     if status == "failed":
         try:
-            await send_callback(callback_url, data)
+            result = await send_callback(callback_url, data)
+            logger.info("回调 Bot 完成{} status=failed result={}", log_id_suffix(request_id), result)
         except httpx.HTTPStatusError as err:
             logger.warning(
                 "回调 Bot 失败{} http={} url={}",
@@ -48,6 +61,8 @@ async def callback(
                 err.response.status_code,
                 callback_url,
             )
+        except Exception as exc:
+            logger.exception("回调 Bot 异常{} status=failed url={} error={}", log_id_suffix(request_id), callback_url, exc)
         return
 
     if text:
@@ -65,9 +80,10 @@ async def callback(
 
     try:
         if audio:
-            await send_callback(callback_url, data, files={"file": audio})
+            result = await send_callback(callback_url, data, files={"file": audio})
         else:
-            await send_callback(callback_url, data)
+            result = await send_callback(callback_url, data)
+        logger.info("回调 Bot 完成{} status={} result={}", log_id_suffix(request_id), status, result)
     except httpx.HTTPStatusError as err:
         logger.warning(
             "回调 Bot 失败{} http={} url={}",
@@ -75,3 +91,5 @@ async def callback(
             err.response.status_code,
             callback_url,
         )
+    except Exception as exc:
+        logger.exception("回调 Bot 异常{} status={} url={} error={}", log_id_suffix(request_id), status, callback_url, exc)

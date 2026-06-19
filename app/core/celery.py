@@ -95,10 +95,4 @@ celery_app.conf.update(
     worker_disable_rate_limits=True,
     worker_hijack_root_logger=False,
     task_default_queue="default",
-    task_routes={
-        "sing": {"queue": "media"},
-        "request": {"queue": "media"},
-        "play": {"queue": "media"},
-        "tts": {"queue": "media"},
-    },
 )

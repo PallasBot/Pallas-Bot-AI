@@ -14,13 +14,25 @@ from .categorizer import (
     request_tier_for_metadata,
 )
 from .local_backend import ping_local_provider_sync
-from .registry import load_provider_registry, local_base_url_for_spec, remote_is_configured
+from .registry import (
+    load_provider_registry,
+    local_base_url_for_spec,
+    remote_is_configured,
+)
+from .registry import (
+    providers_file_path as registry_providers_file_path,
+)
 from .remote_backend import ping_remote_provider_sync
 
 ChainFailure = Literal["try_next", "fail"]
 
 _DEFAULT_CHAIN_LOCAL_TASKS = frozenset({"llm_chat", "drunk"})
-_DEFAULT_CHAIN_REMOTE_TASKS = frozenset({"repeater_fallback", "repeater_polish", "repeater_polish_lite", "repeater_select"})
+_DEFAULT_CHAIN_REMOTE_TASKS = frozenset({
+    "repeater_fallback",
+    "repeater_polish",
+    "repeater_polish_lite",
+    "repeater_select",
+})
 
 
 def parse_task_set(raw: str | None, default: frozenset[str]) -> frozenset[str]:
@@ -242,17 +254,13 @@ def task_model_override(task: str, provider_id: str, cfg: Settings | None = None
             c.llm_task_model_repeater_fallback_remote or c.llm_task_model_repeater_fallback
         ),
         ("repeater_polish", "local"): c.llm_task_model_repeater_polish,
-        ("repeater_polish", "remote"): (
-            c.llm_task_model_repeater_polish_remote or c.llm_task_model_repeater_polish
-        ),
+        ("repeater_polish", "remote"): (c.llm_task_model_repeater_polish_remote or c.llm_task_model_repeater_polish),
         ("repeater_polish_lite", "local"): c.llm_task_model_repeater_polish_lite,
         ("repeater_polish_lite", "remote"): (
             c.llm_task_model_repeater_polish_lite_remote or c.llm_task_model_repeater_polish_lite
         ),
         ("repeater_select", "local"): c.llm_task_model_repeater_select,
-        ("repeater_select", "remote"): (
-            c.llm_task_model_repeater_select_remote or c.llm_task_model_repeater_select
-        ),
+        ("repeater_select", "remote"): (c.llm_task_model_repeater_select_remote or c.llm_task_model_repeater_select),
         ("affect_refine", "local"): c.persona_affect_refine_model,
         ("affect_refine", "remote"): c.llm_task_model_affect_refine_remote or c.persona_affect_refine_model,
     }
@@ -371,19 +379,23 @@ def provider_configuration_error(cfg: Settings | None = None) -> str | None:
     if mode == "remote_only":
         if not any(registry.is_usable(pid) for pid in order):
             return "remote_not_configured"
-        if not (c.llm_remote_model or "").strip() and not any(
-            str(v or "").strip()
-            for v in (
-                c.llm_task_model_chat_remote,
-                c.llm_task_model_drunk_remote,
-                c.llm_task_model_repeater_fallback_remote,
-                c.llm_task_model_repeater_polish_remote,
-                c.llm_task_model_repeater_select_remote,
+        if (
+            not (c.llm_remote_model or "").strip()
+            and not any(
+                str(v or "").strip()
+                for v in (
+                    c.llm_task_model_chat_remote,
+                    c.llm_task_model_drunk_remote,
+                    c.llm_task_model_repeater_fallback_remote,
+                    c.llm_task_model_repeater_polish_remote,
+                    c.llm_task_model_repeater_select_remote,
+                )
             )
-        ) and not any(
-            (registry.get(pid) and registry.get(pid).default_model)
-            for pid in order
-            if registry.kind_of(pid) == "remote"
+            and not any(
+                (registry.get(pid) and registry.get(pid).default_model)
+                for pid in order
+                if registry.kind_of(pid) == "remote"
+            )
         ):
             return "remote_model_not_configured"
     if any(registry.kind_of(pid) == "remote" for pid in order) and not remote_is_configured(c):
@@ -478,12 +490,15 @@ def llm_health_snapshot(cfg: Settings | None = None) -> dict[str, Any]:
         "categorizer_model": categorizer_model_name(c),
         "categorizer_provider": (c.llm_categorizer_provider or "local").strip() or "local",
         "session_backend": normalize_session_backend(c.llm_session_backend),
+        "session_summary": {
+            "enabled": bool(c.llm_session_summary_enabled),
+            "threshold": int(c.llm_session_summary_threshold),
+            "keep_messages": int(c.llm_session_summary_keep_messages),
+        },
         **reachability,
         **aggregate,
     }
 
 
 def providers_file_path(cfg: Settings | None = None):
-    from .registry import providers_file_path as registry_providers_file_path
-
     return registry_providers_file_path(cfg)

@@ -15,6 +15,8 @@ _day_key = ""
 _prompt_tokens = 0
 _completion_tokens = 0
 _by_task: dict[str, dict[str, int]] = {}
+_by_provider: dict[str, dict[str, int]] = {}
+_by_model: dict[str, dict[str, int]] = {}
 
 
 def today_key() -> str:
@@ -30,6 +32,8 @@ def rollover_if_needed() -> None:
     _prompt_tokens = 0
     _completion_tokens = 0
     _by_task.clear()
+    _by_provider.clear()
+    _by_model.clear()
 
 
 def stats_file_path() -> Path:
@@ -42,6 +46,8 @@ def stats_file_path() -> Path:
 def record_llm_token_usage(
     *,
     task: str | None,
+    provider: str | None = None,
+    model: str | None = None,
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
 ) -> None:
@@ -59,6 +65,16 @@ def record_llm_token_usage(
             row = _by_task.setdefault(task_key, {"prompt_tokens": 0, "completion_tokens": 0})
             row["prompt_tokens"] += prompt
             row["completion_tokens"] += completion
+            provider_key = str(provider or "").strip().lower()
+            if provider_key:
+                row = _by_provider.setdefault(provider_key, {"prompt_tokens": 0, "completion_tokens": 0})
+                row["prompt_tokens"] += prompt
+                row["completion_tokens"] += completion
+            model_key = str(model or "").strip()
+            if model_key:
+                row = _by_model.setdefault(model_key, {"prompt_tokens": 0, "completion_tokens": 0})
+                row["prompt_tokens"] += prompt
+                row["completion_tokens"] += completion
     except Exception:
         pass
 
@@ -76,6 +92,8 @@ def load_stats_file() -> dict[str, Any]:
 
 def merge_llm_token_snapshots(rows: list[dict[str, Any]]) -> dict[str, Any]:
     by_task: dict[str, dict[str, int]] = {}
+    by_provider: dict[str, dict[str, int]] = {}
+    by_model: dict[str, dict[str, int]] = {}
     prompt_tokens = 0
     completion_tokens = 0
     day_key = ""
@@ -99,6 +117,28 @@ def merge_llm_token_snapshots(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 dst = by_task.setdefault(task_key, {"prompt_tokens": 0, "completion_tokens": 0})
                 dst["prompt_tokens"] += int(metrics.get("prompt_tokens") or 0)
                 dst["completion_tokens"] += int(metrics.get("completion_tokens") or 0)
+        src_by_provider = row.get("by_provider")
+        if isinstance(src_by_provider, dict):
+            for provider, metrics in src_by_provider.items():
+                if not isinstance(metrics, dict):
+                    continue
+                provider_key = str(provider).strip().lower()
+                if not provider_key:
+                    continue
+                dst = by_provider.setdefault(provider_key, {"prompt_tokens": 0, "completion_tokens": 0})
+                dst["prompt_tokens"] += int(metrics.get("prompt_tokens") or 0)
+                dst["completion_tokens"] += int(metrics.get("completion_tokens") or 0)
+        src_by_model = row.get("by_model")
+        if isinstance(src_by_model, dict):
+            for model, metrics in src_by_model.items():
+                if not isinstance(metrics, dict):
+                    continue
+                model_key = str(model).strip()
+                if not model_key:
+                    continue
+                dst = by_model.setdefault(model_key, {"prompt_tokens": 0, "completion_tokens": 0})
+                dst["prompt_tokens"] += int(metrics.get("prompt_tokens") or 0)
+                dst["completion_tokens"] += int(metrics.get("completion_tokens") or 0)
     return {
         "source": "ai",
         "day_key": day_key or today_key(),
@@ -107,6 +147,14 @@ def merge_llm_token_snapshots(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "completion_tokens": completion_tokens,
         "total_tokens": prompt_tokens + completion_tokens,
         "by_task": by_task,
+        "by_provider": {
+            key: {**value, "total_tokens": int(value["prompt_tokens"]) + int(value["completion_tokens"])}
+            for key, value in by_provider.items()
+        },
+        "by_model": {
+            key: {**value, "total_tokens": int(value["prompt_tokens"]) + int(value["completion_tokens"])}
+            for key, value in by_model.items()
+        },
     }
 
 
@@ -121,6 +169,14 @@ def _local_llm_token_metrics_snapshot() -> dict[str, Any]:
             "completion_tokens": _completion_tokens,
             "total_tokens": _prompt_tokens + _completion_tokens,
             "by_task": {task: dict(values) for task, values in _by_task.items()},
+            "by_provider": {
+                key: {**dict(values), "total_tokens": int(values["prompt_tokens"]) + int(values["completion_tokens"])}
+                for key, values in _by_provider.items()
+            },
+            "by_model": {
+                key: {**dict(values), "total_tokens": int(values["prompt_tokens"]) + int(values["completion_tokens"])}
+                for key, values in _by_model.items()
+            },
         }
 
 
@@ -139,6 +195,8 @@ def llm_token_metrics_snapshot(*, include_persisted: bool = True) -> dict[str, A
         "completion_tokens": int(persisted_raw.get("completion_tokens") or 0),
         "total_tokens": int(persisted_raw.get("total_tokens") or 0),
         "by_task": persisted_raw.get("by_task") if isinstance(persisted_raw.get("by_task"), dict) else {},
+        "by_provider": persisted_raw.get("by_provider") if isinstance(persisted_raw.get("by_provider"), dict) else {},
+        "by_model": persisted_raw.get("by_model") if isinstance(persisted_raw.get("by_model"), dict) else {},
     }
     local_has = local.get("total_tokens", 0) > 0 or bool(local.get("by_task"))
     if not local_has:
@@ -167,3 +225,5 @@ def clear_llm_token_metrics_for_tests() -> None:
         _prompt_tokens = 0
         _completion_tokens = 0
         _by_task.clear()
+        _by_provider.clear()
+        _by_model.clear()

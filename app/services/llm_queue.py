@@ -1,4 +1,6 @@
-from app.core.logger import log_id_clause, short_log_id, logger
+from app.core.logger import log_id_clause, logger, short_log_id
+from app.providers.router import infer_task
+from app.services.llm_task_metrics import record_ai_llm_task_state
 from app.tasks.llm import llm_chat_task, llm_del_session_task, unload_local_backend_model
 
 
@@ -23,6 +25,7 @@ async def queue_llm_chat(
         metadata,
         request_messages,
     )
+    record_ai_llm_task_state(str(task.id), infer_task(metadata if isinstance(metadata, dict) else {}), "queued")
     celery_id = short_log_id(task.id)
     celery_part = f"celery={celery_id} " if celery_id else ""
     logger.info(

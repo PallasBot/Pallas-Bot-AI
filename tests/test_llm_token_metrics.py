@@ -12,11 +12,19 @@ from app.services.llm_token_metrics import (
 
 def test_record_llm_token_usage() -> None:
     clear_llm_token_metrics_for_tests()
-    record_llm_token_usage(task="llm_chat", prompt_tokens=100, completion_tokens=20)
-    snap = llm_token_metrics_snapshot()
+    record_llm_token_usage(
+        task="llm_chat",
+        provider="openai",
+        model="gpt-4.1-mini",
+        prompt_tokens=100,
+        completion_tokens=20,
+    )
+    snap = llm_token_metrics_snapshot(include_persisted=False)
     assert snap["prompt_tokens"] == 100
     assert snap["completion_tokens"] == 20
     assert snap["by_task"]["llm_chat"]["prompt_tokens"] == 100
+    assert snap["by_provider"]["openai"]["total_tokens"] == 120
+    assert snap["by_model"]["gpt-4.1-mini"]["completion_tokens"] == 20
 
 
 @pytest.mark.parametrize(

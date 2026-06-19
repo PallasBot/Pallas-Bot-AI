@@ -30,3 +30,18 @@ class ProvidersConfigResponse(BaseModel):
     routing: dict[str, Any]
     providers_file: str
     file_exists: bool
+
+
+class ProviderModelsResponse(BaseModel):
+    provider_id: str
+    ok: bool
+    models: list[str] = Field(default_factory=list)
+    source: str = ""
+    error: str = ""
+
+
+class ProviderTestResponse(BaseModel):
+    provider_id: str
+    reachable: bool
+    latency_ms: float | None = None
+    error: str = ""

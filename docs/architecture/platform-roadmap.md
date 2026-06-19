@@ -67,7 +67,8 @@ Bot **只连** `:9099`；换 local/remote/chain 不改编译主仓。
 ### 3. 可观测
 
 - **Health**：provider 模式、remote 是否配置、moe/tools 开关（已有）。
-- **待补**：按 task/provider 的延迟与失败率指标；Celery queue depth；可选 Prometheus `/metrics`。
+- **待补**：按 task/provider 的延迟与失败率指标；可选 Prometheus `/metrics`。
+- **已补齐**：`/api/llm/stats` 已同时暴露实时 `queued/running`、累计 `succeeded/failed` task state，以及 `failure_counts`、`provider_stats`、`model_stats` 与 token `by_provider/by_model` 细分。
 - **日志**：request_id / session / task 贯穿 uvicorn → Celery → callback。
 
 ### 4. 配置与部署
@@ -85,7 +86,7 @@ Bot **只连** `:9099`；换 local/remote/chain 不改编译主仓。
 | **4.0.2** ~ | remote_only 配置校验与健康探测 | repeater fallback/polish 联调 | 远端薄侧车稳定（联调待跑） |
 | **4.0.x** ✓ | Tool call 执行环（schema → 调 Bot 或内联 handler） | P9 方舟 KB tools | `@牛牛` 带工具 |
 | **4.0.x+** ✓ | MoE / categorizer / tier→remote / token metrics | [llm-efficiency-roadmap](https://github.com/PallasBot/Pallas-Bot/blob/main/docs/architecture/llm-efficiency-roadmap.md) A1–A4 | 省 Token + 可观测 |
-| **4.1** ~ | 会话持久化 + 超长摘要（embedding 记忆可选） | P8 / A2 RAG | 长上下文（摘要已交付；embedding 待评估） |
+| **4.1** ~ | 会话持久化 + 超长摘要（embedding 记忆可选） | P8 / A2 RAG | 长上下文（session backend / 摘要已交付并纳入 health；embedding 待评估） |
 | **4.1+** ✓ | Media 栈（Image/sing/TTS）独立于 Chat provider | sing/draw 插件 | 算力分池（Image Runtime MVP 已交付） |
 
 ## 4.0.1 交付包（当前冲刺）

@@ -64,7 +64,7 @@ def test_record_ai_llm_classification() -> None:
         "task": "llm_chat",
         "classification": {"tier": "medium", "needs_tools": True},
     })
-    snap = llm_task_metrics_snapshot()
+    snap = llm_task_metrics_snapshot(include_persisted=False)
     assert snap["classification"]["totals"]["tier_medium"] == 1
     assert snap["classification"]["totals"]["tools_on"] == 1
     assert snap["classification"]["totals"]["vision_off"] == 1

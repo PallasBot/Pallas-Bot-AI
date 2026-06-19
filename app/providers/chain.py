@@ -1,20 +1,33 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from app.core.config import settings
 from app.core.logger import log_id_clause, logger
+from app.services.llm_task_metrics import record_ai_llm_provider_result
 from app.services.llm_token_metrics import record_llm_token_usage
 from app.services.vision_messages import enrich_local_messages_for_vision
 
 from . import local_backend, remote_backend
 from .registry import load_provider_registry
-from .router import infer_task, normalize_chain_failure, resolve_model_name, resolve_provider_order
+from .router import (
+    infer_task,
+    normalize_chain_failure,
+    resolve_model_name,
+    resolve_provider_order,
+)
 from .tool_loop import complete_with_tool_loop, tool_schemas_for_metadata
 from .types import ChatCompletionParams, ProviderError
 
 
-def record_usage_from_message(metadata: dict[str, Any] | None, message: dict[str, Any] | None) -> None:
+def record_usage_from_message(
+    metadata: dict[str, Any] | None,
+    message: dict[str, Any] | None,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+) -> None:
     if not isinstance(message, dict):
         return
     usage = message.get("_usage")
@@ -23,6 +36,8 @@ def record_usage_from_message(metadata: dict[str, Any] | None, message: dict[str
     meta = metadata if isinstance(metadata, dict) else {}
     record_llm_token_usage(
         task=infer_task(meta),
+        provider=provider,
+        model=model,
         prompt_tokens=int(usage.get("prompt_tokens") or 0),
         completion_tokens=int(usage.get("completion_tokens") or 0),
     )
@@ -59,6 +74,7 @@ async def run_provider_chain(
             index + 1,
             len(provider_ids),
         )
+        started = time.perf_counter()
         try:
             active_provider_id = provider_id
             if tool_schemas:
@@ -93,7 +109,12 @@ async def run_provider_chain(
                             tools=tools,
                             provider_id=provider_name,
                         )
-                    record_usage_from_message(params.metadata, message_obj)
+                    record_usage_from_message(
+                        params.metadata,
+                        message_obj,
+                        provider=provider_name,
+                        model=model,
+                    )
                     return message_obj
 
                 meta = params.metadata if isinstance(params.metadata, dict) else {}
@@ -114,7 +135,12 @@ async def run_provider_chain(
                     tools=None,
                     provider_id=provider_id,
                 )
-                record_usage_from_message(params.metadata, message_obj)
+                record_usage_from_message(
+                    params.metadata,
+                    message_obj,
+                    provider=provider_id,
+                    model=model,
+                )
                 reply = str(message_obj.get("content", "") or "").strip()
                 assistant_message = {"role": "assistant", "content": reply}
             else:
@@ -131,11 +157,34 @@ async def run_provider_chain(
                     tools=None,
                     provider_id=provider_id,
                 )
-                record_usage_from_message(params.metadata, message_obj)
+                record_usage_from_message(
+                    params.metadata,
+                    message_obj,
+                    provider=provider_id,
+                    model=model,
+                )
                 reply = str(message_obj.get("content", "") or "").strip()
                 assistant_message = {"role": "assistant", "content": reply}
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            record_ai_llm_provider_result(
+                task=infer_task(params.metadata if isinstance(params.metadata, dict) else {}),
+                provider=provider_id,
+                model=model,
+                succeeded=True,
+                latency_ms=latency_ms,
+            )
             return reply, assistant_message
         except (ProviderError, ValueError) as exc:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            failure_class = "provider_error" if isinstance(exc, ProviderError) else "invalid_request"
+            record_ai_llm_provider_result(
+                task=infer_task(params.metadata if isinstance(params.metadata, dict) else {}),
+                provider=provider_id,
+                model=model,
+                succeeded=False,
+                latency_ms=latency_ms,
+                failure_class=failure_class,
+            )
             last_error = exc
             logger.warning(
                 "LLM 提供方不可用，切换下一个：{}provider={} err={}",

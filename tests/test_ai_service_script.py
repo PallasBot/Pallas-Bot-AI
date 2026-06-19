@@ -74,6 +74,12 @@ case "${1:-}" in
       echo "celery worker 未运行: queue=${QUEUE}"
     fi
     ;;
+  purge-stale)
+    echo "worker purged queue=${QUEUE}"
+    ;;
+  restart-clean)
+    echo "worker restart-clean queue=${QUEUE}"
+    ;;
   *)
     echo "bad action" >&2
     exit 1
@@ -115,7 +121,7 @@ def test_ai_service_script_start_status_stop(tmp_path: Path) -> None:
     assert status.returncode == 0
     assert "API 运行中" in status.stdout
     assert "celery worker 运行中: queue=default" in status.stdout
-    assert "celery worker 运行中: queue=media" in status.stdout
+    assert "queue=media" not in status.stdout
 
     stop = _run_script(tmp_path, "stop")
     assert stop.returncode == 0
@@ -125,7 +131,6 @@ def test_ai_service_script_start_status_stop(tmp_path: Path) -> None:
     assert status_after.returncode == 0
     assert "API 未运行" in status_after.stdout
     assert "celery worker 未运行: queue=default" in status_after.stdout
-    assert "celery worker 未运行: queue=media" in status_after.stdout
 
 
 def test_ai_service_script_reuses_existing_processes(tmp_path: Path) -> None:
@@ -140,14 +145,20 @@ def test_ai_service_script_reuses_existing_processes(tmp_path: Path) -> None:
     assert stop.returncode == 0
 
 
-def test_ai_service_status_tracks_default_and_media_workers_separately(tmp_path: Path) -> None:
+def test_ai_service_status_only_reports_single_worker(tmp_path: Path) -> None:
     _run_script(tmp_path, "start")
-
-    media_pid = tmp_path / "worker-media.pid"
-    if media_pid.exists():
-        media_pid.unlink()
 
     status = _run_script(tmp_path, "status")
     assert status.returncode == 0
     assert "celery worker 运行中: queue=default" in status.stdout
-    assert "celery worker 未运行: queue=media" in status.stdout
+    assert "queue=media" not in status.stdout
+
+
+def test_ai_service_forwards_worker_actions(tmp_path: Path) -> None:
+    purge = _run_script(tmp_path, "purge-stale")
+    assert purge.returncode == 0
+    assert "worker purged queue=default" in purge.stdout
+
+    restart_clean = _run_script(tmp_path, "restart-clean")
+    assert restart_clean.returncode == 0
+    assert "worker restart-clean queue=default" in restart_clean.stdout

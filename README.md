@@ -46,8 +46,14 @@ curl -X POST http://127.0.0.1:11434/api/pull -d '{"name":"qwen2.5:0.5b"}'
 
 ```bash
 uv sync --group dev
-uv run celery -A app.core.celery worker --loglevel=warning
-uv run python -m app.run_api
+./scripts/ai_service.sh start
+```
+
+查看状态 / 停止服务：
+
+```bash
+./scripts/ai_service.sh status
+./scripts/ai_service.sh stop
 ```
 
 默认仅注册 **LLM** 任务（`CELERY_TASK_PACKAGES=llm`）。若需酒后 RWKV、唱歌、TTS，在 `.env` 设 `CELERY_TASK_PACKAGES=all` 并安装对应依赖：`uv sync --all-groups --extra gpu`。

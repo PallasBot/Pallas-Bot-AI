@@ -73,3 +73,19 @@ def test_redis_session_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_llm_health_includes_session_backend() -> None:
     snap = llm_health_snapshot(Settings(llm_session_backend="redis"))
     assert snap["session_backend"] == "redis"
+
+
+def test_llm_health_includes_session_summary_settings() -> None:
+    snap = llm_health_snapshot(
+        Settings(
+            llm_session_backend="redis",
+            llm_session_summary_enabled=True,
+            llm_session_summary_threshold=18,
+            llm_session_summary_keep_messages=5,
+        )
+    )
+    assert snap["session_summary"] == {
+        "enabled": True,
+        "threshold": 18,
+        "keep_messages": 5,
+    }

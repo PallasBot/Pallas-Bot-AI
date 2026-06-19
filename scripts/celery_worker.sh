@@ -8,6 +8,7 @@ PID_FILE="${CELERY_PID_FILE:-$ROOT/logs/celery.pid}"
 LOG_FILE="${CELERY_LOG_FILE:-$ROOT/logs/celery.log}"
 WAIT_SEC="${CELERY_STOP_WAIT_SEC:-20}"
 WORKER_QUEUE="${CELERY_WORKER_QUEUE:-}"
+REDIS_URL_OVERRIDE="${CELERY_REDIS_URL:-${REDIS_URL:-}}"
 
 detect_cuda_home() {
   if [[ -n "${CUDA_HOME:-}" && -d "${CUDA_HOME:-}" ]]; then
@@ -102,13 +103,61 @@ status_worker() {
   fi
 }
 
+resolve_redis_url() {
+  if [[ -n "$REDIS_URL_OVERRIDE" ]]; then
+    printf '%s\n' "$REDIS_URL_OVERRIDE"
+    return 0
+  fi
+  if [[ -f "$ROOT/.env" ]]; then
+    local raw
+    raw="$(rg -N '^REDIS_URL=' "$ROOT/.env" | tail -n 1 || true)"
+    raw="${raw#REDIS_URL=}"
+    raw="${raw#\"}"
+    raw="${raw%\"}"
+    if [[ -n "$raw" ]]; then
+      printf '%s\n' "$raw"
+      return 0
+    fi
+  fi
+  printf '%s\n' "redis://localhost:6379/0"
+}
+
+purge_stale() {
+  local redis_url
+  redis_url="$(resolve_redis_url)"
+  echo "清理 Celery 遗留任务（保留 llm:session:*） url=$redis_url"
+  local summary
+  summary="$(REDIS_URL="$redis_url" uv run --no-sync python - <<'PY'
+import json
+import os
+
+import redis
+
+url = os.environ["REDIS_URL"]
+client = redis.Redis.from_url(url, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=2.0)
+patterns = ("celery-task-meta-*", "unacked", "unacked_index")
+deleted = {}
+for pattern in patterns:
+    keys = [pattern] if "*" not in pattern else sorted(client.keys(pattern))
+    existing = [key for key in keys if client.exists(key)]
+    deleted[pattern] = len(existing)
+    if existing:
+        client.delete(*existing)
+print(json.dumps({"redis_url": url, "deleted": deleted}, ensure_ascii=False))
+PY
+)"
+  echo "$summary"
+}
+
 case "${1:-}" in
   start) start_worker ;;
   stop) stop_worker ;;
   restart) stop_worker; start_worker ;;
+  purge-stale) purge_stale ;;
+  restart-clean) stop_worker; purge_stale; start_worker ;;
   status) status_worker ;;
   *)
-    echo "用法: $0 {start|stop|restart|status}"
+    echo "用法: $0 {start|stop|restart|restart-clean|purge-stale|status}"
     exit 1
     ;;
 esac

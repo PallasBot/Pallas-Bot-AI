@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.app_factory import create_app
 from app.core.config import settings
 from app.media_task_runtime import clear_media_task_runtime, get_media_task
+from app.media_task_store import MediaTaskRecord, store_task_record
 
 
 @pytest.fixture
@@ -80,7 +81,7 @@ def test_submit_image_task_disabled_returns_failed(client: TestClient, monkeypat
 def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.media_task_runtime.require_celery_task_package", lambda _alias: None)
     celery_result = MagicMock(id="celery-sing-1")
-    with patch("app.media_task_runtime.sing_task.delay", return_value=celery_result) as delay_mock:
+    with patch("app.media_task_runtime.sing_task.apply_async", return_value=celery_result) as apply_mock:
         response = client.post(
             "/api/media/tasks",
             json={
@@ -98,7 +99,9 @@ def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.
     assert response.status_code == 200
     body = response.json()
     assert body["result_state"] == "accepted"
-    delay_mock.assert_called_once()
+    apply_mock.assert_called_once()
+    _, kwargs = apply_mock.call_args
+    assert kwargs["queue"] == "media"
     task = get_media_task(body["task_id"])
     assert task is not None
     assert task.state == "queued"
@@ -133,6 +136,38 @@ def test_media_task_runtime_status(client: TestClient, monkeypatch: pytest.Monke
     assert any(item["capability"] == "image.generate" for item in body["capabilities"])
 
 
+def test_media_task_runtime_status_exposes_state_counts(client: TestClient) -> None:
+    store_task_record(
+        MediaTaskRecord(
+            task_id="task-runtime-q",
+            request_id="req-runtime-q",
+            capability="image.generate",
+            state="queued",
+            provider_id="image",
+            backend_id="image-local",
+            submitted_at=1.0,
+        )
+    )
+    store_task_record(
+        MediaTaskRecord(
+            task_id="task-runtime-f",
+            request_id="req-runtime-f",
+            capability="media.sing",
+            state="failed",
+            provider_id="sing",
+            backend_id="sing-local",
+            submitted_at=2.0,
+        )
+    )
+
+    runtime = client.get("/api/media/tasks/runtime")
+
+    assert runtime.status_code == 200
+    body = runtime.json()
+    assert body["state_counts"]["queued"] == 1
+    assert body["state_counts"]["failed"] == 1
+
+
 def test_health_includes_media_tasks(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
@@ -150,9 +185,7 @@ def test_health_includes_tts() -> None:
     assert body["tts"]["capability"] == "tts.synthesize"
 
 
-def test_image_generate_force_task_mode_returns_accepted(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_image_generate_force_task_mode_returns_accepted(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "image_enabled", True)
     with patch(
         "app.media_task_runtime.submit_image_generate",

@@ -7,12 +7,25 @@ cd "$ROOT"
 PID_FILE="${CELERY_PID_FILE:-$ROOT/logs/celery.pid}"
 LOG_FILE="${CELERY_LOG_FILE:-$ROOT/logs/celery.log}"
 WAIT_SEC="${CELERY_STOP_WAIT_SEC:-20}"
+WORKER_QUEUE="${CELERY_WORKER_QUEUE:-}"
+
+detect_cuda_home() {
+  if [[ -n "${CUDA_HOME:-}" && -d "${CUDA_HOME:-}" ]]; then
+    return 0
+  fi
+  local candidate=""
+  for candidate in /usr/local/cuda /usr/local/cuda-12.4 /usr/local/cuda-12; do
+    if [[ -d "$candidate" ]]; then
+      export CUDA_HOME="$candidate"
+      return 0
+    fi
+  done
+}
 
 read_pids() {
   if [[ -f "$PID_FILE" ]]; then
     tr ' ' '\n' <"$PID_FILE" | rg -v '^\s*$' || true
   fi
-  pgrep -f "celery -A app.core.celery worker" 2>/dev/null || true
 }
 
 is_running() {
@@ -25,13 +38,18 @@ is_running() {
 
 start_worker() {
   mkdir -p "$(dirname "$LOG_FILE")"
+  detect_cuda_home
   if is_running; then
     echo "celery worker 已在运行"
     read_pids | sort -u
     return 0
   fi
-  echo "启动 celery worker → $LOG_FILE"
-  nohup uv run --no-sync celery -A app.core.celery worker --loglevel=warning >>"$LOG_FILE" 2>&1 &
+  local queue_args=()
+  if [[ -n "$WORKER_QUEUE" ]]; then
+    queue_args=( -Q "$WORKER_QUEUE" )
+  fi
+  echo "启动 celery worker${WORKER_QUEUE:+ queue=$WORKER_QUEUE} → $LOG_FILE"
+  nohup uv run --no-sync celery -A app.core.celery worker --loglevel=warning "${queue_args[@]}" >>"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   sleep 3
   if is_running; then

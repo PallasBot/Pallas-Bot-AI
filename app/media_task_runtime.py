@@ -34,6 +34,7 @@ from app.services.media_task_callback import notify_image_media_task_result, not
 from app.tasks.sing import sing_task
 
 _BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
+MEDIA_TASK_QUEUE = "media"
 
 
 def clear_media_task_runtime() -> None:
@@ -44,8 +45,10 @@ def media_task_runtime_status() -> MediaTaskRuntimeStatus:
     records = list_task_records()
     queue_states = {"pending", "queued"}
     active_states = {"running"}
+    state_counts: dict[str, int] = {}
     by_capability: dict[str, dict[str, int]] = {}
     for record in records:
+        state_counts[record.state] = state_counts.get(record.state, 0) + 1
         bucket = by_capability.setdefault(
             record.capability,
             {"queue_depth": 0, "active_tasks": 0},
@@ -81,6 +84,7 @@ def media_task_runtime_status() -> MediaTaskRuntimeStatus:
         queue_depth=queue_depth,
         active_tasks=active_tasks,
         total_tasks=len(records),
+        state_counts=state_counts,
         capabilities=capabilities,
         health_state=runtime_health["health_state"],
         degraded_state=runtime_health["degraded_state"],
@@ -256,11 +260,15 @@ def mark_task_succeeded(record: MediaTaskRecord, *, data: dict[str, Any] | None 
 
 def failed_submit_response(record: MediaTaskRecord) -> MediaTaskSubmitResponse:
     refreshed = get_record(record.task_id)
-    error = refreshed.error if refreshed and refreshed.error else RuntimeErrorBody(
-        code="task_failed",
-        message="task failed",
-        retryable=False,
-        failure_class="task_failed",
+    error = (
+        refreshed.error
+        if refreshed and refreshed.error
+        else RuntimeErrorBody(
+            code="task_failed",
+            message="task failed",
+            retryable=False,
+            failure_class="task_failed",
+        )
     )
     return MediaTaskSubmitResponse(
         request_id=record.request_id,
@@ -359,13 +367,16 @@ def dispatch_sing_task(record: MediaTaskRecord, body: MediaTaskSubmitRequest) ->
     parsed = parse_media_task_payload("media.sing", body.payload)
     assert isinstance(parsed, SingTaskPayload)
     length = parsed.sing_length if parsed.sing_length and parsed.sing_length > 0 else settings.sing_length
-    celery_result = sing_task.delay(
-        body.request_id,
-        parsed.speaker,
-        parsed.song_id,
-        length,
-        parsed.chunk_index,
-        parsed.key,
+    celery_result = sing_task.apply_async(
+        args=(
+            body.request_id,
+            parsed.speaker,
+            parsed.song_id,
+            length,
+            parsed.chunk_index,
+            parsed.key,
+        ),
+        queue=MEDIA_TASK_QUEUE,
     )
     update_task_record(record.task_id, celery_task_id=str(celery_result.id))
     logger.info("media task {} queued sing celery={}", record.task_id, celery_result.id)

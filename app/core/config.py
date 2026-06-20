@@ -63,6 +63,16 @@ class Settings(BaseSettings):
         le=7200,
         validation_alias=AliasChoices("gpu_lock_max_hold", "GPU_LOCK_MAX_HOLD"),
     )
+    # 媒体子进程（demucs/DDSP-SVC 等 os 级命令）单次执行硬超时。demucs 偶发卡死
+    # （CUDA ext 编译 / ffmpeg 管道 hang）会让持锁的 with 块永久退不出，GPU 空着
+    # 写锁却占满 max_hold（30 分钟），期间所有 LLM 读锁全部等待超时。子进程级超时
+    # 是第一道防线：超时即杀进程组并释放写锁，远早于看门狗的硬上限兜底。
+    media_subprocess_timeout: int = Field(
+        default=600,
+        ge=30,
+        le=7200,
+        validation_alias=AliasChoices("media_subprocess_timeout", "MEDIA_SUBPROCESS_TIMEOUT"),
+    )
     # 是否让本地 LLM 推理也参与 GPU 锁。单卡部署必须开（默认），否则 LLM 与媒体
     # 任务会同时上卡 OOM。远程 LLM（LLM_BACKEND_URL 指向独立机器）可关掉省开销。
     gpu_lock_llm_enabled: bool = Field(

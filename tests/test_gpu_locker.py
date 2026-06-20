@@ -6,7 +6,12 @@ import time
 import pytest
 
 import app.utils.gpu_locker as gl
-from app.utils.gpu_locker import GPUHoldTimeoutError, GPULockManager, GPULockTimeoutError
+from app.utils.gpu_locker import (
+    GPUHoldTimeoutError,
+    GPULockManager,
+    GPULockTimeoutError,
+    MediaSubprocessTimeoutError,
+)
 
 
 class FakeLock:
@@ -74,8 +79,9 @@ def patch_redis(monkeypatch):
 def test_write_acquire_release_normal(patch_redis):
     fake = patch_redis(FakeRedis())
     mgr = GPULockManager(0, lease_ttl=30, max_hold=1800)
-    with mgr.acquire_write() as gid:
-        assert gid == 0
+    with mgr.acquire_write() as handle:
+        assert handle.gpu_id == 0
+        assert int(handle) == 0
     assert fake.last_lock.released is True
 
 
@@ -83,8 +89,8 @@ def test_acquire_alias_is_write(patch_redis):
     patch_redis(FakeRedis())
     mgr = GPULockManager(0)
     # 旧媒体调用 with locker.acquire() 仍走写锁
-    with mgr.acquire() as gid:
-        assert gid == 0
+    with mgr.acquire() as handle:
+        assert handle.gpu_id == 0
 
 
 def test_write_timeout_raises(patch_redis):
@@ -129,6 +135,42 @@ def test_write_unloads_llm(patch_redis, monkeypatch):
     with mgr.acquire_write(unload_llm=True):
         pass
     assert called["n"] == 1
+
+
+# ── 子进程超时 / 看门狗杀进程（卡死根治）─────────────────────────────────
+def test_run_subprocess_normal_returns_rc(patch_redis):
+    patch_redis(FakeRedis())
+    mgr = GPULockManager(0, lease_ttl=30, max_hold=1800)
+    with mgr.acquire_write() as handle:
+        rc = handle.run_subprocess("exit 0")
+    assert rc == 0
+
+
+def test_run_subprocess_timeout_kills_and_raises(patch_redis):
+    # 核心回归：子进程卡死时不再永久阻塞，到点杀进程组并抛超时。
+    patch_redis(FakeRedis())
+    mgr = GPULockManager(0, lease_ttl=30, max_hold=1800, subprocess_timeout=1)
+    started = time.monotonic()
+    with mgr.acquire_write() as handle:
+        with pytest.raises(MediaSubprocessTimeoutError):
+            handle.run_subprocess("sleep 30", timeout=1)
+    elapsed = time.monotonic() - started
+    # 1s 超时即返回，远小于 sleep 30；写锁随 with 正常释放。
+    assert elapsed < 10
+
+
+def test_watchdog_kills_subprocess_on_max_hold(patch_redis):
+    # max_hold 触发时看门狗须杀掉在跑子进程，让阻塞的 with 块退出。
+    fake = patch_redis(FakeRedis())
+    mgr = GPULockManager(0, lease_ttl=30, max_hold=0.3, renew_interval=0.05, subprocess_timeout=120)
+    started = time.monotonic()
+    with pytest.raises(GPUHoldTimeoutError):
+        with mgr.acquire_write() as handle:
+            # 子进程超时设得很长，全靠看门狗硬上限杀掉它解锁。
+            handle.run_subprocess("sleep 30", timeout=120)
+    elapsed = time.monotonic() - started
+    assert elapsed < 10
+    assert fake.last_lock.released is True
 
 
 # ── 读锁 ────────────────────────────────────────────────────────────────

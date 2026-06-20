@@ -1,5 +1,8 @@
 import asyncio
 import contextlib
+import os
+import signal
+import subprocess
 import threading
 import time
 import uuid
@@ -14,6 +17,83 @@ class GPULockTimeoutError(RuntimeError):
 
 class GPUHoldTimeoutError(RuntimeError):
     """持有 GPU 锁的执行超过硬上限，看门狗已强制释放。"""
+
+
+class MediaSubprocessTimeoutError(RuntimeError):
+    """媒体子进程执行超过单次硬超时，已被杀掉。"""
+
+
+def _kill_process_tree(proc: subprocess.Popen, grace: float = 5.0) -> None:
+    """杀掉子进程及其整个进程组（demucs 会 fork ffmpeg 等子进程）。
+
+    先 SIGTERM 给进程组留 ``grace`` 秒清理，再 SIGKILL 兜底。子进程以
+    ``start_new_session=True`` 启动，自成进程组，故可整组 kill 不误伤本进程。
+    """
+    if proc.poll() is not None:
+        return
+    try:
+        pgid = os.getpgid(proc.pid)
+    except (ProcessLookupError, OSError):
+        return
+    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 2.0)):
+        try:
+            os.killpg(pgid, sig)
+        except (ProcessLookupError, OSError):
+            return
+        try:
+            proc.wait(timeout=wait)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
+class GPUWriteHandle:
+    """写锁 yield 出的句柄：在持锁期间跑媒体子进程，超时即杀。
+
+    旧调用方用 ``with locker.acquire(...):`` 不接收 yield 值，新调用方可
+    ``with locker.acquire(...) as gpu:`` 拿到本句柄并调用 ``run_subprocess``。
+    为兼容历史把 ``gpu_id`` 暴露为属性，``int(handle)`` 也回退到 gpu_id。
+    """
+
+    def __init__(self, gpu_id: int, subprocess_timeout: int):
+        self.gpu_id = gpu_id
+        self._subprocess_timeout = subprocess_timeout
+        self._procs: set[subprocess.Popen] = set()
+        self._lock = threading.Lock()
+
+    def __int__(self) -> int:
+        return self.gpu_id
+
+    def __index__(self) -> int:
+        return self.gpu_id
+
+    def run_subprocess(self, cmd: str, timeout: int | None = None) -> int:
+        """在持锁期间执行 shell 命令，带硬超时；超时杀进程组并抛异常。
+
+        替代裸 ``os.system(cmd)``：os.system 无超时，子进程卡死会让写锁的
+        with 块永久退不出，GPU 空着锁却占满 max_hold。这里超时即整组 kill，
+        写锁随 with 退出立即释放，远早于看门狗硬上限。
+        """
+        limit = self._subprocess_timeout if timeout is None else timeout
+        proc = subprocess.Popen(cmd, shell=True, start_new_session=True)
+        with self._lock:
+            self._procs.add(proc)
+        try:
+            return proc.wait(timeout=limit)
+        except subprocess.TimeoutExpired:
+            logger.error("GPU {} 媒体子进程超过 {}s 硬超时，强制杀进程组", self.gpu_id, limit)
+            _kill_process_tree(proc)
+            raise MediaSubprocessTimeoutError(f"media subprocess timeout {limit}s") from None
+        finally:
+            with self._lock:
+                self._procs.discard(proc)
+
+    def _kill_all(self) -> None:
+        """看门狗触发硬上限时调用：杀掉所有在跑的子进程，让 with 块尽快退出。"""
+        with self._lock:
+            procs = list(self._procs)
+        for proc in procs:
+            _kill_process_tree(proc)
 
 
 class GPULockManager:
@@ -37,6 +117,7 @@ class GPULockManager:
         lease_ttl: int = 60,
         max_hold: int = 1800,
         renew_interval: float | None = None,
+        subprocess_timeout: int = 600,
     ):
         self.gpu_id = gpu_id
         self.write_key = f"gpu_lock:{gpu_id}"
@@ -44,6 +125,7 @@ class GPULockManager:
         self.wait_timeout = wait_timeout
         self.lease_ttl = lease_ttl
         self.max_hold = max_hold
+        self.subprocess_timeout = subprocess_timeout
         # 续租周期默认取租约的 1/3，保证至少续两次才会过期。
         self.renew_interval = renew_interval if renew_interval is not None else max(1.0, lease_ttl / 3)
 
@@ -76,16 +158,19 @@ class GPULockManager:
         stop = threading.Event()
         hold_exceeded = threading.Event()
         started = time.monotonic()
+        handle = GPUWriteHandle(self.gpu_id, self.subprocess_timeout)
 
         def _watchdog() -> None:
             while not stop.wait(self.renew_interval):
                 if time.monotonic() - started >= self.max_hold:
                     logger.error(
-                        "GPU {} 写锁持有超过硬上限 {}s，看门狗强制释放",
+                        "GPU {} 写锁持有超过硬上限 {}s，看门狗强制释放并杀子进程",
                         self.gpu_id,
                         self.max_hold,
                     )
                     hold_exceeded.set()
+                    # 先杀子进程，让阻塞的 with 块（os 级命令）尽快退出，再放 redis 锁。
+                    handle._kill_all()
                     _safe_release(lock)
                     return
                 try:
@@ -96,7 +181,7 @@ class GPULockManager:
         watcher = threading.Thread(target=_watchdog, name=f"gpu-wlock-{self.gpu_id}", daemon=True)
         watcher.start()
         try:
-            yield self.gpu_id
+            yield handle
         finally:
             stop.set()
             watcher.join(timeout=self.renew_interval + 1)
@@ -204,6 +289,7 @@ def get_gpu_locker(gpu_id: int | None = None) -> GPULockManager:
             wait_timeout=settings.gpu_lock_wait_timeout,
             lease_ttl=settings.gpu_lock_lease_ttl,
             max_hold=settings.gpu_lock_max_hold,
+            subprocess_timeout=settings.media_subprocess_timeout,
         )
         _shared_locks[gid] = locker
     return locker

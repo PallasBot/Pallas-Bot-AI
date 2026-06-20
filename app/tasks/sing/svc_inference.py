@@ -1,9 +1,9 @@
-import os
 import platform
 from pathlib import Path
 
 from pydub import AudioSegment
 
+from app.core.logger import logger
 from app.tasks.media_device import cuda_env_prefix
 from app.utils.gpu_locker import GPULockManager
 
@@ -41,11 +41,12 @@ def inference(song_path: Path, output_dir: Path, key: int = 0, speaker: str = "p
         )
 
         try:
-            with locker.acquire(unload_llm=True):
+            with locker.acquire(unload_llm=True) as gpu:
                 print(cmd)
-                os.system(cmd)
+                gpu.run_subprocess(cmd)
         except Exception as e:
-            print(e)
+            logger.error("DDSP-SVC 推理子进程失败：{}", e)
+            return None
 
     if not result.exists():
         return None

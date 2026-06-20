@@ -1,10 +1,10 @@
-import os
 import platform
 from pathlib import Path
 
 import librosa
 import soundfile as sf
 
+from app.core.logger import logger
 from app.tasks.media_device import cuda_env_prefix
 from app.utils.gpu_locker import GPULockManager
 
@@ -30,11 +30,12 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
             f"python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
         )
         try:
-            with locker.acquire(unload_llm=True):
+            with locker.acquire(unload_llm=True) as gpu:
                 print(cmd)
-                os.system(cmd)
+                gpu.run_subprocess(cmd)
         except Exception as e:
-            print(e)
+            logger.error("demucs 分离子进程失败：{}", e)
+            return None
         if not vocals.exists() or not no_vocals_0key.exists():
             return None
 

@@ -5,7 +5,7 @@ from pathlib import Path
 import librosa
 import soundfile as sf
 
-from app.core.config import settings
+from app.tasks.media_device import cuda_env_prefix
 from app.utils.gpu_locker import GPULockManager
 
 
@@ -25,17 +25,12 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
 
     if (not vocals_with_stem.exists() and not vocals_with_stem.exists()) or not no_vocals_0key.exists():
         # 这个库没提供 APIs，暂时简单粗暴用命令行了
-        cmd = ""
-        if settings.sing_cuda_device:
-            if platform.system() == "Windows":
-                cmd = f"set CUDA_VISIBLE_DEVICES={settings.sing_cuda_device} && "
-            else:
-                cmd = f"CUDA_VISIBLE_DEVICES={settings.sing_cuda_device} "
+        cmd = cuda_env_prefix()
         cmd += (
             f"python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
         )
         try:
-            with locker.acquire():
+            with locker.acquire(unload_llm=True):
                 print(cmd)
                 os.system(cmd)
         except Exception as e:

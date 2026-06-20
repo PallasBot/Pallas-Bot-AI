@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydub import AudioSegment
 
-from app.core.config import settings
+from app.tasks.media_device import cuda_env_prefix
 from app.utils.gpu_locker import GPULockManager
 
 DDSP = (Path(__file__).parent / "DDSP-SVC" / "main_reflow.py").absolute()
@@ -35,19 +35,13 @@ def inference(song_path: Path, output_dir: Path, key: int = 0, speaker: str = "p
         #     print("'{speaker}'s .pth not found")
         #     return None
 
-        cmd = ""
-        if settings.sing_cuda_device:
-            if platform.system() == "Windows":
-                cmd = f"set CUDA_VISIBLE_DEVICES={settings.sing_cuda_device} && "
-            else:
-                cmd = f"CUDA_VISIBLE_DEVICES={settings.sing_cuda_device} "
-
+        cmd = cuda_env_prefix()
         cmd += (
             f"python {DDSP} -i {song_path.absolute()} -m {dm_current_path.absolute()} -o {result.absolute()} -k {key}"
         )
 
         try:
-            with locker.acquire():
+            with locker.acquire(unload_llm=True):
                 print(cmd)
                 os.system(cmd)
         except Exception as e:

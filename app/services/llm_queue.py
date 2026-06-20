@@ -1,4 +1,5 @@
 from app.core.celery import resolve_celery_queue_for_task
+from app.core.config import settings
 from app.core.logger import log_id_clause, logger, short_log_id
 from app.providers.router import infer_task
 from app.services.llm_task_metrics import record_ai_llm_task_state
@@ -16,6 +17,8 @@ async def queue_llm_chat(
     metadata: dict | None = None,
     request_messages: list[dict[str, str]] | None = None,
 ) -> str:
+    # 过期丢弃：worker 重启后不执行积压超时的旧消息，避免一开机刷屏。expires=0 表示关闭。
+    expires = settings.llm_chat_task_expires or None
     task = llm_chat_task.apply_async(
         args=(
             request_id,
@@ -28,6 +31,7 @@ async def queue_llm_chat(
             request_messages,
         ),
         queue=resolve_celery_queue_for_task("llm_chat"),
+        expires=expires,
     )
     record_ai_llm_task_state(str(task.id), infer_task(metadata if isinstance(metadata, dict) else {}), "queued")
     celery_id = short_log_id(task.id)

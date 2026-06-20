@@ -17,6 +17,23 @@ def test_queue_llm_chat_routes_to_default(monkeypatch) -> None:
     assert task_id == "celery-llm-1"
     _, kwargs = apply_async.call_args
     assert kwargs["queue"] == "default"
+    # 默认带过期，worker 重启后丢弃积压旧消息
+    assert kwargs["expires"] == 120.0
+
+
+def test_queue_llm_chat_expires_disabled(monkeypatch) -> None:
+    apply_async = MagicMock(return_value=SimpleNamespace(id="celery-llm-2"))
+    monkeypatch.setattr("app.services.llm_queue.llm_chat_task.apply_async", apply_async)
+    monkeypatch.setattr("app.services.llm_queue.record_ai_llm_task_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("app.services.llm_queue.settings.llm_chat_task_expires", 0.0)
+
+    import asyncio
+
+    asyncio.run(queue_llm_chat("req-2", "session-2", "hello", "system"))
+
+    _, kwargs = apply_async.call_args
+    # 关闭过期时传 None（celery 视为永不过期，旧行为）
+    assert kwargs["expires"] is None
 
 
 def test_sing_routes_to_media_queue(monkeypatch) -> None:

@@ -6,12 +6,12 @@ from app.core.config import settings
 from app.core.logger import logger
 from app.services.callback import callback
 from app.tasks.tts.tts_tasks import tts_req
-from app.utils.gpu_locker import GPULockManager
+from app.utils.gpu_locker import get_gpu_locker
 
 if TYPE_CHECKING:
     from .model import Chat
 
-gpu_locker = GPULockManager(0)
+gpu_locker = get_gpu_locker()
 
 
 class ChatManager:
@@ -43,7 +43,7 @@ def chat_task(request_id: str, session: str, text: str, token_count: int, tts: b
 
 async def _chat_task_async(request_id: str, session: str, text: str, token_count: int, tts: bool):
     try:
-        with gpu_locker.acquire():
+        with gpu_locker.acquire(unload_llm=True):
             chat = ChatManager.get_chat()
             ans = chat.chat(session, text, token_count)
     except Exception:

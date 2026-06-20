@@ -118,22 +118,43 @@ stop_child() {
 shutdown_all() {
     echo "正在关闭服务..."
     stop_child "${UVICORN_PID:-0}" "FastAPI"
+    stop_child "${CELERY_MEDIA_PID:-0}" "Celery Media Worker"
     stop_child "${CELERY_PID:-0}" "Celery Worker"
 }
 
 trap 'shutdown_all; exit 0' SIGTERM SIGINT
 
-# 启动 Celery Worker (后台运行)
-echo "启动 Celery Worker..."
-/server/.venv/bin/python -m celery -A app.core.celery worker --loglevel=warning >> logs/celery.log 2>&1 &
+# 启动 Celery Worker —— 拆成两个进程，按队列隔离：
+#   default 队列：LLM 推理任务（包 llm）
+#   media   队列：唱歌 / TTS / 旧版 chat 等 GPU 媒体任务（包 sing,tts,chat）
+# 否则单进程单线程池会让媒体任务卡死时连带 LLM 一起哑掉（见昨晚 7h 卡死）。
+echo "启动 Celery Worker (default 队列: LLM)..."
+CELERY_TASK_PACKAGES="${AI_DEFAULT_WORKER_PACKAGES:-llm}" \
+    /server/.venv/bin/python -m celery -A app.core.celery worker \
+    --loglevel=warning -Q default -n default@%h >> logs/celery.log 2>&1 &
 CELERY_PID=$!
 
 # 等待 Celery 启动并检查状态
 sleep 5
 if kill -0 "$CELERY_PID" 2>/dev/null; then
-    echo "✅ Celery Worker 启动成功 (PID: $CELERY_PID)"
+    echo "✅ Celery Worker (default) 启动成功 (PID: $CELERY_PID)"
 else
-    echo "❌ Celery Worker 启动失败"
+    echo "❌ Celery Worker (default) 启动失败"
+    exit 1
+fi
+
+echo "启动 Celery Worker (media 队列: 唱歌/TTS/chat)..."
+CELERY_TASK_PACKAGES="${AI_MEDIA_WORKER_PACKAGES:-sing,tts,chat}" \
+    /server/.venv/bin/python -m celery -A app.core.celery worker \
+    --loglevel=warning -Q media -n media@%h >> logs/celery-media.log 2>&1 &
+CELERY_MEDIA_PID=$!
+
+sleep 5
+if kill -0 "$CELERY_MEDIA_PID" 2>/dev/null; then
+    echo "✅ Celery Worker (media) 启动成功 (PID: $CELERY_MEDIA_PID)"
+else
+    echo "❌ Celery Worker (media) 启动失败"
+    stop_child "$CELERY_PID" "Celery Worker"
     exit 1
 fi
 
@@ -147,27 +168,38 @@ if kill -0 "$UVICORN_PID" 2>/dev/null; then
     echo "✅ FastAPI 启动成功 (PID: $UVICORN_PID)"
 else
     echo "❌ FastAPI 启动失败"
+    stop_child "$CELERY_MEDIA_PID" "Celery Media Worker"
     stop_child "$CELERY_PID" "Celery Worker"
     exit 1
 fi
 
 echo "=== 服务已启动 ==="
 echo "API 地址: http://0.0.0.0:9099"
-echo "Celery PID: $CELERY_PID"
+echo "Celery (default) PID: $CELERY_PID"
+echo "Celery (media)   PID: $CELERY_MEDIA_PID"
 echo "Uvicorn PID: $UVICORN_PID"
 echo "================="
 
-# 任何一个子进程退出，都结束另一边并让容器退出，避免只剩半边服务。
+# 任何一个子进程退出，都结束其它进程并让容器退出，避免只剩半边服务。
 while true; do
     if ! kill -0 "$CELERY_PID" 2>/dev/null; then
-        echo "❌ Celery Worker 已退出"
+        echo "❌ Celery Worker (default) 已退出"
         stop_child "$UVICORN_PID" "FastAPI"
+        stop_child "$CELERY_MEDIA_PID" "Celery Media Worker"
         wait "$CELERY_PID"
+        exit 1
+    fi
+    if ! kill -0 "$CELERY_MEDIA_PID" 2>/dev/null; then
+        echo "❌ Celery Worker (media) 已退出"
+        stop_child "$UVICORN_PID" "FastAPI"
+        stop_child "$CELERY_PID" "Celery Worker"
+        wait "$CELERY_MEDIA_PID"
         exit 1
     fi
     if ! kill -0 "$UVICORN_PID" 2>/dev/null; then
         echo "❌ FastAPI 已退出"
         stop_child "$CELERY_PID" "Celery Worker"
+        stop_child "$CELERY_MEDIA_PID" "Celery Media Worker"
         wait "$UVICORN_PID"
         exit 1
     fi

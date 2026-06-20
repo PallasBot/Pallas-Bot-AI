@@ -3,6 +3,7 @@ import time
 from typing import Any
 
 from celery import current_task
+from celery.exceptions import SoftTimeLimitExceeded
 
 from app.core.celery import celery_app
 from app.core.config import settings
@@ -33,8 +34,8 @@ from app.services.llm_messages import (
 from app.services.llm_rewrite import rewrite_llm_reply
 from app.services.llm_task_metrics import (
     clear_ai_llm_task_state,
-    record_ai_llm_shaping,
     record_ai_llm_classification,
+    record_ai_llm_shaping,
     record_ai_llm_task_from_metadata,
     record_ai_llm_task_state,
 )
@@ -246,6 +247,11 @@ async def llm_chat_async(
                     callback_kwargs["history_keep_messages"] = int(pending_summary.get("keep_messages") or 0)
                 await callback(request_id, text=reply, **callback_kwargs)
                 succeeded = True
+                return
+            except SoftTimeLimitExceeded:
+                # 任务超时：不重试，直接中止并回调 failed，避免拖到硬超时杀线程。
+                logger.error("LLM 任务软超时{} 尝试={}/{}", log_id_suffix(request_id), attempt, max_attempts)
+                await callback(request_id, status="failed")
                 return
             except ProviderError as exc:
                 last_error = exc

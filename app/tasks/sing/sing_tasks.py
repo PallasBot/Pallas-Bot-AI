@@ -10,7 +10,7 @@ from app.core.celery import celery_app
 from app.core.config import settings
 from app.core.logger import log_id_suffix, logger, task_log
 from app.services.callback import callback
-from app.utils.gpu_locker import GPULockManager
+from app.utils.gpu_locker import get_gpu_locker
 
 from .mixer import mix, splice
 from .ncm_loader import download
@@ -18,7 +18,7 @@ from .separater import separate
 from .slicer import slice as slice_audio
 from .svc_inference import inference
 
-gpu_locker = GPULockManager(settings.sing_cuda_device)
+gpu_locker = get_gpu_locker(settings.sing_cuda_device)
 
 
 async def sing_audio_callback(

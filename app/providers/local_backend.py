@@ -93,8 +93,16 @@ async def complete_local_message(
         payload_options.get("num_gpu"),
     )
     timeout = httpx.Timeout(settings.llm_request_timeout)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(local_chat_url(base_url), json=payload)
+    if settings.gpu_lock_llm_enabled:
+        # 单卡：LLM 取读锁（彼此并发，仅与媒体写锁互斥），媒体上卡时自然让路。
+        from app.utils.gpu_locker import acquire_gpu_read_async
+
+        async with acquire_gpu_read_async():
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(local_chat_url(base_url), json=payload)
+    else:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(local_chat_url(base_url), json=payload)
     if response.status_code != 200:
         logger.error(
             "local llm backend failed: provider={} status={} body={}",

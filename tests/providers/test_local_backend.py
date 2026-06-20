@@ -85,6 +85,8 @@ base_url = "http://127.0.0.1:11435"
             return FakeResponse()
 
     monkeypatch.setattr("app.providers.local_backend.httpx.AsyncClient", FakeClient)
+    # 本测试只验证 HTTP 路由，不涉及 GPU；关掉 LLM GPU 锁避免连真实 redis。
+    monkeypatch.setattr("app.providers.local_backend.settings.gpu_lock_llm_enabled", False)
 
     async def run() -> dict:
         return await complete_local_message(

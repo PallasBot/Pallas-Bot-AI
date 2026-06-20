@@ -8,8 +8,16 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app.providers.router import infer_task
 from app.services.llm_token_metrics import flush_stats_sync as flush_token_stats_sync
+
+
+def infer_task(meta: dict[str, Any]) -> str:
+    # 延迟 import：app.providers.router 依赖本模块，模块顶层 import 会形成循环
+    # （chain.py -> llm_task_metrics -> router -> ... -> chain），导致 media worker 初始化 chat 任务时 ImportError。
+    from app.providers.router import infer_task as _infer_task
+
+    return _infer_task(meta)
+
 
 _STORE_VER = 1
 _TASKS = frozenset({

@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.providers.config_store import export_providers_for_api, save_providers_document
+from app.providers.local_routing_config import export_local_routing_config, save_local_routing_config
 from app.providers.local_backend import local_tags_url, resolve_local_provider
 from app.providers.registry import provider_spec_or_error
 from app.providers.remote_backend import (
@@ -21,6 +22,7 @@ from app.providers.types import ProviderError
 from app.schemas.providers_api import (
     ProviderModelsResponse,
     ProviderTestResponse,
+    LocalRoutingConfigResponse,
     ProvidersConfigResponse,
     ProvidersDocument,
 )
@@ -47,6 +49,22 @@ async def put_providers_config(body: ProvidersDocument) -> dict[str, Any]:
         "provider_status": health.get("provider_status", []),
         "task_routing": health.get("task_routing", {}),
     }
+
+
+@router.get("/llm/local-routing", response_model=LocalRoutingConfigResponse)
+async def get_local_routing_config() -> LocalRoutingConfigResponse:
+    if not settings.llm_chat_enabled:
+        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+    payload = export_local_routing_config()
+    return LocalRoutingConfigResponse(**payload)
+
+
+@router.put("/llm/local-routing", response_model=LocalRoutingConfigResponse)
+async def put_local_routing_config(body: LocalRoutingConfigResponse) -> LocalRoutingConfigResponse:
+    if not settings.llm_chat_enabled:
+        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+    payload = save_local_routing_config(body.model_dump())
+    return LocalRoutingConfigResponse(**payload)
 
 
 def _parse_ollama_tags(payload: Any) -> list[str]:

@@ -150,6 +150,9 @@ repeater_fallback = "local"
         llm_providers_file=str(providers_file),
         llm_provider_mode="chain",
         llm_model="global-model",
+        llm_moe_model_simple="",
+        llm_moe_model_medium="",
+        llm_moe_model_complex="",
     )
     assert resolve_provider_order(cfg, {"task": "llm_chat"}) == ["ollama-tools"]
     assert resolve_provider_order(cfg, {"task": "repeater_fallback"}) == ["local"]

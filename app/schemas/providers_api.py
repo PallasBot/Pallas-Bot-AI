@@ -45,3 +45,27 @@ class ProviderTestResponse(BaseModel):
     reachable: bool
     latency_ms: float | None = None
     error: str = ""
+
+
+class LocalRoutingModels(BaseModel):
+    simple: str = ""
+    medium: str = ""
+    complex: str = ""
+    vision: str = ""
+
+
+class LocalRoutingTaskModels(BaseModel):
+    llm_chat: str = ""
+    drunk: str = ""
+    repeater_fallback: str = ""
+    repeater_polish: str = ""
+    repeater_polish_lite: str = ""
+    repeater_select: str = ""
+
+
+class LocalRoutingConfigResponse(BaseModel):
+    llm_model: str
+    local_multi_model_enabled: bool = False
+    moe_models: LocalRoutingModels = Field(default_factory=LocalRoutingModels)
+    task_models: LocalRoutingTaskModels = Field(default_factory=LocalRoutingTaskModels)
+    env_file: str = ""

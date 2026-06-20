@@ -71,6 +71,7 @@ def test_resolve_provider_order_flipped_tasks_via_env() -> None:
         llm_remote_base_url="https://api.deepseek.com",
         llm_remote_api_key="secret",
         llm_remote_model="deepseek-v4-flash",
+        llm_providers_file="tests/fixtures/missing-providers.toml",
         llm_chain_local_tasks="repeater_fallback,repeater_polish",
         llm_chain_remote_tasks="llm_chat,drunk",
     )
@@ -84,6 +85,7 @@ def test_resolve_provider_order_repeater_prefers_remote_in_chain() -> None:
         llm_remote_base_url="https://api.deepseek.com",
         llm_remote_api_key="secret",
         llm_remote_model="deepseek-v4-flash",
+        llm_providers_file="tests/fixtures/missing-providers.toml",
         llm_chain_local_tasks="llm_chat,drunk",
         llm_chain_remote_tasks="repeater_fallback,repeater_polish",
     )
@@ -97,6 +99,7 @@ def test_resolve_provider_order_chat_stays_local_in_chain() -> None:
         llm_remote_base_url="https://api.deepseek.com",
         llm_remote_api_key="secret",
         llm_remote_model="deepseek-v4-flash",
+        llm_providers_file="tests/fixtures/missing-providers.toml",
         llm_chain_local_tasks="llm_chat,drunk",
         llm_chain_remote_tasks="repeater_fallback,repeater_polish",
     )
@@ -110,6 +113,7 @@ def test_resolve_provider_order_tier_complex_routes_remote() -> None:
         llm_remote_base_url="https://api.deepseek.com",
         llm_remote_api_key="secret",
         llm_remote_model="deepseek-v4-flash",
+        llm_providers_file="tests/fixtures/missing-providers.toml",
         llm_moe_tier_remote_tiers="complex",
         llm_moe_tier_remote_tasks="llm_chat",
         llm_moe_tier_remote_fallback="local",
@@ -128,6 +132,7 @@ def test_resolve_provider_order_tier_simple_stays_local_when_only_complex_remote
         llm_remote_base_url="https://api.deepseek.com",
         llm_remote_api_key="secret",
         llm_remote_model="deepseek-v4-flash",
+        llm_providers_file="tests/fixtures/missing-providers.toml",
         llm_moe_tier_remote_tiers="complex",
     )
     meta = {
@@ -143,6 +148,7 @@ def test_resolve_provider_order_tier_remote_without_fallback() -> None:
         llm_remote_base_url="https://api.deepseek.com",
         llm_remote_api_key="secret",
         llm_remote_model="deepseek-v4-flash",
+        llm_providers_file="tests/fixtures/missing-providers.toml",
         llm_moe_tier_remote_tiers="complex",
         llm_moe_tier_remote_fallback="none",
     )
@@ -153,8 +159,45 @@ def test_resolve_provider_order_tier_remote_without_fallback() -> None:
     assert resolve_provider_order(cfg, meta, user_text="分析" * 40) == ["remote"]
 
 
-def test_resolve_model_name_task_override() -> None:
-    cfg = Settings(llm_task_model_repeater_polish="tiny-local")
+def test_resolve_model_name_task_override_when_local_multi_model_enabled() -> None:
+    cfg = Settings(
+        llm_task_model_repeater_polish="tiny-local",
+        llm_local_multi_model_enabled=True,
+    )
+    model = resolve_model_name(
+        provider="local",
+        metadata={"task": "repeater_polish"},
+        user_text="原句",
+        request_model=None,
+        cfg=cfg,
+    )
+    assert model == "tiny-local"
+
+
+def test_resolve_model_name_prefers_runtime_for_primary_local_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.providers.router.get_llm_model", lambda: "runtime-8b")
+    cfg = Settings(
+        llm_model="default-7b",
+        llm_task_model_repeater_polish="tiny-local",
+        llm_local_multi_model_enabled=False,
+    )
+    model = resolve_model_name(
+        provider="local",
+        metadata={"task": "repeater_polish"},
+        user_text="原句",
+        request_model=None,
+        cfg=cfg,
+    )
+    assert model == "runtime-8b"
+
+
+def test_resolve_model_name_task_override_restored_when_local_multi_model_enabled() -> None:
+    cfg = Settings(
+        llm_task_model_repeater_polish="tiny-local",
+        llm_local_multi_model_enabled=True,
+    )
     model = resolve_model_name(
         provider="local",
         metadata={"task": "repeater_polish"},
@@ -166,7 +209,12 @@ def test_resolve_model_name_task_override() -> None:
 
 
 def test_resolve_model_name_moe_enabled() -> None:
-    cfg = Settings(llm_moe_enabled=True, llm_moe_model_simple="fast-local", llm_model="default-local")
+    cfg = Settings(
+        llm_moe_enabled=True,
+        llm_moe_model_simple="fast-local",
+        llm_model="default-local",
+        llm_local_multi_model_enabled=True,
+    )
     model = resolve_model_name(
         provider="local",
         metadata={"task": "llm_chat"},
@@ -184,6 +232,7 @@ def test_llm_health_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
         Settings(
             llm_provider_mode="chain",
             llm_moe_enabled=True,
+            llm_providers_file="tests/fixtures/missing-providers.toml",
             llm_chain_local_tasks="llm_chat,drunk",
             llm_chain_remote_tasks="repeater_fallback,repeater_polish",
             llm_moe_model_simple="qwen2.5:0.5b",
@@ -203,5 +252,15 @@ def test_llm_health_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_remote_is_configured() -> None:
-    assert remote_is_configured(Settings(llm_remote_base_url="https://api.example.com/v1", llm_remote_api_key="k"))
-    assert not remote_is_configured(Settings(llm_remote_base_url="", llm_remote_api_key="k"))
+    cfg_ok = Settings(
+        llm_providers_file="tests/fixtures/missing-providers.toml",
+        llm_remote_base_url="https://api.example.com/v1",
+        llm_remote_api_key="k",
+    )
+    cfg_bad = Settings(
+        llm_providers_file="tests/fixtures/missing-providers.toml",
+        llm_remote_base_url="",
+        llm_remote_api_key="k",
+    )
+    assert remote_is_configured(cfg_ok)
+    assert not remote_is_configured(cfg_bad)

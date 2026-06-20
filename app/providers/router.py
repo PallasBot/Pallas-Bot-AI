@@ -332,6 +332,13 @@ def resolve_model_name(
     if explicit:
         return explicit
 
+    registry = load_provider_registry(c)
+    provider_kind = registry.kind_of(provider_id)
+    local_multi_model_enabled = bool(c.llm_local_multi_model_enabled)
+    if provider_kind == "local" and not local_multi_model_enabled:
+        if provider_id == registry.legacy_local_id():
+            return get_llm_model()
+
     meta = metadata if isinstance(metadata, dict) else {}
     task = infer_task(meta)
     task_model = task_model_override(task, provider_id, c)
@@ -343,7 +350,6 @@ def resolve_model_name(
         if vision_model:
             return vision_model
 
-    registry = load_provider_registry(c)
     spec = registry.get(provider_id)
     if moe_tier_routing_enabled(c):
         tier = request_tier_for_metadata(user_text, meta)
@@ -463,6 +469,28 @@ def llm_health_snapshot(cfg: Settings | None = None) -> dict[str, Any]:
         configuration_ok=config_error is None,
         provider_status=provider_rows,
     )
+    local_task_models = {
+        key: value
+        for key, value in {
+            "llm_chat": str(c.llm_task_model_chat or "").strip(),
+            "drunk": str(c.llm_task_model_drunk or "").strip(),
+            "repeater_fallback": str(c.llm_task_model_repeater_fallback or "").strip(),
+            "repeater_polish": str(c.llm_task_model_repeater_polish or "").strip(),
+            "repeater_polish_lite": str(c.llm_task_model_repeater_polish_lite or "").strip(),
+            "repeater_select": str(c.llm_task_model_repeater_select or "").strip(),
+        }.items()
+        if value
+    }
+    local_moe_models = {
+        key: value
+        for key, value in {
+            "simple": str(c.llm_moe_model_simple or "").strip(),
+            "medium": str(c.llm_moe_model_medium or "").strip(),
+            "complex": str(c.llm_moe_model_complex or "").strip(),
+            "vision": str(c.llm_moe_model_vision or "").strip(),
+        }.items()
+        if value
+    }
     return {
         "chat_enabled": bool(c.llm_chat_enabled),
         "provider_mode": mode,
@@ -474,6 +502,10 @@ def llm_health_snapshot(cfg: Settings | None = None) -> dict[str, Any]:
         "providers_file": str(providers_file_path(c)),
         "remote_configured": remote_is_configured(c),
         "local_required": local_is_required(c),
+        "local_multi_model_enabled": bool(c.llm_local_multi_model_enabled),
+        "local_model_policy": "multi" if c.llm_local_multi_model_enabled else "single_runtime",
+        "local_task_models": local_task_models,
+        "local_moe_models": local_moe_models,
         "configuration_ok": config_error is None,
         "configuration_error": config_error,
         "routing": str(c.llm_routing or "manual"),

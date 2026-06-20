@@ -223,6 +223,10 @@ class Settings(BaseSettings):
         default="local_only",
         validation_alias=AliasChoices("llm_provider_mode", "LLM_PROVIDER_MODE"),
     )
+    llm_local_multi_model_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("llm_local_multi_model_enabled", "LLM_LOCAL_MULTI_MODEL_ENABLED"),
+    )
     llm_remote_base_url: str = Field(
         default="",
         validation_alias=AliasChoices("llm_remote_base_url", "LLM_REMOTE_BASE_URL"),

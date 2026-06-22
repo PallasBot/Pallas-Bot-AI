@@ -54,11 +54,10 @@ def test_play_routes_to_media_queue(monkeypatch) -> None:
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-play-1"))
     monkeypatch.setattr("app.services.sing.ensure_sing_worker", lambda: None)
     monkeypatch.setattr("app.services.sing.play_task.apply_async", apply_async)
-    monkeypatch.setattr("app.services.sing.ULID", lambda: "req-play-1")
 
     import asyncio
 
-    request_id = asyncio.run(play("amiya"))
+    request_id = asyncio.run(play("req-play-1", "amiya"))
 
     assert request_id == "req-play-1"
     _, kwargs = apply_async.call_args

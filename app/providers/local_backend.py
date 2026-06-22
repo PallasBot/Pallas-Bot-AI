@@ -10,6 +10,7 @@ from app.core.logger import logger, task_log
 
 from .registry import LlmProviderSpec, load_provider_registry, local_base_url_for_spec
 from .token_usage import usage_from_local_chat_response
+from .tool_schema import sanitize_messages_for_api, sanitize_tool_schemas_for_api
 from .types import ChatCompletionParams, ProviderError
 
 
@@ -76,7 +77,7 @@ async def complete_local_message(
 
     payload: dict[str, Any] = {
         "model": model,
-        "messages": messages,
+        "messages": sanitize_messages_for_api(messages),
         "stream": False,
         "options": payload_options,
     }
@@ -85,7 +86,7 @@ async def complete_local_message(
         think = settings.llm_think_enabled
     payload["think"] = bool(think)
     if tools:
-        payload["tools"] = tools
+        payload["tools"] = sanitize_tool_schemas_for_api(tools)
     task_log(
         "local llm backend request: provider={} model={} num_gpu={}",
         pid,
@@ -97,7 +98,7 @@ async def complete_local_message(
         # 单卡：LLM 取读锁（彼此并发，仅与媒体写锁互斥），媒体上卡时自然让路。
         from app.utils.gpu_locker import acquire_gpu_read_async
 
-        async with acquire_gpu_read_async():
+        async with acquire_gpu_read_async(owner={"kind": "llm_chat", "provider": pid, "model": model}):
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(local_chat_url(base_url), json=payload)
     else:

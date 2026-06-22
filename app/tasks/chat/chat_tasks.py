@@ -14,6 +14,11 @@ if TYPE_CHECKING:
 gpu_locker = get_gpu_locker()
 
 
+def chat_uses_gpu() -> bool:
+    strategy = str(settings.chat_strategy or "").strip().lower()
+    return "cuda" in strategy
+
+
 class ChatManager:
     _instance: "Chat | None" = None
 
@@ -43,7 +48,14 @@ def chat_task(request_id: str, session: str, text: str, token_count: int, tts: b
 
 async def _chat_task_async(request_id: str, session: str, text: str, token_count: int, tts: bool):
     try:
-        with gpu_locker.acquire(unload_llm=True):
+        if chat_uses_gpu():
+            with gpu_locker.acquire(
+                unload_llm=True,
+                owner={"kind": "chat", "request_id": request_id, "session": session},
+            ):
+                chat = ChatManager.get_chat()
+                ans = chat.chat(session, text, token_count)
+        else:
             chat = ChatManager.get_chat()
             ans = chat.chat(session, text, token_count)
     except Exception:

@@ -1,5 +1,4 @@
 from fastapi import HTTPException
-from ulid import ULID
 
 from app.core.celery import require_celery_task_package, resolve_celery_queue_for_task
 from app.core.config import settings
@@ -32,9 +31,8 @@ async def sing(
     return task.id
 
 
-async def play(speaker: str = ""):
+async def play(request_id: str, speaker: str = ""):
     ensure_sing_worker()
-    request_id = str(ULID())
     task = play_task.apply_async(
         args=(request_id, speaker),
         queue=resolve_celery_queue_for_task("play"),

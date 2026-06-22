@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import nullcontext
 
 import pytest
 
@@ -54,9 +55,13 @@ class FakeRedis:
 
     def set(self, key, val, ex=None):
         self.store[key] = val
+        return True
 
     def delete(self, key):
         self.store.pop(key, None)
+
+    def get(self, key):
+        return self.store.get(key)
 
     def expire(self, key, ttl):
         return key in self.store
@@ -228,3 +233,33 @@ def test_acquire_read_async(patch_redis, monkeypatch):
 
     asyncio.run(_run())
     assert mgr._active_reader_count() == 0
+
+
+def test_write_lock_records_owner_metadata(patch_redis, monkeypatch):
+    fake = patch_redis(FakeRedis())
+    logs: list[str] = []
+    monkeypatch.setattr(gl.logger, "info", lambda message, *args: logs.append(message.format(*args)))
+    monkeypatch.setattr(gl.logger, "warning", lambda *args, **kwargs: None)
+    mgr = GPULockManager(0, lease_ttl=30, max_hold=1800)
+    owner = {"kind": "sing", "request_id": "req-1", "step": "separate"}
+    with mgr.acquire_write(owner=owner):
+        meta = fake.get("gpu_lock_meta:0")
+        assert meta is not None
+        assert '"kind": "sing"' in meta
+        assert '"request_id": "req-1"' in meta
+    assert fake.get("gpu_lock_meta:0") is None
+    assert any("写锁已获取" in line and "kind=sing" in line and "request_id=req-1" in line for line in logs)
+    assert any("写锁已释放" in line and "kind=sing" in line and "request_id=req-1" in line for line in logs)
+
+
+def test_read_timeout_logs_current_writer_owner(patch_redis, monkeypatch):
+    fake = patch_redis(FakeRedis())
+    fake.store["gpu_lock:0"] = "wlock"
+    fake.store["gpu_lock_meta:0"] = '{"kind": "chat", "request_id": "req-2"}'
+    warnings: list[str] = []
+    monkeypatch.setattr(gl.logger, "warning", lambda message, *args: warnings.append(message.format(*args)))
+    mgr = GPULockManager(0, wait_timeout=0, lease_ttl=30, renew_interval=0.05)
+    with pytest.raises(GPULockTimeoutError):
+        with mgr.acquire_read(owner={"kind": "llm_chat", "request_id": "req-3"}):
+            pass
+    assert any("读锁等待超时" in line and "current_writer=kind=chat request_id=req-2" in line for line in warnings)

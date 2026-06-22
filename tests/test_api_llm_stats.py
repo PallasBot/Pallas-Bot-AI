@@ -30,7 +30,13 @@ def test_llm_stats_endpoint_exposes_state_counts(client: TestClient) -> None:
                 "day_key": "2026-06-18",
                 "updated_at": 1.0,
                 "by_task": {
-                    "llm_chat": {"queued": 1, "running": 1, "task_ok": 1, "task_fail": 0},
+                    "llm_chat": {
+                        "queued": 1,
+                        "running": 1,
+                        "task_ok": 1,
+                        "task_fail": 0,
+                        "route_counts": {"plain_llm_chat": 1},
+                    },
                     "repeater_fallback": {"task_ok": 0, "task_fail": 1},
                 },
                 "totals": {"task_ok": 1, "task_fail": 1},
@@ -96,5 +102,6 @@ def test_llm_stats_endpoint_exposes_state_counts(client: TestClient) -> None:
     assert body["failure_counts"] == {"provider_error": 1}
     assert body["provider_stats"]["openai"]["avg_latency_ms"] == 120
     assert body["model_stats"]["gpt-4.1-mini"]["requests"] == 1
+    assert body["by_task"]["llm_chat"]["route_counts"] == {"plain_llm_chat": 1}
     assert body["tokens"]["by_provider"]["openai"]["total_tokens"] == 120
     assert body["tokens"]["by_model"]["gpt-4.1-mini"]["completion_tokens"] == 20

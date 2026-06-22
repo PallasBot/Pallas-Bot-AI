@@ -30,7 +30,10 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
             f"python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
         )
         try:
-            with locker.acquire(unload_llm=True) as gpu:
+            with locker.acquire(
+                unload_llm=True,
+                owner={"kind": "sing", "step": "separate", "song": song_path.name},
+            ) as gpu:
                 print(cmd)
                 gpu.run_subprocess(cmd)
         except Exception as e:

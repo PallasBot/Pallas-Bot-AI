@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 _LEADING_FILLERS = (
+    "哈喽",
     "其实",
     "这倒是",
     "怎么说呢",
@@ -20,6 +21,15 @@ _SERVICEY_PHRASES = (
     "如果你需要的话",
     "希望这能帮到你",
 )
+_LLM_CHAT_SCAFFOLD_PREFIXES = (
+    "不过没事",
+    "先别急",
+    "我感觉",
+    "我觉得",
+    "大概率",
+    "一般来说",
+)
+_OPENER_LABEL_PREFIX = "最近几轮别再用这些开头："
 
 
 @dataclass(slots=True)
@@ -58,6 +68,47 @@ def _avoid_repeated_leading_filler(text: str, metadata: dict[str, Any] | None) -
             out = out[len(filler) :].lstrip("，, ")
             return out, True
     return out, False
+
+
+def _extract_repeated_opener_labels(metadata: dict[str, Any] | None) -> list[str]:
+    hint = str((metadata or {}).get("variation_hint") or "")
+    if not hint or _OPENER_LABEL_PREFIX not in hint:
+        return []
+    labels: list[str] = []
+    for line in hint.splitlines():
+        line = line.strip()
+        if _OPENER_LABEL_PREFIX not in line:
+            continue
+        suffix = line.split(_OPENER_LABEL_PREFIX, 1)[1].strip()
+        labels.extend(item.strip() for item in suffix.split("、") if item.strip())
+    return labels
+
+
+def _trim_repeated_opener_family(text: str, metadata: dict[str, Any] | None) -> tuple[str, str | None]:
+    out = str(text or "").strip()
+    labels = _extract_repeated_opener_labels(metadata)
+    if not labels:
+        return out, None
+    if "哈哈类" in labels:
+        matched = re.match(r"^(哈哈+|呵呵+|嘿嘿+)", out)
+        if matched:
+            trimmed = out[matched.end() :].lstrip("，,。！!？?~～ ")
+            if trimmed and trimmed != out:
+                return trimmed, "trim_repeated_laugh_opener"
+    if "语气词类" in labels:
+        matched = re.match(r"^([欸哎唉呃额]{1,3})", out)
+        if matched:
+            trimmed = out[matched.end() :].lstrip("，,。！!？?~～ ")
+            if trimmed and trimmed != out:
+                return trimmed, "trim_repeated_sigh_opener"
+    for label in labels:
+        if label in {"哈哈类", "语气词类"}:
+            continue
+        if out.startswith(label):
+            trimmed = out[len(label) :].lstrip("，,。！!？?~～ ")
+            if trimmed and trimmed != out:
+                return trimmed, "trim_repeated_generic_opener"
+    return out, None
 
 
 def _trim_overexplaining_reply(text: str, metadata: dict[str, Any] | None) -> str:
@@ -119,6 +170,43 @@ def _adapt_reply_length_for_llm_chat(text: str, metadata: dict[str, Any] | None)
     return out, False
 
 
+def _trim_llm_chat_scaffold(text: str, metadata: dict[str, Any] | None) -> str:
+    out = str(text or "").strip()
+    if _task_name(metadata) != "llm_chat":
+        return out, False
+    hint = str((metadata or {}).get("variation_hint") or "")
+    if "先判断一下、再补解释" not in hint:
+        return out, False
+
+    parts = [chunk.strip() for chunk in re.split(r"(?<=[。！？!?])", out) if chunk.strip()]
+    if not parts:
+        return out, False
+
+    kept: list[str] = []
+    changed = False
+    for idx, part in enumerate(parts):
+        current = part
+        if idx > 0:
+            for prefix in _LLM_CHAT_SCAFFOLD_PREFIXES:
+                if current.startswith(prefix):
+                    current = current[len(prefix) :].lstrip("，, ")
+                    changed = True
+                    break
+        if any(token in current for token in ("大概率还是", "一般来说", "前面节奏没踩稳")):
+            changed = True
+            continue
+        if current:
+            kept.append(current)
+
+    if not kept:
+        return out, False
+    if len(kept) >= 2:
+        kept = [kept[0], kept[-1]]
+        changed = True
+    rebuilt = "".join(kept).strip()
+    return rebuilt or out, changed
+
+
 def _soften_template_ending(text: str, metadata: dict[str, Any] | None) -> str:
     out = str(text or "").strip()
     hint = str((metadata or {}).get("variation_hint") or "")
@@ -150,12 +238,18 @@ async def rewrite_llm_reply(
     out, changed = _avoid_repeated_leading_filler(out, metadata)
     if changed:
         applied_rules.append("avoid_repeated_opener")
+    out, opener_rule = _trim_repeated_opener_family(out, metadata)
+    if opener_rule:
+        applied_rules.append(opener_rule)
     out, changed = _trim_overexplaining_reply(out, metadata)
     if changed:
         applied_rules.append("trim_overexplaining")
     out, changed = _adapt_reply_length_for_llm_chat(out, metadata)
     if changed:
         applied_rules.append("adapt_llm_chat_length")
+    out, changed = _trim_llm_chat_scaffold(out, metadata)
+    if changed:
+        applied_rules.append("trim_llm_chat_scaffold")
     out, changed = _soften_template_ending(out, metadata)
     if changed:
         applied_rules.append("soften_template_ending")

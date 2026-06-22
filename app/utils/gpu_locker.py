@@ -1,11 +1,14 @@
 import asyncio
 import contextlib
+import json
 import os
 import signal
 import subprocess
 import threading
 import time
 import uuid
+from collections.abc import Mapping
+from typing import Any
 
 from app.core.logger import logger
 from app.core.redis import redis_client
@@ -121,6 +124,7 @@ class GPULockManager:
     ):
         self.gpu_id = gpu_id
         self.write_key = f"gpu_lock:{gpu_id}"
+        self.meta_key = f"gpu_lock_meta:{gpu_id}"
         self.reader_prefix = f"gpu_reader:{gpu_id}:"
         self.wait_timeout = wait_timeout
         self.lease_ttl = lease_ttl
@@ -129,9 +133,73 @@ class GPULockManager:
         # 续租周期默认取租约的 1/3，保证至少续两次才会过期。
         self.renew_interval = renew_interval if renew_interval is not None else max(1.0, lease_ttl / 3)
 
+    def _normalize_owner(self, owner: Mapping[str, Any] | None) -> dict[str, str]:
+        if not isinstance(owner, Mapping):
+            return {}
+        out: dict[str, str] = {}
+        for key, value in owner.items():
+            name = str(key or "").strip()
+            text = str(value or "").strip()
+            if name and text:
+                out[name] = text
+        return out
+
+    def _owner_text(self, owner: Mapping[str, Any] | None) -> str:
+        normalized = self._normalize_owner(owner)
+        if not normalized:
+            return "unknown"
+        preferred = ("kind", "request_id", "task_id", "step")
+        parts: list[str] = []
+        for key in preferred:
+            value = normalized.pop(key, "")
+            if value:
+                parts.append(f"{key}={value}")
+        for key in sorted(normalized):
+            parts.append(f"{key}={normalized[key]}")
+        return " ".join(parts) or "unknown"
+
+    def _set_writer_meta(self, owner: Mapping[str, Any] | None, started: float) -> None:
+        payload = dict(self._normalize_owner(owner))
+        payload["started_at"] = f"{started:.6f}"
+        try:
+            redis_client.set(self.meta_key, json.dumps(payload, ensure_ascii=False), ex=self.lease_ttl)
+        except Exception as exc:
+            logger.warning("GPU {} 写锁元信息写入失败：{}", self.gpu_id, exc)
+
+    def _refresh_writer_meta(self, owner: Mapping[str, Any] | None, started: float) -> None:
+        payload = dict(self._normalize_owner(owner))
+        payload["started_at"] = f"{started:.6f}"
+        try:
+            redis_client.set(self.meta_key, json.dumps(payload, ensure_ascii=False), ex=self.lease_ttl)
+        except Exception as exc:
+            logger.warning("GPU {} 写锁元信息续期失败：{}", self.gpu_id, exc)
+
+    def _clear_writer_meta(self) -> None:
+        try:
+            redis_client.delete(self.meta_key)
+        except Exception:
+            pass
+
+    def current_writer_owner_text(self) -> str:
+        try:
+            raw = redis_client.get(self.meta_key)
+        except Exception:
+            raw = None
+        text = str(raw or "").strip()
+        if not text:
+            return "unknown"
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return text
+        if not isinstance(data, dict):
+            return text
+        data.pop("started_at", None)
+        return self._owner_text(data)
+
     # ── 写锁（媒体任务，排他）───────────────────────────────────────────
     @contextlib.contextmanager
-    def acquire_write(self, unload_llm: bool = False):
+    def acquire_write(self, unload_llm: bool = False, owner: Mapping[str, Any] | None = None):
         lock = redis_client.lock(
             self.write_key,
             timeout=self.lease_ttl,
@@ -159,22 +227,28 @@ class GPULockManager:
         hold_exceeded = threading.Event()
         started = time.monotonic()
         handle = GPUWriteHandle(self.gpu_id, self.subprocess_timeout)
+        owner_text = self._owner_text(owner)
+        self._set_writer_meta(owner, started)
+        logger.info("GPU {} 写锁已获取 owner={}", self.gpu_id, owner_text)
 
         def _watchdog() -> None:
             while not stop.wait(self.renew_interval):
                 if time.monotonic() - started >= self.max_hold:
                     logger.error(
-                        "GPU {} 写锁持有超过硬上限 {}s，看门狗强制释放并杀子进程",
+                        "GPU {} 写锁持有超过硬上限 {}s，看门狗强制释放并杀子进程 owner={}",
                         self.gpu_id,
                         self.max_hold,
+                        owner_text,
                     )
                     hold_exceeded.set()
                     # 先杀子进程，让阻塞的 with 块（os 级命令）尽快退出，再放 redis 锁。
                     handle._kill_all()
+                    self._clear_writer_meta()
                     _safe_release(lock)
                     return
                 try:
                     lock.extend(self.lease_ttl, replace_ttl=True)
+                    self._refresh_writer_meta(owner, started)
                 except Exception as exc:
                     logger.warning("GPU {} 写锁续租失败：{}", self.gpu_id, exc)
 
@@ -185,7 +259,14 @@ class GPULockManager:
         finally:
             stop.set()
             watcher.join(timeout=self.renew_interval + 1)
+            self._clear_writer_meta()
             _safe_release(lock)
+            logger.info(
+                "GPU {} 写锁已释放 owner={} hold_ms={}",
+                self.gpu_id,
+                owner_text,
+                int((time.monotonic() - started) * 1000),
+            )
             if hold_exceeded.is_set():
                 raise GPUHoldTimeoutError(f"GPU {self.gpu_id} write hold exceeded {self.max_hold}s")
 
@@ -194,13 +275,20 @@ class GPULockManager:
 
     # ── 读锁（LLM 推理，共享）───────────────────────────────────────────
     @contextlib.contextmanager
-    def acquire_read(self):
+    def acquire_read(self, owner: Mapping[str, Any] | None = None):
         reader_key = f"{self.reader_prefix}{uuid.uuid4().hex}"
         deadline = time.monotonic() + self.wait_timeout
+        owner_text = self._owner_text(owner)
         while True:
             # 有写者在场 → 让路等待。
             if redis_client.exists(self.write_key):
                 if time.monotonic() >= deadline:
+                    logger.warning(
+                        "GPU {} 读锁等待超时 owner={} current_writer={}",
+                        self.gpu_id,
+                        owner_text,
+                        self.current_writer_owner_text(),
+                    )
                     raise GPULockTimeoutError(f"GPU {self.gpu_id} read wait timeout {self.wait_timeout}s")
                 time.sleep(0.2)
                 continue
@@ -209,6 +297,12 @@ class GPULockManager:
             if redis_client.exists(self.write_key):
                 redis_client.delete(reader_key)
                 if time.monotonic() >= deadline:
+                    logger.warning(
+                        "GPU {} 读锁等待超时 owner={} current_writer={}",
+                        self.gpu_id,
+                        owner_text,
+                        self.current_writer_owner_text(),
+                    )
                     raise GPULockTimeoutError(f"GPU {self.gpu_id} read wait timeout {self.wait_timeout}s")
                 time.sleep(0.2)
                 continue
@@ -296,14 +390,17 @@ def get_gpu_locker(gpu_id: int | None = None) -> GPULockManager:
 
 
 @contextlib.asynccontextmanager
-async def acquire_gpu_read_async(gpu_id: int | None = None):
+async def acquire_gpu_read_async(
+    gpu_id: int | None = None,
+    owner: Mapping[str, Any] | None = None,
+):
     """async 场景下获取 GPU 读锁（LLM 推理用）。
 
     读锁的等待/登记是同步 redis 调用，直接在协程里执行会卡住事件循环，
     故 enter/exit 都丢到线程里。读者之间并发，仅与媒体写者互斥。
     """
     locker = get_gpu_locker(gpu_id)
-    cm = locker.acquire_read()
+    cm = locker.acquire_read(owner=owner)
     await asyncio.to_thread(cm.__enter__)
     try:
         yield locker.gpu_id

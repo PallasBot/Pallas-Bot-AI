@@ -41,7 +41,10 @@ def inference(song_path: Path, output_dir: Path, key: int = 0, speaker: str = "p
         )
 
         try:
-            with locker.acquire(unload_llm=True) as gpu:
+            with locker.acquire(
+                unload_llm=True,
+                owner={"kind": "sing", "step": "svc", "song": song_path.name, "speaker": speaker},
+            ) as gpu:
                 print(cmd)
                 gpu.run_subprocess(cmd)
         except Exception as e:

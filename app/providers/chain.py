@@ -5,7 +5,6 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.logger import log_id_clause, logger
-from app.services.llm_task_metrics import record_ai_llm_provider_result
 from app.services.llm_token_metrics import record_llm_token_usage
 from app.services.vision_messages import enrich_local_messages_for_vision
 
@@ -19,6 +18,37 @@ from .router import (
 )
 from .tool_loop import complete_with_tool_loop, tool_schemas_for_metadata
 from .types import ChatCompletionParams, ProviderError
+
+
+def record_ai_llm_provider_result(
+    *,
+    task: str | None,
+    provider: str | None,
+    model: str | None,
+    succeeded: bool,
+    latency_ms: int | None = None,
+    failure_class: str | None = None,
+) -> None:
+    try:
+        from app.services.llm_task_metrics import record_ai_llm_provider_result as _record
+    except ImportError:
+        return
+    _record(
+        task=task,
+        provider=provider,
+        model=model,
+        succeeded=succeeded,
+        latency_ms=latency_ms,
+        failure_class=failure_class,
+    )
+
+
+def record_ai_llm_route(task: str | None, route: str | None) -> None:
+    try:
+        from app.services.llm_task_metrics import record_ai_llm_route as _record
+    except ImportError:
+        return
+    _record(task, route)
 
 
 def record_usage_from_message(
@@ -41,6 +71,21 @@ def record_usage_from_message(
         prompt_tokens=int(usage.get("prompt_tokens") or 0),
         completion_tokens=int(usage.get("completion_tokens") or 0),
     )
+
+
+def route_name_for_provider(
+    provider_id: str,
+    *,
+    used_tools: bool,
+) -> str:
+    normalized = str(provider_id or "").strip().lower()
+    if used_tools:
+        return "tool_loop"
+    if normalized == "remote":
+        return "plain_llm_chat_remote"
+    if normalized == "local":
+        return "plain_llm_chat"
+    return f"plain_{normalized}"
 
 
 async def run_provider_chain(
@@ -127,6 +172,7 @@ async def run_provider_chain(
                     options=params.options,
                     user_text=params.user_text,
                 )
+                record_ai_llm_route(infer_task(meta), route_name_for_provider(active_provider_id, used_tools=True))
             elif registry.kind_of(provider_id) == "remote":
                 message_obj = await remote_backend.complete_remote_message(
                     messages,
@@ -140,6 +186,10 @@ async def run_provider_chain(
                     message_obj,
                     provider=provider_id,
                     model=model,
+                )
+                record_ai_llm_route(
+                    infer_task(params.metadata if isinstance(params.metadata, dict) else {}),
+                    route_name_for_provider(provider_id, used_tools=False),
                 )
                 reply = str(message_obj.get("content", "") or "").strip()
                 assistant_message = {"role": "assistant", "content": reply}
@@ -162,6 +212,10 @@ async def run_provider_chain(
                     message_obj,
                     provider=provider_id,
                     model=model,
+                )
+                record_ai_llm_route(
+                    infer_task(params.metadata if isinstance(params.metadata, dict) else {}),
+                    route_name_for_provider(provider_id, used_tools=False),
                 )
                 reply = str(message_obj.get("content", "") or "").strip()
                 assistant_message = {"role": "assistant", "content": reply}

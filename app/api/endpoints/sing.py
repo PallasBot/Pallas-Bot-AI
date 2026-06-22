@@ -1,6 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from app.schemas.sing import RequestMusicRequest, SingRequest, SingResponse
+from app.schemas.sing import PlayRequest, RequestMusicRequest, SingRequest, SingResponse
 from app.services.sing import download, play, sing
 
 router = APIRouter()
@@ -19,10 +19,16 @@ async def sing_endpoint(request_id: str, request: SingRequest):
     return SingResponse(task_id=task_id, status="processing")
 
 
-@router.get("/play/{speaker}", response_model=SingResponse)
-async def play_endpoint(speaker: str):
-    task_id = await play(speaker)
+@router.post("/play/{request_id}", response_model=SingResponse)
+async def play_endpoint(request_id: str, request: PlayRequest):
+    task_id = await play(request_id, request.speaker)
     return SingResponse(task_id=task_id, status="processing")
+
+
+@router.get("/play/{speaker}", response_model=SingResponse)
+async def legacy_play_endpoint(speaker: str):
+    _ = speaker
+    raise HTTPException(status_code=410, detail="legacy play disabled; use POST /api/play/{request_id}")
 
 
 @router.post("/request/{request_id}", response_model=SingResponse)

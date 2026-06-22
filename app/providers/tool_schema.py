@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import re
 from typing import Any
 
@@ -39,6 +40,33 @@ def sanitize_tool_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
 def sanitize_tool_schemas_for_api(schemas: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [sanitize_tool_schema(item) for item in schemas if isinstance(item, dict)]
+
+
+def sanitize_messages_for_api(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sanitized: list[dict[str, Any]] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        item = copy.deepcopy(message)
+        tool_calls = item.get("tool_calls")
+        if isinstance(tool_calls, list):
+            cleaned_calls: list[dict[str, Any]] = []
+            for call in tool_calls:
+                if not isinstance(call, dict):
+                    continue
+                cleaned = copy.deepcopy(call)
+                fn = cleaned.get("function")
+                if isinstance(fn, dict):
+                    canonical = str(fn.get("name") or "").strip()
+                    if canonical:
+                        fn["name"] = openai_api_tool_name(canonical)
+                    arguments = fn.get("arguments")
+                    if isinstance(arguments, dict | list):
+                        fn["arguments"] = json.dumps(arguments, ensure_ascii=False)
+                cleaned_calls.append(cleaned)
+            item["tool_calls"] = cleaned_calls
+        sanitized.append(item)
+    return sanitized
 
 
 def canonical_tool_names(schemas: list[dict[str, Any]]) -> set[str]:

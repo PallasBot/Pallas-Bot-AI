@@ -54,6 +54,7 @@ _task_states: dict[str, tuple[str, str]] = {}
 _failure_counts: dict[str, int] = {}
 _provider_stats: dict[str, dict[str, Any]] = {}
 _model_stats: dict[str, dict[str, Any]] = {}
+_route_counts: dict[str, dict[str, int]] = {}
 _flush_thread: threading.Thread | None = None
 _flush_stop = threading.Event()
 
@@ -89,6 +90,7 @@ def rollover_if_needed() -> None:
     _failure_counts.clear()
     _provider_stats.clear()
     _model_stats.clear()
+    _route_counts.clear()
 
 
 def record_ai_llm_task(task: str | None, event: str) -> None:
@@ -137,6 +139,20 @@ def record_ai_llm_failure(failure_class: str | None) -> None:
         with _lock:
             rollover_if_needed()
             _failure_counts[key] = int(_failure_counts.get(key) or 0) + 1
+    except Exception:
+        pass
+
+
+def record_ai_llm_route(task: str | None, route: str | None) -> None:
+    task_key = normalize_llm_task_name(task)
+    route_key = str(route or "").strip()
+    if not route_key:
+        return
+    try:
+        with _lock:
+            rollover_if_needed()
+            row = _route_counts.setdefault(task_key, {})
+            row[route_key] = int(row.get(route_key) or 0) + 1
     except Exception:
         pass
 
@@ -277,6 +293,9 @@ def _snapshot_from_persisted_payload(raw: dict[str, Any]) -> dict[str, Any]:
         "updated_at": float(raw.get("updated_at") or 0),
         "by_task": raw.get("by_task") if isinstance(raw.get("by_task"), dict) else {},
         "totals": raw.get("totals") if isinstance(raw.get("totals"), dict) else {},
+        "failure_counts": raw.get("failure_counts") if isinstance(raw.get("failure_counts"), dict) else {},
+        "provider_stats": raw.get("provider_stats") if isinstance(raw.get("provider_stats"), dict) else {},
+        "model_stats": raw.get("model_stats") if isinstance(raw.get("model_stats"), dict) else {},
     }
     shaping = raw.get("shaping")
     if isinstance(shaping, dict):
@@ -286,6 +305,16 @@ def _snapshot_from_persisted_payload(raw: dict[str, Any]) -> dict[str, Any]:
     cls = raw.get("classification")
     if isinstance(cls, dict):
         out["classification"] = cls
+    for field_name in ("provider_stats", "model_stats"):
+        stats = out.get(field_name)
+        if not isinstance(stats, dict):
+            continue
+        for row in stats.values():
+            if not isinstance(row, dict):
+                continue
+            requests = int(row.get("requests") or 0)
+            total_latency = int(row.get("total_latency_ms") or 0)
+            row["avg_latency_ms"] = int(total_latency / requests) if requests > 0 else None
     return out
 
 
@@ -326,6 +355,14 @@ def merge_llm_task_snapshots(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 for metric in _CLASSIFY_METRICS:
                     if metric in metrics:
                         dst[metric] = int(dst.get(metric) or 0) + int(metrics.get(metric) or 0)
+                route_counts = metrics.get("route_counts")
+                if isinstance(route_counts, dict):
+                    dst_routes = dst.setdefault("route_counts", {})
+                    for route_name, route_count in route_counts.items():
+                        route_key = str(route_name).strip()
+                        if not route_key:
+                            continue
+                        dst_routes[route_key] = int(dst_routes.get(route_key) or 0) + int(route_count or 0)
         src_totals = row.get("totals")
         if isinstance(src_totals, dict):
             for metric in _EVENTS:
@@ -418,6 +455,7 @@ def _local_llm_task_metrics_snapshot() -> dict[str, Any]:
         classify_totals = dict.fromkeys(_CLASSIFY_METRICS, 0)
         provider_stats = {key: dict(value) for key, value in _provider_stats.items()}
         model_stats = {key: dict(value) for key, value in _model_stats.items()}
+        route_counts = {task: dict(value) for task, value in _route_counts.items()}
         for task, state in _task_states.values():
             row = by_task.setdefault(task, {"queued": 0, "running": 0, "task_ok": 0, "task_fail": 0})
             row[state] = int(row.get(state) or 0) + 1
@@ -439,6 +477,9 @@ def _local_llm_task_metrics_snapshot() -> dict[str, Any]:
                 row = by_task.setdefault(task, {"queued": 0, "running": 0, "task_ok": 0, "task_fail": 0})
                 row[metric] = count
                 classify_totals[metric] += count
+        for task, counts in route_counts.items():
+            row = by_task.setdefault(task, {"queued": 0, "running": 0, "task_ok": 0, "task_fail": 0})
+            row["route_counts"] = dict(counts)
         state_counts["succeeded"] = int(totals["task_ok"] or 0)
         state_counts["failed"] = int(totals["task_fail"] or 0)
         for stats in (provider_stats, model_stats):
@@ -541,5 +582,6 @@ def clear_llm_task_metrics_for_tests() -> None:
         _failure_counts.clear()
         _provider_stats.clear()
         _model_stats.clear()
+        _route_counts.clear()
     _flush_stop.set()
     _flush_thread = None

@@ -15,6 +15,7 @@ from app.providers.operator_lookup import (
 from app.providers.tool_schema import canonical_tool_names, resolve_canonical_tool_name
 from app.providers.tools import resolve_tool_schemas
 from app.services.bot_tools import execute_bot_tool, tool_result_message
+from app.services.knowledge_metadata import knowledge_trace_for_agent
 
 _OPERATOR_GET_TOOL = "arknights.operator.get"
 _PLANNER_REMINDER = "先用一句话明确你的回答计划；若需要外部事实或插件能力，再调用工具，不要直接凭空编造。"
@@ -58,15 +59,18 @@ def build_agent_trace(
     tool_schemas: list[dict[str, Any]],
 ) -> dict[str, Any]:
     plan = resolve_agent_stage_plan(metadata)
+    retrieval_trace = knowledge_trace_for_agent(metadata)
     return {
         "agent_stage_plan": list(plan),
         "planner_enabled": agent_stage_enabled(metadata, "plan"),
+        "retrieve_enabled": agent_stage_enabled(metadata, "retrieve"),
         "tool_loop_enabled": agent_stage_enabled(metadata, "tool_loop"),
         "tool_schema_count": len(tool_schemas),
         "tool_call_count": 0,
         "rounds": [],
         "prefetched_tool": None,
         "final_stage": "generate",
+        "retrieval_trace": retrieval_trace,
     }
 
 

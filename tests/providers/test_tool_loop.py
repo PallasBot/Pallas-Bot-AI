@@ -54,6 +54,50 @@ def test_complete_with_tool_loop_executes_tool() -> None:
     assert message["_agent_trace"]["rounds"][0]["tool_calls"] == ["arknights.operator.get"]
 
 
+def test_complete_with_tool_loop_restores_sanitized_mcp_tool_name() -> None:
+    calls: list[str] = []
+
+    async def fake_complete_once(messages, *, model, options, tools):
+        _ = (model, options)
+        if tools and not any(item.get("role") == "tool" for item in messages):
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "mcp_notion_search", "arguments": '{"query":"amiya"}'},
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "查到了。"}
+
+    async def fake_execute_bot_tool(*, name, arguments, metadata):
+        calls.append(name)
+        assert arguments == {"query": "amiya"}
+        _ = metadata
+        return {"ok": True, "result": {"hits": 1}}
+
+    tool_loop.execute_bot_tool = fake_execute_bot_tool  # type: ignore[method-assign]
+
+    reply, message = asyncio.run(
+        complete_with_tool_loop(
+            complete_once=fake_complete_once,
+            messages=[{"role": "user", "content": "帮我搜一下 amiya"}],
+            tool_schemas=[{"type": "function", "function": {"name": "mcp.notion.search", "parameters": {}}}],
+            metadata={"bot_id": 1, "group_id": 2, "user_id": 3},
+            model="test",
+            options={},
+        )
+    )
+
+    assert calls == ["mcp.notion.search"]
+    assert reply == "查到了。"
+    assert message["_agent_trace"]["tool_call_count"] == 1
+    assert message["_agent_trace"]["rounds"][0]["tool_calls"] == ["mcp.notion.search"]
+
+
 def test_complete_with_tool_loop_prefetches_operator_when_model_skips_tool() -> None:
     calls: list[str] = []
     complete_rounds = 0

@@ -25,3 +25,29 @@ def test_resolve_tool_schemas_prefers_tool_catalog() -> None:
     )
     assert len(schemas) == 1
     assert schemas[0]["function"]["name"] == "arknights.operator.get"
+
+
+def test_resolve_tool_schemas_accepts_mcp_catalog_entry() -> None:
+    schemas = resolve_tool_schemas(
+        task="llm_chat",
+        metadata={
+            "tools_enabled": True,
+            "classification": {"needs_tools": True, "tier": "medium", "source": "metadata"},
+            "tool_catalog": {
+                "version": "tool_catalog/v1",
+                "tools": [
+                    {
+                        "name": "mcp.notion.search",
+                        "description": "Search Notion",
+                        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                        "source": "mcp",
+                        "audit": {"mcp_server_id": "notion"},
+                    }
+                ],
+            },
+        },
+        user_text="搜一下 notion 任务",
+    )
+
+    assert len(schemas) == 1
+    assert schemas[0]["function"]["name"] == "mcp.notion.search"

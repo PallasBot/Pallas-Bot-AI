@@ -30,7 +30,7 @@ def record_ai_llm_provider_result(
     failure_class: str | None = None,
 ) -> None:
     try:
-        from app.services.llm_task_metrics import record_ai_llm_provider_result as _record
+        from app.services.llm_task_metrics import record_ai_llm_provider_result as _record  # noqa: PLC0415
     except ImportError:
         return
     _record(
@@ -45,7 +45,7 @@ def record_ai_llm_provider_result(
 
 def record_ai_llm_route(task: str | None, route: str | None) -> None:
     try:
-        from app.services.llm_task_metrics import record_ai_llm_route as _record
+        from app.services.llm_task_metrics import record_ai_llm_route as _record  # noqa: PLC0415
     except ImportError:
         return
     _record(task, route)
@@ -77,9 +77,12 @@ def route_name_for_provider(
     provider_id: str,
     *,
     used_tools: bool,
+    agent_stage_plan: tuple[str, ...] = (),
 ) -> str:
     normalized = str(provider_id or "").strip().lower()
     if used_tools:
+        if agent_stage_plan:
+            return "agent_tool_loop"
         return "tool_loop"
     if normalized == "remote":
         return "plain_llm_chat_remote"
@@ -96,6 +99,11 @@ async def run_provider_chain(
     failure_mode = normalize_chain_failure(settings.llm_chain_on_failure)
     registry = load_provider_registry()
     tool_schemas = tool_schemas_for_metadata(params.metadata, user_text=params.user_text)
+    agent_stage_plan = ()
+    if isinstance(params.metadata, dict):
+        raw_plan = params.metadata.get("agent_stage_plan")
+        if isinstance(raw_plan, list):
+            agent_stage_plan = tuple(str(item or "").strip().lower() for item in raw_plan if str(item or "").strip())
     if tool_schemas:
         logger.info(
             "已启用工具调用：{}数量={}",
@@ -172,7 +180,14 @@ async def run_provider_chain(
                     options=params.options,
                     user_text=params.user_text,
                 )
-                record_ai_llm_route(infer_task(meta), route_name_for_provider(active_provider_id, used_tools=True))
+                record_ai_llm_route(
+                    infer_task(meta),
+                    route_name_for_provider(
+                        active_provider_id,
+                        used_tools=True,
+                        agent_stage_plan=agent_stage_plan,
+                    ),
+                )
             elif registry.kind_of(provider_id) == "remote":
                 message_obj = await remote_backend.complete_remote_message(
                     messages,

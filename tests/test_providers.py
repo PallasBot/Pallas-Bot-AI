@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.core.config import Settings
+from app.providers.chain import route_name_for_provider
 from app.providers.moe import categorize_request_tier
 from app.providers.router import (
     chain_local_tasks,
@@ -22,6 +23,13 @@ def test_normalize_provider_mode() -> None:
     assert normalize_provider_mode("remote_only") == "remote_only"
     assert normalize_provider_mode("chain") == "chain"
     assert normalize_provider_mode(None) == "local_only"
+
+
+def test_route_name_for_provider_distinguishes_agent_tool_loop() -> None:
+    assert route_name_for_provider("local", used_tools=True) == "tool_loop"
+    assert route_name_for_provider("local", used_tools=True, agent_stage_plan=("plan", "tool_loop", "generate")) == (
+        "agent_tool_loop"
+    )
 
 
 def test_parse_chain_order_deduplicates() -> None:

@@ -33,12 +33,16 @@ async def callback(
     key: int = None,
     history_summary: str | None = None,
     history_keep_messages: int | None = None,
+    agent_trace: str | None = None,
 ):
     callback_url = f"{CALLBACK_URL}/{request_id}"
 
     data = {"status": status}
     task_log(
-        "准备回调 Bot{} status={} has_text={} has_audio={} song_id={} chunk_index={} key={} history_summary={} history_keep_messages={}",
+        (
+            "准备回调 Bot{} status={} has_text={} has_audio={} song_id={} chunk_index={} "
+            "key={} history_summary={} history_keep_messages={} agent_trace={}"
+        ),
         log_id_suffix(request_id),
         status,
         bool(text),
@@ -48,6 +52,7 @@ async def callback(
         key,
         bool(history_summary),
         history_keep_messages,
+        bool(agent_trace),
     )
 
     if status == "failed":
@@ -62,7 +67,12 @@ async def callback(
                 callback_url,
             )
         except Exception as exc:
-            logger.exception("回调 Bot 异常{} status=failed url={} error={}", log_id_suffix(request_id), callback_url, exc)
+            logger.exception(
+                "回调 Bot 异常{} status=failed url={} error={}",
+                log_id_suffix(request_id),
+                callback_url,
+                exc,
+            )
         return
 
     if text:
@@ -77,6 +87,8 @@ async def callback(
         data["history_summary"] = history_summary
     if history_keep_messages is not None:
         data["history_keep_messages"] = str(int(history_keep_messages))
+    if agent_trace:
+        data["agent_trace"] = agent_trace
 
     try:
         if audio:
@@ -92,4 +104,10 @@ async def callback(
             callback_url,
         )
     except Exception as exc:
-        logger.exception("回调 Bot 异常{} status={} url={} error={}", log_id_suffix(request_id), status, callback_url, exc)
+        logger.exception(
+            "回调 Bot 异常{} status={} url={} error={}",
+            log_id_suffix(request_id),
+            status,
+            callback_url,
+            exc,
+        )

@@ -17,6 +17,7 @@ from app.providers.tools import resolve_tool_schemas
 from app.services.bot_tools import execute_bot_tool, tool_result_message
 
 _OPERATOR_GET_TOOL = "arknights.operator.get"
+_PLANNER_REMINDER = "先用一句话明确你的回答计划；若需要外部事实或插件能力，再调用工具，不要直接凭空编造。"
 
 
 def parse_tool_arguments(raw: Any) -> dict[str, Any]:
@@ -29,6 +30,44 @@ def parse_tool_arguments(raw: Any) -> dict[str, Any]:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def resolve_agent_stage_plan(metadata: dict[str, Any] | None) -> tuple[str, ...]:
+    meta = metadata if isinstance(metadata, dict) else {}
+    raw = meta.get("agent_stage_plan")
+    if not isinstance(raw, list):
+        return ()
+    stages: list[str] = []
+    for item in raw:
+        text = str(item or "").strip().lower()
+        if text:
+            stages.append(text)
+    return tuple(stages)
+
+
+def agent_stage_enabled(metadata: dict[str, Any] | None, stage: str) -> bool:
+    plan = resolve_agent_stage_plan(metadata)
+    if not plan:
+        return True
+    return str(stage or "").strip().lower() in plan
+
+
+def build_agent_trace(
+    *,
+    metadata: dict[str, Any] | None,
+    tool_schemas: list[dict[str, Any]],
+) -> dict[str, Any]:
+    plan = resolve_agent_stage_plan(metadata)
+    return {
+        "agent_stage_plan": list(plan),
+        "planner_enabled": agent_stage_enabled(metadata, "plan"),
+        "tool_loop_enabled": agent_stage_enabled(metadata, "tool_loop"),
+        "tool_schema_count": len(tool_schemas),
+        "tool_call_count": 0,
+        "rounds": [],
+        "prefetched_tool": None,
+        "final_stage": "generate",
+    }
 
 
 async def prefetch_operator_tool(
@@ -86,8 +125,13 @@ async def complete_with_tool_loop(
         return str(reply.get("content", "") or "").strip(), {"role": "assistant", "content": reply.get("content", "")}
 
     working = list(messages)
+    trace = build_agent_trace(metadata=metadata, tool_schemas=tool_schemas)
     if tool_schemas:
         meta = metadata if isinstance(metadata, dict) else {}
+        if agent_stage_enabled(meta, "plan"):
+            reminder = {"role": "system", "content": _PLANNER_REMINDER}
+            insert_idx = 1 if working and working[0].get("role") == "system" else 0
+            working.insert(insert_idx, reminder)
         task = str(meta.get("task") or "")
         if needs_tools_for_request(user_text, task=task, metadata=meta) or bool(meta.get("tools_enabled")):
             reminder = {
@@ -104,6 +148,11 @@ async def complete_with_tool_loop(
     for round_idx in range(max_rounds):
         last_message = await complete_once(working, model=model, options=options, tools=tool_schemas)
         tool_calls = last_message.get("tool_calls")
+        round_trace = {
+            "round": round_idx + 1,
+            "tool_calls": [],
+            "used_prefetch": False,
+        }
         if not isinstance(tool_calls, list) or not tool_calls:
             meta = metadata if isinstance(metadata, dict) else {}
             task = str(meta.get("task") or "")
@@ -118,11 +167,16 @@ async def complete_with_tool_loop(
                     registered_names=registered_names,
                 )
                 if prefetched:
+                    round_trace["used_prefetch"] = True
+                    trace["prefetched_tool"] = _OPERATOR_GET_TOOL
+                    trace["rounds"].append(round_trace)
                     continue
             content = str(last_message.get("content", "") or "").strip()
             assistant_message = dict(last_message)
             assistant_message.setdefault("role", "assistant")
             assistant_message["content"] = content
+            trace["rounds"].append(round_trace)
+            assistant_message["_agent_trace"] = trace
             return content, assistant_message
 
         working.append({
@@ -142,6 +196,8 @@ async def complete_with_tool_loop(
                 continue
             call_id = str(call.get("id") or tool_name)
             args = parse_tool_arguments(fn.get("arguments"))
+            round_trace["tool_calls"].append(tool_name)
+            trace["tool_call_count"] = int(trace.get("tool_call_count") or 0) + 1
             logger.info(
                 "工具调用：round={} tool={} 参数={}",
                 round_idx + 1,
@@ -150,11 +206,12 @@ async def complete_with_tool_loop(
             )
             tool_result = await execute_bot_tool(name=tool_name, arguments=args, metadata=metadata)
             working.append(tool_result_message(call_id, tool_name, tool_result))
+        trace["rounds"].append(round_trace)
 
     content = str(last_message.get("content", "") or "").strip()
     if not content:
         content = "抱歉，工具调用次数已达上限，请换个说法再试。"
-    return content, {"role": "assistant", "content": content}
+    return content, {"role": "assistant", "content": content, "_agent_trace": trace}
 
 
 def tool_schemas_for_metadata(
@@ -163,6 +220,8 @@ def tool_schemas_for_metadata(
     user_text: str = "",
 ) -> list[dict[str, Any]]:
     meta = metadata if isinstance(metadata, dict) else {}
+    if not agent_stage_enabled(meta, "tool_loop"):
+        return []
     return resolve_tool_schemas(
         task=str(meta.get("task") or ""),
         metadata=meta,

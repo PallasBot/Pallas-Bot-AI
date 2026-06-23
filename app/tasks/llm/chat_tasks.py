@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from typing import Any
 
@@ -245,6 +246,9 @@ async def llm_chat_async(
                 if pending_summary:
                     callback_kwargs["history_summary"] = str(pending_summary.get("summary") or "")
                     callback_kwargs["history_keep_messages"] = int(pending_summary.get("keep_messages") or 0)
+                agent_trace = assistant_message.get("_agent_trace")
+                if isinstance(agent_trace, dict):
+                    callback_kwargs["agent_trace"] = json.dumps(agent_trace, ensure_ascii=False)
                 await callback(request_id, text=reply, **callback_kwargs)
                 succeeded = True
                 return

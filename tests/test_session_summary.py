@@ -10,6 +10,24 @@ from app.services.llm_task_metrics import (
 from app.services.session_summary import format_transcript, maybe_compact_request_messages
 
 
+def test_maybe_compact_request_messages_skips_when_runtime_summary_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.session_summary.session_summary_settings",
+        lambda _meta: None,
+    )
+    messages = [{"role": "user", "content": f"msg{i}"} for i in range(12)]
+
+    async def run():
+        return await maybe_compact_request_messages(
+            messages,
+            metadata={"runtime_state_summary_enabled": False, "session_summary": {"enabled": True}},
+        )
+
+    compacted, pending = asyncio.run(run())
+    assert compacted == messages
+    assert pending is None
+
+
 def test_maybe_compact_request_messages_skips_short_history(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.session_summary.session_summary_settings",

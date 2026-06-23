@@ -17,6 +17,8 @@ _SUMMARY_SYSTEM = (
 
 def session_summary_settings(metadata: dict[str, Any] | None) -> dict[str, Any] | None:
     meta = metadata if isinstance(metadata, dict) else {}
+    if meta.get("runtime_state_summary_enabled") is False:
+        return None
     raw = meta.get("session_summary")
     if isinstance(raw, dict):
         enabled = raw.get("enabled")

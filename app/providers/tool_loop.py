@@ -12,6 +12,7 @@ from app.providers.operator_lookup import (
     extract_operator_lookup_name,
     operator_get_tool_registered,
 )
+from app.providers.runtime_trace import AgentRuntimeTrace, StageTrace, ToolCallTrace
 from app.providers.tool_schema import canonical_tool_names, resolve_canonical_tool_name
 from app.providers.tools import resolve_tool_schemas
 from app.services.bot_tools import execute_bot_tool, tool_result_message
@@ -58,20 +59,22 @@ def build_agent_trace(
     metadata: dict[str, Any] | None,
     tool_schemas: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    plan = resolve_agent_stage_plan(metadata)
-    retrieval_trace = knowledge_trace_for_agent(metadata)
-    return {
-        "agent_stage_plan": list(plan),
-        "planner_enabled": agent_stage_enabled(metadata, "plan"),
-        "retrieve_enabled": agent_stage_enabled(metadata, "retrieve"),
-        "tool_loop_enabled": agent_stage_enabled(metadata, "tool_loop"),
-        "tool_schema_count": len(tool_schemas),
-        "tool_call_count": 0,
-        "rounds": [],
-        "prefetched_tool": None,
-        "final_stage": "generate",
-        "retrieval_trace": retrieval_trace,
-    }
+    meta = metadata if isinstance(metadata, dict) else {}
+    plan = resolve_agent_stage_plan(meta)
+    runtime_debug = meta.get("runtime_debug") if isinstance(meta.get("runtime_debug"), dict) else {}
+    tool_catalog = meta.get("tool_catalog") if isinstance(meta.get("tool_catalog"), dict) else {}
+    trace = AgentRuntimeTrace(
+        agent_stage_plan=list(plan),
+        planner_enabled=agent_stage_enabled(meta, "plan"),
+        retrieve_enabled=agent_stage_enabled(meta, "retrieve"),
+        tool_loop_enabled=agent_stage_enabled(meta, "tool_loop"),
+        tool_schema_count=len(tool_schemas),
+        request_snapshot_id=str(runtime_debug.get("request_snapshot_id") or "").strip() or None,
+        tool_catalog_version=str(tool_catalog.get("version") or "").strip() or None,
+        retrieval_trace=knowledge_trace_for_agent(meta),
+        final_stage="generate",
+    )
+    return trace.model_dump(mode="json")
 
 
 async def prefetch_operator_tool(
@@ -129,13 +132,15 @@ async def complete_with_tool_loop(
         return str(reply.get("content", "") or "").strip(), {"role": "assistant", "content": reply.get("content", "")}
 
     working = list(messages)
-    trace = build_agent_trace(metadata=metadata, tool_schemas=tool_schemas)
+    trace_payload = build_agent_trace(metadata=metadata, tool_schemas=tool_schemas)
+    trace = AgentRuntimeTrace.model_validate(trace_payload)
     if tool_schemas:
         meta = metadata if isinstance(metadata, dict) else {}
         if agent_stage_enabled(meta, "plan"):
             reminder = {"role": "system", "content": _PLANNER_REMINDER}
             insert_idx = 1 if working and working[0].get("role") == "system" else 0
             working.insert(insert_idx, reminder)
+            trace.stages.append(StageTrace(stage="plan", status="success", model=model))
         task = str(meta.get("task") or "")
         if needs_tools_for_request(user_text, task=task, metadata=meta) or bool(meta.get("tools_enabled")):
             reminder = {
@@ -148,6 +153,7 @@ async def complete_with_tool_loop(
     max_rounds = max(1, int(settings.llm_tools_max_rounds))
     last_message: dict[str, Any] = {}
     registered_names = canonical_tool_names(tool_schemas)
+    tool_loop_stage = StageTrace(stage="tool_loop", status="success", model=model)
 
     for round_idx in range(max_rounds):
         last_message = await complete_once(working, model=model, options=options, tools=tool_schemas)
@@ -172,15 +178,18 @@ async def complete_with_tool_loop(
                 )
                 if prefetched:
                     round_trace["used_prefetch"] = True
-                    trace["prefetched_tool"] = _OPERATOR_GET_TOOL
-                    trace["rounds"].append(round_trace)
+                    trace.prefetched_tool = _OPERATOR_GET_TOOL
+                    trace.rounds.append(round_trace)
                     continue
             content = str(last_message.get("content", "") or "").strip()
             assistant_message = dict(last_message)
             assistant_message.setdefault("role", "assistant")
             assistant_message["content"] = content
-            trace["rounds"].append(round_trace)
-            assistant_message["_agent_trace"] = trace
+            trace.rounds.append(round_trace)
+            trace.final_stage = "generate"
+            trace.stages.append(tool_loop_stage)
+            trace.stages.append(StageTrace(stage="generate", status="success", model=model))
+            assistant_message["_agent_trace"] = trace.model_dump(mode="json")
             return content, assistant_message
 
         working.append({
@@ -201,7 +210,7 @@ async def complete_with_tool_loop(
             call_id = str(call.get("id") or tool_name)
             args = parse_tool_arguments(fn.get("arguments"))
             round_trace["tool_calls"].append(tool_name)
-            trace["tool_call_count"] = int(trace.get("tool_call_count") or 0) + 1
+            trace.tool_call_count += 1
             logger.info(
                 "工具调用：round={} tool={} 参数={}",
                 round_idx + 1,
@@ -209,13 +218,26 @@ async def complete_with_tool_loop(
                 sorted(args.keys()),
             )
             tool_result = await execute_bot_tool(name=tool_name, arguments=args, metadata=metadata)
+            tool_loop_stage.tool_calls.append(
+                ToolCallTrace(
+                    tool=tool_name,
+                    args_keys=sorted(args.keys()),
+                    ok=bool(tool_result.get("ok")),
+                    error=str(tool_result.get("error") or ""),
+                    result_preview=str(tool_result.get("result") or tool_result)[:160],
+                )
+            )
             working.append(tool_result_message(call_id, tool_name, tool_result))
-        trace["rounds"].append(round_trace)
+        trace.rounds.append(round_trace)
 
     content = str(last_message.get("content", "") or "").strip()
     if not content:
         content = "抱歉，工具调用次数已达上限，请换个说法再试。"
-    return content, {"role": "assistant", "content": content, "_agent_trace": trace}
+    trace.final_stage = "generate"
+    trace.status = "max_rounds"
+    trace.stages.append(tool_loop_stage)
+    trace.stages.append(StageTrace(stage="generate", status="success", model=model))
+    return content, {"role": "assistant", "content": content, "_agent_trace": trace.model_dump(mode="json")}
 
 
 def tool_schemas_for_metadata(

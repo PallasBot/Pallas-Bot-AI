@@ -135,3 +135,5 @@ def test_complete_with_tool_loop_inserts_planner_reminder() -> None:
     assert any("回答计划" in str(item.get("content") or "") for item in seen_messages if item.get("role") == "system")
     assert _message["_agent_trace"]["planner_enabled"] is True
     assert _message["_agent_trace"]["agent_stage_plan"] == ["plan", "tool_loop", "generate"]
+    assert _message["_agent_trace"]["version"] == "agent_trace/v1"
+    assert _message["_agent_trace"]["stages"]

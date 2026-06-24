@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+import app.providers.tool_loop as tool_loop
 from app.providers.tool_loop import complete_with_tool_loop
 from app.providers.tool_schema import (
     openai_api_tool_name,
@@ -35,12 +36,12 @@ def test_resolve_canonical_tool_name_from_api_alias() -> None:
     assert resolve_canonical_tool_name("arknights_operator_get", canonical) == "arknights.operator.get"
 
 
-def test_complete_with_tool_loop_accepts_api_alias_name() -> None:
+def test_complete_with_tool_loop_accepts_api_alias_name(monkeypatch) -> None:
     calls: list[str] = []
 
     async def fake_complete_once(messages, *, model, options, tools):
         _ = (model, options, tools)
-        if len(messages) == 1:
+        if not any(item.get("role") == "tool" for item in messages):
             return {
                 "role": "assistant",
                 "content": "",
@@ -59,9 +60,7 @@ def test_complete_with_tool_loop_accepts_api_alias_name() -> None:
         _ = (arguments, metadata)
         return {"ok": True, "result": {"found": True}}
 
-    import app.providers.tool_loop as tool_loop
-
-    tool_loop.execute_bot_tool = fake_execute_bot_tool  # type: ignore[method-assign]
+    monkeypatch.setattr(tool_loop, "execute_bot_tool", fake_execute_bot_tool)
 
     schemas = [
         {

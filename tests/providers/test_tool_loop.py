@@ -11,7 +11,7 @@ from app.providers.tool_loop import (
 )
 
 
-def test_complete_with_tool_loop_executes_tool() -> None:
+def test_complete_with_tool_loop_executes_tool(monkeypatch) -> None:
     calls: list[str] = []
 
     async def fake_complete_once(messages, *, model, options, tools):
@@ -35,7 +35,7 @@ def test_complete_with_tool_loop_executes_tool() -> None:
         _ = (arguments, metadata)
         return {"ok": True, "result": {"found": True}}
 
-    tool_loop.execute_bot_tool = fake_execute_bot_tool  # type: ignore[method-assign]
+    monkeypatch.setattr(tool_loop, "execute_bot_tool", fake_execute_bot_tool)
 
     reply, message = asyncio.run(
         complete_with_tool_loop(
@@ -54,7 +54,7 @@ def test_complete_with_tool_loop_executes_tool() -> None:
     assert message["_agent_trace"]["rounds"][0]["tool_calls"] == ["arknights.operator.get"]
 
 
-def test_complete_with_tool_loop_restores_sanitized_mcp_tool_name() -> None:
+def test_complete_with_tool_loop_restores_sanitized_mcp_tool_name(monkeypatch) -> None:
     calls: list[str] = []
 
     async def fake_complete_once(messages, *, model, options, tools):
@@ -79,7 +79,7 @@ def test_complete_with_tool_loop_restores_sanitized_mcp_tool_name() -> None:
         _ = metadata
         return {"ok": True, "result": {"hits": 1}}
 
-    tool_loop.execute_bot_tool = fake_execute_bot_tool  # type: ignore[method-assign]
+    monkeypatch.setattr(tool_loop, "execute_bot_tool", fake_execute_bot_tool)
 
     reply, message = asyncio.run(
         complete_with_tool_loop(
@@ -98,7 +98,7 @@ def test_complete_with_tool_loop_restores_sanitized_mcp_tool_name() -> None:
     assert message["_agent_trace"]["rounds"][0]["tool_calls"] == ["mcp.notion.search"]
 
 
-def test_complete_with_tool_loop_prefetches_operator_when_model_skips_tool() -> None:
+def test_complete_with_tool_loop_prefetches_operator_when_model_skips_tool(monkeypatch) -> None:
     calls: list[str] = []
     complete_rounds = 0
 
@@ -116,7 +116,7 @@ def test_complete_with_tool_loop_prefetches_operator_when_model_skips_tool() -> 
         _ = metadata
         return {"ok": True, "result": {"name": "银灰", "profession": "近卫"}}
 
-    tool_loop.execute_bot_tool = fake_execute_bot_tool  # type: ignore[method-assign]
+    monkeypatch.setattr(tool_loop, "execute_bot_tool", fake_execute_bot_tool)
 
     reply, message = asyncio.run(
         complete_with_tool_loop(
@@ -181,3 +181,116 @@ def test_complete_with_tool_loop_inserts_planner_reminder() -> None:
     assert _message["_agent_trace"]["agent_stage_plan"] == ["plan", "tool_loop", "generate"]
     assert _message["_agent_trace"]["version"] == "agent_trace/v1"
     assert _message["_agent_trace"]["stages"]
+
+
+def test_complete_with_tool_loop_uses_mock_tools_in_replay_mode(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def fake_complete_once(messages, *, model, options, tools):
+        _ = (model, options, tools)
+        if tools and not any(item.get("role") == "tool" for item in messages):
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "arknights.operator.get", "arguments": '{"name":"银灰"}'},
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "mock replay done"}
+
+    async def fake_execute_bot_tool(*, name, arguments, metadata):
+        calls.append(name)
+        _ = (arguments, metadata)
+        return {"ok": True, "result": {"found": True}}
+
+    monkeypatch.setattr(tool_loop, "execute_bot_tool", fake_execute_bot_tool)
+
+    reply, message = asyncio.run(
+        complete_with_tool_loop(
+            complete_once=fake_complete_once,
+            messages=[{"role": "user", "content": "查一下银灰"}],
+            tool_schemas=[{"type": "function", "function": {"name": "arknights.operator.get", "parameters": {}}}],
+            metadata={
+                "bot_id": 1,
+                "group_id": 2,
+                "user_id": 3,
+                "runtime_debug": {"replay_mode": "mock_tools"},
+                "tool_catalog": {
+                    "tools": [
+                        {
+                            "name": "arknights.operator.get",
+                            "capabilities": ["read_only"],
+                        }
+                    ]
+                },
+            },
+            model="test",
+            options={},
+        )
+    )
+
+    assert reply == "mock replay done"
+    assert calls == []
+    assert message["_agent_trace"]["tool_call_count"] == 1
+
+
+def test_complete_with_tool_loop_blocks_side_effecting_tool_in_live_read_only_replay(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def fake_complete_once(messages, *, model, options, tools):
+        _ = (model, options, tools)
+        if tools and not any(item.get("role") == "tool" for item in messages):
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "plugin.echo", "arguments": '{"text":"hi"}'},
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "blocked replay done"}
+
+    async def fake_execute_bot_tool(*, name, arguments, metadata):
+        calls.append(name)
+        _ = (arguments, metadata)
+        return {"ok": True, "result": {"echo": "hi"}}
+
+    monkeypatch.setattr(tool_loop, "execute_bot_tool", fake_execute_bot_tool)
+
+    reply, message = asyncio.run(
+        complete_with_tool_loop(
+            complete_once=fake_complete_once,
+            messages=[{"role": "user", "content": "echo hi"}],
+            tool_schemas=[{"type": "function", "function": {"name": "plugin.echo", "parameters": {}}}],
+            metadata={
+                "bot_id": 1,
+                "group_id": 2,
+                "user_id": 3,
+                "runtime_debug": {"replay_mode": "live_read_only"},
+                "tool_catalog": {
+                    "tools": [
+                        {
+                            "name": "plugin.echo",
+                            "capabilities": ["side_effecting"],
+                        }
+                    ]
+                },
+            },
+            model="test",
+            options={},
+        )
+    )
+
+    assert reply == "blocked replay done"
+    assert calls == []
+    assert message["_agent_trace"]["tool_call_count"] == 1
+    tool_calls = [item for stage in message["_agent_trace"]["stages"] for item in stage.get("tool_calls", [])]
+    assert tool_calls[0]["ok"] is False
+    assert "side_effecting" in tool_calls[0]["error"]

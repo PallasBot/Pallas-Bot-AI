@@ -7,6 +7,7 @@ from app.core.logger import (
     configure_stdlib_logging,
     effective_log_format,
     log_id_clause,
+    module_display_name,
     patch_log_record,
     resolve_log_level,
     short_log_id,
@@ -46,7 +47,12 @@ def test_short_log_id_omit_when_zero(monkeypatch) -> None:
 def test_patch_log_record_short_module() -> None:
     record: dict = {"name": "app.tasks.llm.chat_tasks", "line": 144, "extra": {}}
     patch_log_record(record)
-    assert record["extra"]["loc"] == "chat_tasks:144"
+    assert record["extra"]["loc"] == "ai.task:144"
+
+
+def test_module_display_name_uses_aliases() -> None:
+    assert module_display_name("app.providers.tool_loop") == "ai.providers"
+    assert module_display_name("uvicorn.error") == "uvicorn"
 
 
 def test_effective_log_format_uses_short_loc_when_enabled(monkeypatch) -> None:

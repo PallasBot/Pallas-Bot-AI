@@ -77,6 +77,66 @@ def build_agent_trace(
     return trace.model_dump(mode="json")
 
 
+def replay_mode_for_metadata(metadata: dict[str, Any] | None) -> str:
+    meta = metadata if isinstance(metadata, dict) else {}
+    runtime_debug = meta.get("runtime_debug") if isinstance(meta.get("runtime_debug"), dict) else {}
+    return str(runtime_debug.get("replay_mode") or "").strip().lower()
+
+
+def tool_catalog_entry_for_name(metadata: dict[str, Any] | None, tool_name: str) -> dict[str, Any] | None:
+    meta = metadata if isinstance(metadata, dict) else {}
+    tool_catalog = meta.get("tool_catalog") if isinstance(meta.get("tool_catalog"), dict) else {}
+    tools = tool_catalog.get("tools")
+    if not isinstance(tools, list):
+        return None
+    for item in tools:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("name") or "").strip() == tool_name:
+            return item
+    return None
+
+
+def mock_replay_tool_result(name: str, arguments: dict[str, Any], metadata: dict[str, Any]) -> dict[str, Any]:
+    runtime_debug = metadata.get("runtime_debug") if isinstance(metadata.get("runtime_debug"), dict) else {}
+    raw = runtime_debug.get("mock_tool_results")
+    if isinstance(raw, dict):
+        result = raw.get(name)
+        if isinstance(result, dict):
+            if "ok" in result:
+                return result
+            return {"ok": True, "result": result, "mocked": True}
+    return {
+        "ok": True,
+        "result": {
+            "mocked": True,
+            "tool": name,
+            "arguments": arguments,
+        },
+    }
+
+
+async def execute_tool_for_runtime(
+    *,
+    name: str,
+    arguments: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    replay_mode = replay_mode_for_metadata(metadata)
+    if replay_mode == "mock_tools":
+        return mock_replay_tool_result(name, arguments, metadata)
+    if replay_mode == "live_read_only":
+        entry = tool_catalog_entry_for_name(metadata, name)
+        capabilities = {
+            str(item).strip().lower() for item in (entry or {}).get("capabilities", []) if str(item).strip()
+        }
+        if "side_effecting" in capabilities:
+            return {"ok": False, "error": "replay blocked: side_effecting tool not allowed in live_read_only"}
+        if "read_only" not in capabilities:
+            return {"ok": False, "error": "replay blocked: tool is not marked read_only"}
+    return await execute_bot_tool(name=name, arguments=arguments, metadata=metadata)
+
+
 async def prefetch_operator_tool(
     *,
     working: list[dict[str, Any]],
@@ -91,7 +151,7 @@ async def prefetch_operator_tool(
         return False
     call_id = "prefetch_operator"
     logger.info("工具预取：tool={} name={}", _OPERATOR_GET_TOOL, operator_name)
-    tool_result = await execute_bot_tool(
+    tool_result = await execute_tool_for_runtime(
         name=_OPERATOR_GET_TOOL,
         arguments={"name": operator_name},
         metadata=metadata,
@@ -217,7 +277,7 @@ async def complete_with_tool_loop(
                 tool_name,
                 sorted(args.keys()),
             )
-            tool_result = await execute_bot_tool(name=tool_name, arguments=args, metadata=metadata)
+            tool_result = await execute_tool_for_runtime(name=tool_name, arguments=args, metadata=metadata)
             tool_loop_stage.tool_calls.append(
                 ToolCallTrace(
                     tool=tool_name,

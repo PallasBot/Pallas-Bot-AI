@@ -32,6 +32,27 @@ _QUIET_LOGGER_NAMES = (
     "watchfiles",
 )
 
+_MODULE_ALIASES = (
+    ("app.api.", "ai.api"),
+    ("app.providers.", "ai.providers"),
+    ("app.services.", "ai.service"),
+    ("app.tasks.", "ai.task"),
+    ("app.core.", "ai.core"),
+    ("app.", "ai"),
+    ("uvicorn.", "uvicorn"),
+    ("celery.", "celery"),
+    ("httpx", "httpx"),
+    ("httpcore", "httpx"),
+)
+
+
+def module_display_name(name: str) -> str:
+    text = str(name or "").strip()
+    for prefix, alias in _MODULE_ALIASES:
+        if text == prefix.rstrip(".") or text.startswith(prefix):
+            return alias
+    return text.rsplit(".", 1)[-1] or text
+
 
 class InterceptHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
@@ -44,7 +65,12 @@ class InterceptHandler(logging.Handler):
         while frame is not None and frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
             depth += 1
-        loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+        label = module_display_name(record.name)
+        text = record.getMessage()
+        loguru_logger.opt(depth=depth, exception=record.exc_info).log(
+            level,
+            f"[{label}] {text}" if label else text,
+        )
 
 
 def resolve_log_level(name: str, *, fallback: str = "INFO") -> str:
@@ -104,7 +130,7 @@ def configure_stdlib_logging() -> None:
 
 def patch_log_record(record: dict) -> None:
     name = str(record.get("name") or "")
-    module = name.rsplit(".", 1)[-1] or name
+    module = module_display_name(name)
     record["extra"]["loc"] = f"{module}:{record['line']}"
 
 

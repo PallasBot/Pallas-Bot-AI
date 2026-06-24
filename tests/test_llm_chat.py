@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.core.config import settings
 from app.schemas.llm_chat import LlmChatCompletionRequest, LlmChatMessage, LlmChatMode
 from app.services.llm_chat import extract_user_text, resolve_chat_options, resolve_chat_temperature
+from app.services.llm_chat_request import parse_llm_chat_completion_request
 
 
 def test_extract_user_text_uses_last_user_message() -> None:
@@ -55,3 +56,24 @@ def test_resolve_chat_options_passes_think_override() -> None:
         metadata={"think": True},
     )
     assert resolve_chat_options(request)["think"] is True
+
+
+def test_parse_llm_chat_capability_envelope() -> None:
+    request = parse_llm_chat_completion_request(
+        {
+            "request_id": "req-1",
+            "capability": "llm.chat",
+            "caller": {"source": "bot", "bot_id": 1, "plugin": "llm_chat"},
+            "context": {"group_id": 2, "user_id": 3, "session_id": "sess-1"},
+            "policy": {"timeout_sec": 30},
+            "payload": {
+                "session_id": "sess-1",
+                "system": "sys",
+                "messages": [{"role": "user", "content": "hi"}],
+                "metadata": {"task": "llm_chat", "mode": "normal"},
+            },
+        },
+    )
+    assert request.session_id == "sess-1"
+    assert request.metadata["task"] == "llm_chat"
+    assert request.metadata["group_id"] == 2

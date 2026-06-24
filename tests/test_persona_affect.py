@@ -29,15 +29,13 @@ def test_parse_affect_refine_json_from_markdown_block() -> None:
 
 
 def test_normalize_affect_refine_payload_clamps() -> None:
-    result = normalize_affect_refine_payload(
-        {
-            "warmth_delta": 9,
-            "assertiveness_delta": -9,
-            "confidence": 2,
-            "summary": "x" * 300,
-            "triggers": [{"phrase": "？？？", "warmth_delta": 0.02, "assertiveness_delta": 0.03}],
-        }
-    )
+    result = normalize_affect_refine_payload({
+        "warmth_delta": 9,
+        "assertiveness_delta": -9,
+        "confidence": 2,
+        "summary": "x" * 300,
+        "triggers": [{"phrase": "？？？", "warmth_delta": 0.02, "assertiveness_delta": 0.03}],
+    })
     assert result.warmth_delta == 0.5
     assert result.assertiveness_delta == -0.5
     assert result.confidence == 1.0
@@ -96,9 +94,12 @@ def test_persona_affect_refine_endpoint_disabled(monkeypatch) -> None:
 
 def test_persona_affect_refine_endpoint_enabled(monkeypatch) -> None:
     async def fake_refine(request: AffectRefineRequest):
-        return normalize_affect_refine_payload(
-            {"warmth_delta": 0.05, "assertiveness_delta": 0.02, "confidence": 0.8, "summary": "test"}
-        )
+        return normalize_affect_refine_payload({
+            "warmth_delta": 0.05,
+            "assertiveness_delta": 0.02,
+            "confidence": 0.8,
+            "summary": "test",
+        })
 
     monkeypatch.setattr(settings, "persona_affect_refine_enabled", True)
     monkeypatch.setattr(persona_affect_endpoint, "refine_group_affect", fake_refine)

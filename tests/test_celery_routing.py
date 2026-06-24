@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -9,8 +10,6 @@ def test_queue_llm_chat_routes_to_default(monkeypatch) -> None:
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-llm-1"))
     monkeypatch.setattr("app.services.llm_queue.llm_chat_task.apply_async", apply_async)
     monkeypatch.setattr("app.services.llm_queue.record_ai_llm_task_state", lambda *_args, **_kwargs: None)
-
-    import asyncio
 
     task_id = asyncio.run(queue_llm_chat("req-1", "session-1", "hello", "system"))
 
@@ -27,8 +26,6 @@ def test_queue_llm_chat_expires_disabled(monkeypatch) -> None:
     monkeypatch.setattr("app.services.llm_queue.record_ai_llm_task_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("app.services.llm_queue.settings.llm_chat_task_expires", 0.0)
 
-    import asyncio
-
     asyncio.run(queue_llm_chat("req-2", "session-2", "hello", "system"))
 
     _, kwargs = apply_async.call_args
@@ -40,8 +37,6 @@ def test_sing_routes_to_media_queue(monkeypatch) -> None:
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-sing-1"))
     monkeypatch.setattr("app.services.sing.ensure_sing_worker", lambda: None)
     monkeypatch.setattr("app.services.sing.sing_task.apply_async", apply_async)
-
-    import asyncio
 
     task_id = asyncio.run(sing("req-1", "amiya", 123, 0, 0, 30))
 
@@ -55,8 +50,6 @@ def test_play_routes_to_media_queue(monkeypatch) -> None:
     monkeypatch.setattr("app.services.sing.ensure_sing_worker", lambda: None)
     monkeypatch.setattr("app.services.sing.play_task.apply_async", apply_async)
 
-    import asyncio
-
     request_id = asyncio.run(play("req-play-1", "amiya"))
 
     assert request_id == "req-play-1"
@@ -68,8 +61,6 @@ def test_download_routes_to_media_queue(monkeypatch) -> None:
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-request-1"))
     monkeypatch.setattr("app.services.sing.ensure_sing_worker", lambda: None)
     monkeypatch.setattr("app.services.sing.request_task.apply_async", apply_async)
-
-    import asyncio
 
     task_id = asyncio.run(download("req-2", 456))
 

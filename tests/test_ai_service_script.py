@@ -5,7 +5,6 @@ import stat
 import subprocess
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "ai_service.sh"
 
@@ -89,19 +88,17 @@ esac
     )
 
     env = os.environ.copy()
-    env.update(
-        {
-            "AI_SERVICE_RUN_API_CMD": str(api_cmd),
-            "AI_SERVICE_WORKER_SCRIPT": str(worker_cmd),
-            "AI_SERVICE_API_PID_FILE": str(api_pid),
-            "AI_SERVICE_API_LOG_FILE": str(api_log),
-            "AI_SERVICE_DEFAULT_WORKER_PID_FILE": str(worker_pid),
-            "AI_SERVICE_DEFAULT_WORKER_LOG_FILE": str(worker_log),
-            "AI_SERVICE_MEDIA_WORKER_PID_FILE": str(media_worker_pid),
-            "AI_SERVICE_MEDIA_WORKER_LOG_FILE": str(media_worker_log),
-            "AI_SERVICE_TEST_API_LOG": str(api_log),
-        }
-    )
+    env.update({
+        "AI_SERVICE_RUN_API_CMD": str(api_cmd),
+        "AI_SERVICE_WORKER_SCRIPT": str(worker_cmd),
+        "AI_SERVICE_API_PID_FILE": str(api_pid),
+        "AI_SERVICE_API_LOG_FILE": str(api_log),
+        "AI_SERVICE_DEFAULT_WORKER_PID_FILE": str(worker_pid),
+        "AI_SERVICE_DEFAULT_WORKER_LOG_FILE": str(worker_log),
+        "AI_SERVICE_MEDIA_WORKER_PID_FILE": str(media_worker_pid),
+        "AI_SERVICE_MEDIA_WORKER_LOG_FILE": str(media_worker_log),
+        "AI_SERVICE_TEST_API_LOG": str(api_log),
+    })
     return subprocess.run(
         [str(SCRIPT), *args],
         cwd=ROOT,

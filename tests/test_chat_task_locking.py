@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 
+import app.tasks.chat.chat_tasks as chat_tasks
+
 
 def test_legacy_chat_cpu_strategy_skips_gpu_write_lock(monkeypatch) -> None:
-    import app.tasks.chat.chat_tasks as chat_tasks
-
     calls: list[tuple[str, dict[str, str]]] = []
 
     class FakeChat:
@@ -24,7 +24,11 @@ def test_legacy_chat_cpu_strategy_skips_gpu_write_lock(monkeypatch) -> None:
 
     monkeypatch.setattr(chat_tasks.settings, "chat_strategy", "cpu fp32")
     monkeypatch.setattr(chat_tasks, "gpu_locker", FailLocker())
-    monkeypatch.setattr(chat_tasks.ChatManager, "get_chat", lambda: FakeChat())
+
+    def fake_get_chat() -> FakeChat:
+        return FakeChat()
+
+    monkeypatch.setattr(chat_tasks.ChatManager, "get_chat", fake_get_chat)
     monkeypatch.setattr(chat_tasks, "callback", fake_callback)
     monkeypatch.setattr(chat_tasks, "tts_req", lambda _text: None)
 

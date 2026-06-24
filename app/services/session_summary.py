@@ -10,8 +10,7 @@ from app.providers.local_backend import complete_local
 from app.services.llm_messages import normalize_chat_history
 
 _SUMMARY_SYSTEM = (
-    "你是会话摘要器。用第三人称简要总结以下多轮对话要点，保留人称、梗与约定。"
-    "只输出摘要正文，不超过200字。"
+    "你是会话摘要器。用第三人称简要总结以下多轮对话要点，保留人称、梗与约定。只输出摘要正文，不超过200字。"
 )
 
 

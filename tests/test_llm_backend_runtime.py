@@ -9,7 +9,9 @@ import pytest
 from app.core.llm_backend_runtime import (
     get_llm_model,
     get_llm_num_gpu,
+    is_llm_gpu_config_dirty,
     reload_llm_runtime_from_env,
+    set_llm_num_gpu,
     switch_llm_model,
     switch_llm_num_gpu,
 )
@@ -43,8 +45,6 @@ def test_set_llm_num_gpu_marks_dirty(monkeypatch: pytest.MonkeyPatch, tmp_path) 
     runtime_file = tmp_path / "llm_runtime.json"
     runtime_file.write_text('{"model": "qwen3.5:9b", "num_gpu": 12}', encoding="utf-8")
     monkeypatch.setattr("app.core.llm_backend_runtime._RUNTIME_FILE", runtime_file)
-
-    from app.core.llm_backend_runtime import is_llm_gpu_config_dirty, set_llm_num_gpu
 
     assert is_llm_gpu_config_dirty() is False
     set_llm_num_gpu(70)

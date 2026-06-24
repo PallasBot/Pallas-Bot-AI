@@ -5,6 +5,7 @@ from kombu import Queue
 from app.core.config import settings
 from app.core.llm_backend_runtime import get_llm_model, prepare_local_backend_for_worker_sync
 from app.core.logger import configure_stdlib_logging, logger
+from app.services.llm_task_metrics import start_background_flush
 from app.session import normalize_session_backend
 from app.session.redis_store import ping_redis_sync
 
@@ -86,8 +87,6 @@ def on_celery_worker_ready(**kwargs):
     if settings.llm_chat_enabled:
         prepare_local_backend_for_worker_sync()
         logger.info("本地 LLM 后端检查完成，模型={}", get_llm_model())
-    from app.services.llm_task_metrics import start_background_flush
-
     start_background_flush()
     logger.info("Celery 已注册任务包：{}", ", ".join(resolve_celery_task_packages()))
 

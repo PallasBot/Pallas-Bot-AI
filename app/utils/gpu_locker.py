@@ -154,8 +154,7 @@ class GPULockManager:
             value = normalized.pop(key, "")
             if value:
                 parts.append(f"{key}={value}")
-        for key in sorted(normalized):
-            parts.append(f"{key}={normalized[key]}")
+        parts.extend(f"{key}={normalized[key]}" for key in sorted(normalized))
         return " ".join(parts) or "unknown"
 
     def _set_writer_meta(self, owner: Mapping[str, Any] | None, started: float) -> None:

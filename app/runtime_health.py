@@ -43,11 +43,7 @@ def aggregate_llm_runtime_health(
             "circuit_state": "open",
             "recent_failure_class": "invalid_upstream_response",
         }
-    active_rows = [
-        row
-        for row in provider_status
-        if row.get("enabled") and row.get("configured")
-    ]
+    active_rows = [row for row in provider_status if row.get("enabled") and row.get("configured")]
     if not active_rows:
         return {
             "health_state": "unhealthy",

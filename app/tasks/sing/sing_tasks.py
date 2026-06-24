@@ -15,7 +15,7 @@ from app.utils.gpu_locker import get_gpu_locker
 from .mixer import mix, splice
 from .ncm_loader import download
 from .separater import separate
-from .slicer import slice as slice_audio
+from .slicer import slice_audio
 from .svc_inference import inference
 
 gpu_locker = get_gpu_locker(settings.sing_cuda_device)
@@ -275,7 +275,13 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         key,
     )
     await sing_audio_callback(request_id, file, song_id, chunk_index, key)
-    task_log("sing task completed{} song_id={} chunk_index={} key={}", log_id_suffix(request_id), song_id, chunk_index, key)
+    task_log(
+        "sing task completed{} song_id={} chunk_index={} key={}",
+        log_id_suffix(request_id),
+        song_id,
+        chunk_index,
+        key,
+    )
     return True
 
 

@@ -61,7 +61,10 @@ def test_maybe_rewrite_llm_reply_trims_overexplaining_when_hint_requests_shorter
     reply = asyncio.run(
         maybe_rewrite_llm_reply(
             "这事可以做，不过得先把前面的状态收一收。后面再补细节也来得及。",
-            metadata={"task": "repeater_polish", "variation_hint": "【本轮表达去重】\n- 最近解释偏满，这轮优先短一点，像顺手接一句"},
+            metadata={
+                "task": "repeater_polish",
+                "variation_hint": ("【本轮表达去重】\n- 最近解释偏满，这轮优先短一点，像顺手接一句"),
+            },
         )
     )
     assert reply == "这事可以做，不过得先把前面的状态收一收。"
@@ -107,9 +110,7 @@ def test_rewrite_llm_reply_reports_template_ending_rule() -> None:
         )
     )
     assert result.reply == "先这么办吧，大概就这样。"
-    assert result.applied_rules == (
-        "soften_template_ending",
-    )
+    assert result.applied_rules == ("soften_template_ending",)
 
 
 def test_rewrite_llm_reply_adapts_length_only_for_llm_chat() -> None:
@@ -123,9 +124,7 @@ def test_rewrite_llm_reply_adapts_length_only_for_llm_chat() -> None:
         )
     )
     assert result.reply == "这事可以做。"
-    assert result.applied_rules == (
-        "adapt_llm_chat_length",
-    )
+    assert result.applied_rules == ("adapt_llm_chat_length",)
 
 
 def test_rewrite_llm_reply_does_not_adapt_length_for_repeater_tasks() -> None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from app.api.endpoints.chat import router as chat_router
@@ -52,8 +54,6 @@ def test_legacy_chat_service_enqueues_unified_llm_task(monkeypatch) -> None:
         return "task-unified"
 
     monkeypatch.setattr("app.services.chat.submit_llm_chat_completion", fake_submit)
-
-    import asyncio
 
     task_id = asyncio.run(chat("req-disabled", "s1", "hi", 50, False))
 

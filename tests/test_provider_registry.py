@@ -5,8 +5,13 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings
-from app.providers.registry import clear_provider_registry_cache, load_provider_registry
-from app.providers.router import resolve_provider_order, resolve_model_name
+from app.providers.registry import (
+    LlmProviderSpec,
+    clear_provider_registry_cache,
+    load_provider_registry,
+    local_base_url_for_spec,
+)
+from app.providers.router import resolve_model_name, resolve_provider_order
 
 
 @pytest.fixture(autouse=True)
@@ -167,8 +172,6 @@ repeater_fallback = "local"
 
 
 def test_local_base_url_for_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.providers.registry import LlmProviderSpec, local_base_url_for_spec
-
     cfg = Settings(llm_backend_url="http://127.0.0.1:11434")
     assert local_base_url_for_spec(LlmProviderSpec(id="local", kind="local"), cfg) == "http://127.0.0.1:11434"
     assert (
@@ -178,4 +181,4 @@ def test_local_base_url_for_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         )
         == "http://127.0.0.1:11435"
     )
-    assert local_base_url_for_spec(LlmProviderSpec(id="ollama-tools", kind="local"), cfg) == ""
+    assert not local_base_url_for_spec(LlmProviderSpec(id="ollama-tools", kind="local"), cfg)

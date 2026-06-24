@@ -146,8 +146,12 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"tests/**" = ["TC002"]
+"tests/**" = ["TC002", "TC003"]
 "app/core/llm_backend_runtime.py" = ["PLW0603"]
+"app/providers/registry.py" = ["PLW0603"]
+"app/services/llm_task_metrics.py" = ["PLC0415"]
+"app/tasks/chat/chat_tasks.py" = ["PLC0415"]
+"app/utils/gpu_locker.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

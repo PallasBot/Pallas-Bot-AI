@@ -76,10 +76,7 @@ def build_affect_refine_user_prompt(request: AffectRefineRequest) -> str:
             f"length_pref={derived.length_pref}, chaos_bias={derived.chaos_bias}"
         )
     if raw is not None:
-        lines.append(
-            "raw: "
-            f"repeat_chain_rate={raw.repeat_chain_rate}, local_answer_ratio={raw.local_answer_ratio}"
-        )
+        lines.append(f"raw: repeat_chain_rate={raw.repeat_chain_rate}, local_answer_ratio={raw.local_answer_ratio}")
     if tone is not None:
         lines.append(
             "affect_tone: "

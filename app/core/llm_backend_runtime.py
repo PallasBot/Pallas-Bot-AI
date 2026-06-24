@@ -143,18 +143,18 @@ def local_backend_pull_url() -> str:
     return f"{local_backend_base_url()}/api/pull"
 
 
-async def ping_local_backend(timeout: float = 2.0) -> bool:
+async def ping_local_backend(timeout_sec: float = 2.0) -> bool:
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_sec)) as client:
             response = await client.get(local_backend_tags_url())
             return response.status_code == 200
     except httpx.HTTPError:
         return False
 
 
-def ping_local_backend_sync(timeout: float = 2.0) -> bool:
+def ping_local_backend_sync(timeout_sec: float = 2.0) -> bool:
     try:
-        with httpx.Client(timeout=httpx.Timeout(timeout)) as client:
+        with httpx.Client(timeout=httpx.Timeout(timeout_sec)) as client:
             response = client.get(local_backend_tags_url())
             return response.status_code == 200
     except httpx.HTTPError:

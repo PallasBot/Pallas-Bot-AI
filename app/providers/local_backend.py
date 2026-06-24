@@ -7,6 +7,7 @@ import httpx
 
 from app.core.config import settings
 from app.core.logger import logger, task_log
+from app.utils.gpu_locker import acquire_gpu_read_async
 
 from .registry import LlmProviderSpec, load_provider_registry, local_base_url_for_spec
 from .token_usage import usage_from_local_chat_response
@@ -96,8 +97,6 @@ async def complete_local_message(
     timeout = httpx.Timeout(settings.llm_request_timeout)
     if settings.gpu_lock_llm_enabled:
         # 单卡：LLM 取读锁（彼此并发，仅与媒体写锁互斥），媒体上卡时自然让路。
-        from app.utils.gpu_locker import acquire_gpu_read_async
-
         async with acquire_gpu_read_async(owner={"kind": "llm_chat", "provider": pid, "model": model}):
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(local_chat_url(base_url), json=payload)

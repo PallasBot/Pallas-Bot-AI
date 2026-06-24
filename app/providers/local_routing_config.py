@@ -126,10 +126,7 @@ def save_local_routing_config(document: dict[str, Any]) -> dict[str, Any]:
         "llm_task_model_repeater_polish_lite": str(task_models.get("repeater_polish_lite") or "").strip(),
         "llm_task_model_repeater_select": str(task_models.get("repeater_select") or "").strip(),
     }
-    env_updates = {
-        FIELD_TO_ENV[field_name]: _serialize_env_value(value)
-        for field_name, value in values.items()
-    }
+    env_updates = {FIELD_TO_ENV[field_name]: _serialize_env_value(value) for field_name, value in values.items()}
     _write_env_keys(env_updates)
     _apply_runtime_values(values)
     return export_local_routing_config()

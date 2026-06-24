@@ -1,16 +1,18 @@
+import importlib
+import sys
+import types
+from unittest.mock import patch
+
 from app.services.llm_task_metrics import (
     clear_llm_task_metrics_for_tests,
     llm_task_metrics_snapshot,
     merge_llm_task_snapshots,
-    record_ai_llm_route,
     record_ai_llm_provider_result,
+    record_ai_llm_route,
     record_ai_llm_shaping,
     record_ai_llm_task,
     record_ai_llm_task_state,
 )
-import importlib
-import sys
-import types
 
 
 def test_record_ai_llm_task_snapshot() -> None:
@@ -196,8 +198,6 @@ def test_persisted_snapshot_restores_failure_provider_model_and_route_counts() -
     assert snap["provider_stats"] == {}
     assert snap["model_stats"] == {}
     assert snap["failure_counts"] == {}
-
-    from unittest.mock import patch
 
     persisted = {
         "source": "ai",

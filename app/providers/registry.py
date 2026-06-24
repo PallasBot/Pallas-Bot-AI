@@ -106,9 +106,8 @@ class ProviderRegistry:
         return out
 
     def snapshot(self) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for spec in sorted(self.providers.values(), key=lambda item: item.id):
-            rows.append({
+        return [
+            {
                 "id": spec.id,
                 "kind": spec.kind,
                 "enabled": spec.enabled,
@@ -116,8 +115,9 @@ class ProviderRegistry:
                 "default_model": spec.default_model,
                 "base_url": spec.base_url,
                 "task_models": dict(spec.task_models),
-            })
-        return rows
+            }
+            for spec in sorted(self.providers.values(), key=lambda item: item.id)
+        ]
 
 
 def providers_file_path(cfg: Settings | None = None) -> Path:

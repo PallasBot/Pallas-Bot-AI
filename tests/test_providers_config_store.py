@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.core.config import Settings
-from app.providers.config_store import render_providers_toml, save_providers_document
+from app.providers.config_store import save_providers_document
 from app.providers.registry import clear_provider_registry_cache, load_provider_registry
 
 

@@ -9,9 +9,11 @@ from app.providers.categorizer import (
     RequestClassification,
     categorizer_enabled,
     categorizer_model_name,
+    classify_request_async,
     classify_request_heuristic,
     needs_tools_for_request,
     needs_vision_for_request,
+    normalize_classification,
     parse_categorizer_payload,
     request_tier_for_metadata,
 )
@@ -46,8 +48,6 @@ def test_request_tier_bumps_simple_when_tools_needed() -> None:
 
 
 def test_normalize_classification_bumps_simple_tier_for_tools() -> None:
-    from app.providers.categorizer import normalize_classification
-
     result = normalize_classification(
         RequestClassification(needs_tools=True, tier="simple", source="model", needs_vision=False)
     )
@@ -93,8 +93,6 @@ def test_classify_request_async_uses_model(monkeypatch: pytest.MonkeyPatch) -> N
         "app.providers.categorizer.complete_local_message",
         fake_complete_local_message,
     )
-    from app.providers.categorizer import classify_request_async
-
     cfg = Settings(
         llm_categorizer_enabled=True,
         llm_categorizer_model="tiny:1b",

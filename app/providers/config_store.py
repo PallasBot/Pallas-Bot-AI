@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     import tomllib
 except ModuleNotFoundError:
     import tomli as tomllib
 
-from app.core.config import Settings, settings
 from app.providers.registry import clear_provider_registry_cache, providers_file_path
+
+if TYPE_CHECKING:
+    from app.core.config import Settings
 
 
 def load_providers_document(cfg: Settings | None = None) -> dict[str, Any]:
@@ -80,9 +82,11 @@ def render_providers_toml(document: dict[str, Any]) -> str:
         provider_id = str(raw.get("id") or "").strip()
         if not provider_id:
             continue
-        lines.append("")
-        lines.append("[[providers]]")
-        lines.append(f"id = {_toml_quote(provider_id)}")
+        lines.extend([
+            "",
+            "[[providers]]",
+            f"id = {_toml_quote(provider_id)}",
+        ])
         kind = str(raw.get("kind") or "remote").strip().lower()
         lines.append(f"kind = {_toml_quote(kind)}")
         base_url = str(raw.get("base_url") or "").strip()
@@ -110,19 +114,15 @@ def render_providers_toml(document: dict[str, Any]) -> str:
     if isinstance(routing, dict):
         chain_fallback = routing.get("chain_fallback")
         tasks = routing.get("tasks")
-        has_routing = (
-            isinstance(chain_fallback, list) and chain_fallback
-        ) or (isinstance(tasks, dict) and tasks)
+        has_routing = (isinstance(chain_fallback, list) and chain_fallback) or (isinstance(tasks, dict) and tasks)
         if has_routing:
-            lines.append("")
-            lines.append("[routing]")
+            lines.extend(["", "[routing]"])
             if isinstance(chain_fallback, list) and chain_fallback:
                 items = ", ".join(_toml_quote(str(item)) for item in chain_fallback if str(item).strip())
                 if items:
                     lines.append(f"chain_fallback = [{items}]")
             if isinstance(tasks, dict) and tasks:
-                lines.append("")
-                lines.append("[routing.tasks]")
+                lines.extend(["", "[routing.tasks]"])
                 for key, value in tasks.items():
                     task = str(key or "").strip()
                     provider_id = str(value or "").strip()

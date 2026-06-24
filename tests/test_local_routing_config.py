@@ -8,18 +8,18 @@ from app.core.config import Settings
 from app.providers.local_routing_config import export_local_routing_config, save_local_routing_config
 
 
-def test_save_local_routing_config_updates_env_file_and_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_save_local_routing_config_updates_env_file_and_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "\n".join(
-            [
-                "LLM_MODEL=old-model",
-                "LLM_LOCAL_MULTI_MODEL_ENABLED=false",
-                "LLM_MOE_MODEL_SIMPLE=qwen2.5:0.5b",
-                "LLM_TASK_MODEL_REPEATER_SELECT=old-select",
-                "",
-            ]
-        ),
+        "\n".join([
+            "LLM_MODEL=old-model",
+            "LLM_LOCAL_MULTI_MODEL_ENABLED=false",
+            "LLM_MOE_MODEL_SIMPLE=qwen2.5:0.5b",
+            "LLM_TASK_MODEL_REPEATER_SELECT=old-select",
+            "",
+        ]),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
@@ -31,26 +31,24 @@ def test_save_local_routing_config_updates_env_file_and_runtime(tmp_path: Path, 
     )
     monkeypatch.setattr("app.providers.local_routing_config.settings", cfg)
 
-    saved = save_local_routing_config(
-        {
-            "llm_model": "qwen3:8b",
-            "local_multi_model_enabled": True,
-            "moe_models": {
-                "simple": "qwen2.5:0.5b",
-                "medium": "qwen2.5:7b",
-                "complex": "qwen3.5:9b",
-                "vision": "",
-            },
-            "task_models": {
-                "llm_chat": "",
-                "drunk": "",
-                "repeater_fallback": "",
-                "repeater_polish": "",
-                "repeater_polish_lite": "qwen2.5:0.5b",
-                "repeater_select": "",
-            },
-        }
-    )
+    saved = save_local_routing_config({
+        "llm_model": "qwen3:8b",
+        "local_multi_model_enabled": True,
+        "moe_models": {
+            "simple": "qwen2.5:0.5b",
+            "medium": "qwen2.5:7b",
+            "complex": "qwen3.5:9b",
+            "vision": "",
+        },
+        "task_models": {
+            "llm_chat": "",
+            "drunk": "",
+            "repeater_fallback": "",
+            "repeater_polish": "",
+            "repeater_polish_lite": "qwen2.5:0.5b",
+            "repeater_select": "",
+        },
+    })
 
     text = env_file.read_text(encoding="utf-8")
     assert "LLM_MODEL=qwen3:8b" in text

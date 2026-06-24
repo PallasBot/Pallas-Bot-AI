@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Any
 
 _LEADING_FILLERS = (
@@ -75,8 +75,8 @@ def _extract_repeated_opener_labels(metadata: dict[str, Any] | None) -> list[str
     if not hint or _OPENER_LABEL_PREFIX not in hint:
         return []
     labels: list[str] = []
-    for line in hint.splitlines():
-        line = line.strip()
+    for raw_line in hint.splitlines():
+        line = raw_line.strip()
         if _OPENER_LABEL_PREFIX not in line:
             continue
         suffix = line.split(_OPENER_LABEL_PREFIX, 1)[1].strip()

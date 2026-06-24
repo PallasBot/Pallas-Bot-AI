@@ -148,9 +148,7 @@ def test_runtime_status_updates_after_failure(client: TestClient, monkeypatch: p
     assert backend["recent_failure_class"] == "timeout"
 
 
-def test_runtime_opens_circuit_after_repeated_failures(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_runtime_opens_circuit_after_repeated_failures(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "image_enabled", True)
     with patch(
         "app.api.endpoints.images.submit_image_generate",

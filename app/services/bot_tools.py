@@ -12,10 +12,7 @@ from app.core.logger import logger
 
 
 def bot_tool_execute_url() -> str:
-    return (
-        f"http://{settings.callback_host}:{settings.callback_port}"
-        "/pallas/api/internal/llm/tools/execute"
-    )
+    return f"http://{settings.callback_host}:{settings.callback_port}/pallas/api/internal/llm/tools/execute"
 
 
 async def execute_bot_tool(

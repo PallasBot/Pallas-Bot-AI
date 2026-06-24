@@ -9,22 +9,21 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.providers.config_store import export_providers_for_api, save_providers_document
+from app.providers.local_backend import local_tags_url, ping_local_provider_sync, resolve_local_provider
 from app.providers.local_routing_config import export_local_routing_config, save_local_routing_config
-from app.providers.local_backend import local_tags_url, resolve_local_provider
 from app.providers.registry import provider_spec_or_error
 from app.providers.remote_backend import (
     ping_remote_provider_sync,
     remote_models_url_for_spec,
 )
-from app.providers.local_backend import ping_local_provider_sync
 from app.providers.router import llm_health_snapshot
 from app.providers.types import ProviderError
 from app.schemas.providers_api import (
-    ProviderModelsResponse,
-    ProviderTestResponse,
     LocalRoutingConfigResponse,
+    ProviderModelsResponse,
     ProvidersConfigResponse,
     ProvidersDocument,
+    ProviderTestResponse,
 )
 
 from .llm_manage import router
@@ -131,12 +130,8 @@ async def list_provider_models(provider_id: str) -> ProviderModelsResponse:
     try:
         payload = response.json()
     except ValueError:
-        return ProviderModelsResponse(
-            provider_id=provider_id, ok=False, source=source, error="invalid response"
-        )
-    return ProviderModelsResponse(
-        provider_id=provider_id, ok=True, source=source, models=parse(payload)
-    )
+        return ProviderModelsResponse(provider_id=provider_id, ok=False, source=source, error="invalid response")
+    return ProviderModelsResponse(provider_id=provider_id, ok=True, source=source, models=parse(payload))
 
 
 @router.post("/llm/providers/{provider_id}/test", response_model=ProviderTestResponse)

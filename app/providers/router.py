@@ -180,6 +180,13 @@ def resolve_provider_order(
     c = cfg or settings
     registry = load_provider_registry(c)
     task = infer_task(metadata)
+    meta = metadata if isinstance(metadata, dict) else {}
+
+    hint = bot_provider_hint(meta)
+    if hint:
+        usable = registry.filter_usable([hint])
+        if usable:
+            return usable
 
     tier_order = resolve_tier_based_provider_order(
         task=task,
@@ -234,6 +241,32 @@ def infer_task(metadata: dict[str, Any] | None) -> str:
     if mode == "drunk":
         return "drunk"
     return "llm_chat"
+
+
+def bot_resolved_model(metadata: dict[str, Any] | None) -> str:
+    meta = metadata if isinstance(metadata, dict) else {}
+    explicit = str(meta.get("resolved_model") or "").strip()
+    if explicit:
+        return explicit
+    task_route = meta.get("task_route")
+    if isinstance(task_route, dict):
+        routed = str(task_route.get("resolved_model") or "").strip()
+        if routed:
+            return routed
+    return ""
+
+
+def bot_provider_hint(metadata: dict[str, Any] | None) -> str:
+    meta = metadata if isinstance(metadata, dict) else {}
+    hint = str(meta.get("provider_hint") or "").strip()
+    if hint:
+        return hint
+    task_route = meta.get("task_route")
+    if isinstance(task_route, dict):
+        routed = str(task_route.get("provider_hint") or "").strip()
+        if routed:
+            return routed
+    return ""
 
 
 def task_model_override(task: str, provider_id: str, cfg: Settings | None = None) -> str:
@@ -331,6 +364,11 @@ def resolve_model_name(
     explicit = (request_model or "").strip()
     if explicit:
         return explicit
+
+    meta = metadata if isinstance(metadata, dict) else {}
+    bot_model = bot_resolved_model(meta)
+    if bot_model:
+        return bot_model
 
     registry = load_provider_registry(c)
     provider_kind = registry.kind_of(provider_id)

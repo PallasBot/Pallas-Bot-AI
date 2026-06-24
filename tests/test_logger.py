@@ -25,6 +25,15 @@ def test_configure_stdlib_logging_quiet_framework() -> None:
     configure_stdlib_logging()
     assert logging.getLogger("uvicorn.access").level >= logging.WARNING
     assert logging.getLogger("celery.worker.strategy").level >= logging.WARNING
+    assert logging.getLogger("aiohttp.access").level >= logging.WARNING
+    assert logging.getLogger("PIL").level >= logging.WARNING
+
+
+def test_configure_stdlib_logging_skips_quiet_when_debug(monkeypatch) -> None:
+    monkeypatch.setattr("app.core.logger.settings.log_level", "DEBUG")
+    logging.getLogger("httpx").setLevel(logging.NOTSET)
+    configure_stdlib_logging()
+    assert logging.getLogger("httpx").level == logging.NOTSET
 
 
 def test_stdlib_level_maps_names() -> None:

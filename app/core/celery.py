@@ -5,6 +5,7 @@ from kombu import Queue
 from app.core.config import settings
 from app.core.llm_backend_runtime import get_llm_model, prepare_local_backend_for_worker_sync
 from app.core.logger import configure_stdlib_logging, logger
+from app.core.startup_report import emit_startup_summary, register_startup_fact, register_startup_warning
 from app.services.llm_task_metrics import start_background_flush
 from app.session import normalize_session_backend
 from app.session.redis_store import ping_redis_sync
@@ -77,18 +78,17 @@ def on_celery_setup_logging(**kwargs):
 @worker_ready.connect
 def on_celery_worker_ready(**kwargs):
     session_backend = normalize_session_backend(settings.llm_session_backend)
-    logger.info(
-        "Celery 工作进程已就绪：并发={}，会话存储={}",
-        settings.celery_worker_concurrency,
-        session_backend,
-    )
+    register_startup_fact("concurrency", str(settings.celery_worker_concurrency))
+    register_startup_fact("session", session_backend)
     if session_backend == "redis" and not ping_redis_sync():
+        register_startup_warning("redis", "unreachable")
         logger.error("Redis 不可达：{}（Celery 与 LLM 会话依赖此项）", settings.redis_url)
     if settings.llm_chat_enabled:
         prepare_local_backend_for_worker_sync()
-        logger.info("本地 LLM 后端检查完成，模型={}", get_llm_model())
+        register_startup_fact("llm_model", get_llm_model())
+    register_startup_fact("packages", ",".join(resolve_celery_task_packages()))
+    emit_startup_summary(api_version="4.0.0", role="celery")
     start_background_flush()
-    logger.info("Celery 已注册任务包：{}", ", ".join(resolve_celery_task_packages()))
 
 
 celery_app.conf.update(

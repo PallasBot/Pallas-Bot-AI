@@ -105,9 +105,10 @@ async def run_provider_chain(
         if isinstance(raw_plan, list):
             agent_stage_plan = tuple(str(item or "").strip().lower() for item in raw_plan if str(item or "").strip())
     if tool_schemas:
-        logger.info(
-            "已启用工具调用：{}数量={}",
+        logger.debug(
+            "已启用工具调用：{}task={} 数量={}",
             log_id_clause(params.request_id),
+            infer_task(params.metadata if isinstance(params.metadata, dict) else {}),
             len(tool_schemas),
         )
 
@@ -120,8 +121,9 @@ async def run_provider_chain(
             request_model=params.model,
         )
         logger.info(
-            "尝试 LLM 提供方：{}provider={} model={} {}/{}",
+            "尝试 LLM 提供方：{}task={} provider={} model={} {}/{}",
             log_id_clause(params.request_id),
+            infer_task(params.metadata if isinstance(params.metadata, dict) else {}),
             provider_id,
             model,
             index + 1,

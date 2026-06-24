@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from app.core.config import Settings
 from app.providers.chain import route_name_for_provider
 from app.providers.moe import categorize_request_tier
+from app.providers.registry import clear_provider_registry_cache
 from app.providers.router import (
     chain_local_tasks,
     chain_remote_tasks,
@@ -165,6 +168,53 @@ def test_resolve_provider_order_tier_remote_without_fallback() -> None:
         "classification": {"tier": "complex", "needs_tools": False, "source": "model"},
     }
     assert resolve_provider_order(cfg, meta, user_text="分析" * 40) == ["remote"]
+
+
+def test_resolve_provider_order_prefers_bot_provider_hint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    providers = tmp_path / "providers.toml"
+    providers.write_text(
+        "\n".join(
+            [
+                "[[providers]]",
+                'id = "deepseek"',
+                'kind = "remote"',
+                'base_url = "https://api.deepseek.com"',
+                'api_key = "secret"',
+                'default_model = "deepseek-chat"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    clear_provider_registry_cache()
+    cfg = Settings(
+        llm_providers_file=str(providers),
+        llm_provider_mode="chain",
+        llm_remote_base_url="",
+        llm_remote_api_key="",
+    )
+    order = resolve_provider_order(
+        cfg,
+        {"task": "llm_chat", "provider_hint": "deepseek"},
+        user_text="你好",
+    )
+    assert order == ["deepseek"]
+
+
+def test_resolve_model_name_prefers_bot_resolved_model() -> None:
+    cfg = Settings(
+        llm_task_model_repeater_polish="tiny-local",
+        llm_local_multi_model_enabled=True,
+    )
+    model = resolve_model_name(
+        provider="local",
+        metadata={"task": "repeater_polish", "resolved_model": "qwen3:14b"},
+        user_text="润色",
+        request_model=None,
+        cfg=cfg,
+    )
+    assert model == "qwen3:14b"
 
 
 def test_resolve_model_name_task_override_when_local_multi_model_enabled() -> None:

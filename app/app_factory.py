@@ -9,9 +9,11 @@ from app.api.routers import DEFAULT_ENDPOINTS, build_api_router
 from app.core.config import settings
 from app.core.llm_backend_runtime import (
     ensure_local_backend_ready,
+    get_llm_model,
     stop_local_backend_if_started,
 )
 from app.core.logger import logger
+from app.core.startup_report import emit_startup_summary, register_startup_fact, register_startup_warning
 from app.image_runtime import image_runtime_status
 from app.media_task_runtime import media_task_runtime_status
 from app.providers import llm_health_snapshot, local_is_required
@@ -31,15 +33,19 @@ API_VERSION = "4.0.0"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     enabled_endpoints = set(app.state.enabled_endpoints)
-    logger.info("AI 服务启动中…")
-    if {"chat", "llm_chat", "llm_manage", "llm_stats"}.intersection(enabled_endpoints):
+    register_startup_fact("endpoints", ",".join(sorted(enabled_endpoints)) or "none")
+    llm_endpoints = {"chat", "llm_chat", "llm_manage", "llm_stats"}
+    if llm_endpoints.intersection(enabled_endpoints):
+        register_startup_fact("llm", "on" if settings.llm_chat_enabled else "off")
         if settings.llm_chat_enabled:
             config_error = provider_configuration_error()
             if config_error:
-                logger.warning("LLM 提供方配置不完整：{}", config_error)
+                register_startup_warning("llm_config", config_error)
+            register_startup_fact("llm_mode", str(settings.llm_provider_mode or "local_only"))
             if local_is_required():
                 await ensure_local_backend_ready()
-    logger.info("AI 服务已就绪，健康检查 GET /health")
+                register_startup_fact("llm_model", get_llm_model())
+    emit_startup_summary(api_version=API_VERSION, role="api")
     start_background_flush()
     yield
     stop_background_flush()

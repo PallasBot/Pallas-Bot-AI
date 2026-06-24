@@ -8,7 +8,7 @@ from loguru import logger as loguru_logger
 
 from app.core.config import settings
 
-# 框架日志默认 WARNING
+# 框架与第三方库默认 WARNING；DEBUG/TRACE 时不压制以便排障
 _QUIET_LOGGER_NAMES = (
     "uvicorn",
     "uvicorn.access",
@@ -30,6 +30,20 @@ _QUIET_LOGGER_NAMES = (
     "httpx",
     "httpcore",
     "watchfiles",
+    "aiohttp",
+    "aiohttp.access",
+    "aiohttp.client",
+    "aiohttp.server",
+    "aiohttp.web",
+    "apscheduler",
+    "apscheduler.scheduler",
+    "PIL",
+    "PIL.PngImagePlugin",
+    "urllib3",
+    "urllib3.connectionpool",
+    "multipart",
+    "fontTools",
+    "aiosqlite",
 )
 
 _MODULE_ALIASES = (
@@ -119,10 +133,14 @@ def task_log(message: str, *args, **kwargs) -> None:
 
 def configure_stdlib_logging() -> None:
     """接入 stdlib logging。"""
+    app_level = resolve_log_level(settings.log_level, fallback="INFO")
     server_level_no = stdlib_level(settings.server_log_level, fallback="WARNING")
 
     logging.root.handlers = [InterceptHandler()]
     logging.root.setLevel(server_level_no)
+
+    if app_level in {"DEBUG", "TRACE"}:
+        return
 
     for name in _QUIET_LOGGER_NAMES:
         logging.getLogger(name).setLevel(server_level_no)

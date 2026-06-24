@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 DEFAULT_ENDPOINTS = frozenset({
     "chat",
+    "embeddings",
     "images",
     "llm_chat",
     "llm_manage",
@@ -24,6 +25,10 @@ def _load_sing() -> APIRouter:
 
 def _load_chat() -> APIRouter:
     return import_module("app.api.endpoints.chat").router
+
+
+def _load_embeddings() -> APIRouter:
+    return import_module("app.api.endpoints.embeddings").router
 
 
 def _load_images() -> APIRouter:
@@ -66,6 +71,7 @@ def _load_persona_affect() -> APIRouter:
 ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
     "sing": _load_sing,
     "chat": _load_chat,
+    "embeddings": _load_embeddings,
     "images": _load_images,
     "media_tasks": _load_media_tasks,
     "llm_chat": _load_llm_chat,

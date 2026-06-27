@@ -179,4 +179,6 @@ log
 logs/
 *.pid
 data
+# 本地 Provider 配置（含 API Key）；示例见 config/providers.example.toml
+config/providers.toml
 # resource

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -44,17 +46,64 @@ def load_providers_document(cfg: Settings | None = None) -> dict[str, Any]:
     }
 
 
+def _looks_like_inline_api_key(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    if text.startswith(("sk-", "Bearer ")):
+        return True
+    if re.fullmatch(r"[A-Z][A-Z0-9_]*", text):
+        return False
+    return len(text) >= 24
+
+
+def _provider_api_key_set(raw: dict[str, Any]) -> bool:
+    inline = str(raw.get("api_key") or "").strip()
+    if inline:
+        return True
+    env_name = str(raw.get("api_key_env") or "").strip()
+    if env_name and not _looks_like_inline_api_key(env_name):
+        return bool(str(os.environ.get(env_name) or "").strip())
+    return False
+
+
+def _normalize_provider_auth(raw: dict[str, Any], existing: dict[str, Any] | None) -> None:
+    api_key = str(raw.get("api_key") or "").strip()
+    api_key_env = str(raw.get("api_key_env") or "").strip()
+    if not api_key and api_key_env and _looks_like_inline_api_key(api_key_env):
+        raw["api_key"] = api_key_env
+        raw["api_key_env"] = ""
+        return
+    if api_key:
+        raw["api_key"] = api_key
+        raw["api_key_env"] = ""
+        return
+    if api_key_env:
+        raw["api_key_env"] = api_key_env
+        return
+    if existing:
+        for key in ("api_key", "api_key_env"):
+            val = str(existing.get(key) or "").strip()
+            if val:
+                raw[key] = val
+                return
+
+
 def export_providers_for_api(cfg: Settings | None = None) -> dict[str, Any]:
     doc = load_providers_document(cfg)
     providers: list[dict[str, Any]] = []
     for raw in doc.get("providers", []):
         if not isinstance(raw, dict):
             continue
+        api_key_env = str(raw.get("api_key_env") or "").strip()
+        if _looks_like_inline_api_key(api_key_env):
+            api_key_env = ""
         providers.append({
             "id": str(raw.get("id") or "").strip(),
             "kind": str(raw.get("kind") or "remote").strip().lower(),
             "base_url": str(raw.get("base_url") or "").strip(),
-            "api_key_env": str(raw.get("api_key_env") or "").strip(),
+            "api_key_env": api_key_env,
+            "api_key_set": _provider_api_key_set(raw),
             "default_model": str(raw.get("default_model") or "").strip(),
             "enabled": bool(raw.get("enabled", True)),
             "task_models": dict(raw.get("models") or raw.get("task_models") or {}),
@@ -92,8 +141,11 @@ def render_providers_toml(document: dict[str, Any]) -> str:
         base_url = str(raw.get("base_url") or "").strip()
         if base_url:
             lines.append(f"base_url = {_toml_quote(base_url)}")
+        api_key = str(raw.get("api_key") or "").strip()
         api_key_env = str(raw.get("api_key_env") or "").strip()
-        if api_key_env:
+        if api_key:
+            lines.append(f"api_key = {_toml_quote(api_key)}")
+        elif api_key_env:
             lines.append(f"api_key_env = {_toml_quote(api_key_env)}")
         default_model = str(raw.get("default_model") or "").strip()
         if default_model:
@@ -135,6 +187,19 @@ def render_providers_toml(document: dict[str, Any]) -> str:
 def save_providers_document(document: dict[str, Any], cfg: Settings | None = None) -> Path:
     path = providers_file_path(cfg)
     path.parent.mkdir(parents=True, exist_ok=True)
+    existing_doc = load_providers_document(cfg)
+    existing_by_id = {
+        str(raw.get("id") or "").strip(): raw
+        for raw in existing_doc.get("providers", [])
+        if isinstance(raw, dict) and str(raw.get("id") or "").strip()
+    }
+    providers = document.get("providers")
+    if isinstance(providers, list):
+        for raw in providers:
+            if not isinstance(raw, dict):
+                continue
+            provider_id = str(raw.get("id") or "").strip()
+            _normalize_provider_auth(raw, existing_by_id.get(provider_id))
     path.write_text(render_providers_toml(document), encoding="utf-8")
     clear_provider_registry_cache()
     return path

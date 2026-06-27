@@ -30,6 +30,15 @@ _LLM_CHAT_SCAFFOLD_PREFIXES = (
     "一般来说",
 )
 _OPENER_LABEL_PREFIX = "最近几轮别再用这些开头："
+_ANIMAL_OPENER_RE = re.compile(r"^(哞~|喵~|喵呜~|哞呜~)")
+_KAOMOJI_SUFFIX_RE = re.compile(r"\(\*[^)]{1,16}\*\)\s*$")
+_KAOMOJI_ANY_RE = re.compile(r"\(\*[^)]{1,16}\*\)")
+_TRAILING_EMOJI_RE = re.compile(
+    r"[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0000FE00-\U0000FE0F"
+    r"\U0001F600-\U0001F64F\U0000200D"
+    r"]+$",
+    re.UNICODE,
+)
 
 
 @dataclass(slots=True)
@@ -86,7 +95,13 @@ def _extract_repeated_opener_labels(metadata: dict[str, Any] | None) -> list[str
 
 def _trim_repeated_opener_family(text: str, metadata: dict[str, Any] | None) -> tuple[str, str | None]:
     out = str(text or "").strip()
+    hint = str((metadata or {}).get("variation_hint") or "")
     labels = _extract_repeated_opener_labels(metadata)
+    matched = _ANIMAL_OPENER_RE.match(out)
+    if matched and ("动物口癖" in hint or any(label in {"哞~", "喵~", "喵呜~", "哞呜~"} for label in labels)):
+        trimmed = out[matched.end() :].lstrip("，,。！!？?~～ ")
+        if trimmed and trimmed != out:
+            return trimmed, "trim_repeated_animal_opener"
     if not labels:
         return out, None
     if "哈哈类" in labels:
@@ -111,7 +126,50 @@ def _trim_repeated_opener_family(text: str, metadata: dict[str, Any] | None) -> 
     return out, None
 
 
+def _trim_kaomoji_suffix(text: str, metadata: dict[str, Any] | None) -> tuple[str, bool]:
+    out = str(text or "").strip()
+    if _task_name(metadata) == "llm_chat":
+        return out, False
+    hint = str((metadata or {}).get("variation_hint") or "")
+    if "颜文字" not in hint and "(*" not in hint:
+        return out, False
+    replaced = _KAOMOJI_SUFFIX_RE.sub("", out).rstrip("，,。！!？?~～ ")
+    if replaced and replaced != out:
+        return replaced, True
+    return out, False
+
+
+def _sanitize_llm_chat_decorations(text: str) -> tuple[str, tuple[str, ...]]:
+    out = str(text or "").strip()
+    applied: list[str] = []
+
+    without_kaomoji = _KAOMOJI_ANY_RE.sub("", out)
+    without_kaomoji = re.sub(r"\s{2,}", " ", without_kaomoji).strip()
+    if without_kaomoji and without_kaomoji != out:
+        out = without_kaomoji
+        applied.append("trim_kaomoji")
+
+    while True:
+        next_out = _TRAILING_EMOJI_RE.sub("", out).rstrip()
+        if next_out == out:
+            break
+        out = next_out
+        if "trim_trailing_emoji" not in applied:
+            applied.append("trim_trailing_emoji")
+
+    return out, tuple(applied)
+
+
+def _persona_shaping_active(metadata: dict[str, Any] | None) -> bool:
+    meta = metadata or {}
+    if bool(meta.get("persona_shaping_active")):
+        return True
+    return bool(str(meta.get("persona_affect_block") or "").strip())
+
+
 def _trim_overexplaining_reply(text: str, metadata: dict[str, Any] | None) -> str:
+    if _persona_shaping_active(metadata):
+        return str(text or "").strip(), False
     out = str(text or "").strip()
     hint = str((metadata or {}).get("variation_hint") or "")
     if "优先短一点" not in hint or len(out) < 24:
@@ -130,6 +188,8 @@ def _trim_overexplaining_reply(text: str, metadata: dict[str, Any] | None) -> st
 
 def _adapt_reply_length_for_llm_chat(text: str, metadata: dict[str, Any] | None) -> str:
     out = str(text or "").strip()
+    if _persona_shaping_active(metadata):
+        return out, False
     hint = str((metadata or {}).get("variation_hint") or "")
     if _task_name(metadata) != "llm_chat":
         return out, False
@@ -172,6 +232,8 @@ def _adapt_reply_length_for_llm_chat(text: str, metadata: dict[str, Any] | None)
 
 def _trim_llm_chat_scaffold(text: str, metadata: dict[str, Any] | None) -> str:
     out = str(text or "").strip()
+    if _persona_shaping_active(metadata):
+        return out, False
     if _task_name(metadata) != "llm_chat":
         return out, False
     hint = str((metadata or {}).get("variation_hint") or "")
@@ -207,7 +269,7 @@ def _trim_llm_chat_scaffold(text: str, metadata: dict[str, Any] | None) -> str:
     return rebuilt or out, changed
 
 
-def _soften_template_ending(text: str, metadata: dict[str, Any] | None) -> str:
+def _soften_template_ending(text: str, metadata: dict[str, Any] | None) -> tuple[str, bool]:
     out = str(text or "").strip()
     hint = str((metadata or {}).get("variation_hint") or "")
     if "自然收口" not in hint:
@@ -241,6 +303,12 @@ async def rewrite_llm_reply(
     out, opener_rule = _trim_repeated_opener_family(out, metadata)
     if opener_rule:
         applied_rules.append(opener_rule)
+    out, changed = _trim_kaomoji_suffix(out, metadata)
+    if changed:
+        applied_rules.append("trim_kaomoji_suffix")
+    if _task_name(metadata) == "llm_chat":
+        out, deco_rules = _sanitize_llm_chat_decorations(out)
+        applied_rules.extend(deco_rules)
     out, changed = _trim_overexplaining_reply(out, metadata)
     if changed:
         applied_rules.append("trim_overexplaining")

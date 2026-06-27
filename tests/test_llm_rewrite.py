@@ -127,6 +127,22 @@ def test_rewrite_llm_reply_adapts_length_only_for_llm_chat() -> None:
     assert result.applied_rules == ("adapt_llm_chat_length",)
 
 
+def test_rewrite_llm_reply_skips_length_trim_when_persona_shaping_active() -> None:
+    result = asyncio.run(
+        rewrite_llm_reply(
+            "这事可以做，不过得先把前面的状态收一收。",
+            metadata={
+                "task": "llm_chat",
+                "persona_shaping_active": True,
+                "variation_hint": "【本轮表达去重】\n- 最近解释偏满，这轮优先短一点，像顺手接一句",
+            },
+        )
+    )
+    assert result.reply == "这事可以做，不过得先把前面的状态收一收。"
+    assert "adapt_llm_chat_length" not in result.applied_rules
+    assert "trim_overexplaining" not in result.applied_rules
+
+
 def test_rewrite_llm_reply_does_not_adapt_length_for_repeater_tasks() -> None:
     result = asyncio.run(
         rewrite_llm_reply(
@@ -155,10 +171,61 @@ def test_rewrite_llm_reply_trims_ai_scaffold_but_keeps_emotion_for_llm_chat() ->
             },
         )
     )
-    assert result.reply == "你这波也太黑了，先缓一缓。"
+    assert result.reply == "你这波也太黑了。"
     assert "你这波也太黑了" in result.reply
     assert result.applied_rules == (
         "trim_servicey_phrase",
+        "trim_overexplaining",
         "adapt_llm_chat_length",
-        "trim_llm_chat_scaffold",
     )
+
+
+def test_rewrite_llm_reply_trims_kaomoji_when_variation_hint_flags_template() -> None:
+    result = asyncio.run(
+        rewrite_llm_reply(
+            "哞~ 谢谢啦，那我就继续陪你聊明日方舟哦！(*^_^*)",
+            metadata={
+                "task": "llm_chat",
+                "variation_hint": "【本轮表达去重】\n- 最近句尾颜文字太像模板，这轮别加 (*…*) 这类 ASCII 表情",
+            },
+        )
+    )
+    assert "(*" not in result.reply
+    assert "trim_kaomoji" in result.applied_rules
+
+
+def test_rewrite_llm_reply_always_strips_kaomoji_and_trailing_emoji_for_llm_chat() -> None:
+    result = asyncio.run(
+        rewrite_llm_reply(
+            "牛牛很开心啊！什么事这么开心？(*^_^*)😊💕",
+            metadata={"task": "llm_chat"},
+        )
+    )
+    assert result.reply == "牛牛很开心啊！什么事这么开心？"
+    assert "trim_kaomoji" in result.applied_rules
+    assert "trim_trailing_emoji" in result.applied_rules
+
+
+def test_rewrite_llm_reply_strips_trailing_emoji_without_variation_hint() -> None:
+    result = asyncio.run(
+        rewrite_llm_reply(
+            "偶尔玩一下，挺有意思的！😊💪",
+            metadata={"task": "llm_chat"},
+        )
+    )
+    assert result.reply == "偶尔玩一下，挺有意思的！"
+    assert "trim_trailing_emoji" in result.applied_rules
+
+
+def test_rewrite_llm_reply_trims_animal_opener_when_hint_flags_it() -> None:
+    result = asyncio.run(
+        rewrite_llm_reply(
+            "喵~ 你说得对，荧在队伍里担当的角色很重要呢！",
+            metadata={
+                "task": "llm_chat",
+                "variation_hint": "【本轮表达去重】\n- 最近开头动物口癖太多，别再用哞~/喵~ 起手",
+            },
+        )
+    )
+    assert not result.reply.startswith("喵~")
+    assert "trim_repeated_animal_opener" in result.applied_rules

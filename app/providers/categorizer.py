@@ -9,6 +9,7 @@ from app.core.config import Settings, settings
 from app.core.logger import logger
 from app.providers.local_backend import complete_local_message
 from app.providers.moe import MoeTier, categorize_request_tier, minimum_tier_for_tools, resolve_inference_tier
+from app.providers.operator_lookup import is_self_identity_question
 
 _NO_TOOL_TASKS = frozenset({"repeater_fallback", "repeater_polish", "repeater_polish_lite", "repeater_select", "drunk"})
 
@@ -287,6 +288,8 @@ def needs_tools_for_request(
 
     text = (user_text or "").strip().lower()
     if not text:
+        return False
+    if is_self_identity_question(user_text):
         return False
     if any(hint.lower() in text for hint in _TOOL_HINTS):
         return True

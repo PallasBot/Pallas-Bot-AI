@@ -229,3 +229,14 @@ def test_rewrite_llm_reply_trims_animal_opener_when_hint_flags_it() -> None:
     )
     assert not result.reply.startswith("喵~")
     assert "trim_repeated_animal_opener" in result.applied_rules
+
+
+def test_rewrite_llm_reply_strips_self_at_mention_for_llm_chat() -> None:
+    result = asyncio.run(
+        rewrite_llm_reply(
+            "@帕拉丝 牛牛在准备今晚的庆典活动哦！",
+            metadata={"task": "llm_chat", "bot_id": 12345, "self_aliases": ["帕拉丝"]},
+        )
+    )
+    assert result.reply == "牛牛在准备今晚的庆典活动哦！"
+    assert "strip_self_at_mention" in result.applied_rules

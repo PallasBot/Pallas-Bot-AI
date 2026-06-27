@@ -39,6 +39,9 @@ _TRAILING_EMOJI_RE = re.compile(
     r"]+$",
     re.UNICODE,
 )
+_CQ_AT_LEADING_RE = re.compile(r"^\s*\[CQ:at,qq=(?P<qq>\d+)(?:[^\]]*)?\]", re.IGNORECASE)
+_AT_PLAIN_LEADING_RE = re.compile(r"^\s*@(?P<name>[^\s@，,。！!？?：:;；]{1,24})")
+_DEFAULT_SELF_ALIASES = ("牛牛", "帕拉斯", "Pallas", "帕拉丝")
 
 
 @dataclass(slots=True)
@@ -49,6 +52,42 @@ class LlmRewriteResult:
 
 def _task_name(metadata: dict[str, Any] | None) -> str:
     return str((metadata or {}).get("task") or "").strip().lower()
+
+
+def _self_alias_names(metadata: dict[str, Any] | None) -> set[str]:
+    names = {item.casefold() for item in _DEFAULT_SELF_ALIASES}
+    meta = metadata or {}
+    raw = meta.get("self_aliases")
+    if isinstance(raw, list):
+        for item in raw:
+            text = str(item or "").strip()
+            if text:
+                names.add(text.casefold())
+    return names
+
+
+def _strip_leading_self_at_mentions(text: str, metadata: dict[str, Any] | None) -> tuple[str, bool]:
+    meta = metadata or {}
+    bot_self_id = meta.get("bot_id")
+    bot_id_text = str(bot_self_id).strip() if bot_self_id is not None else ""
+    names = _self_alias_names(meta)
+    out = str(text or "").strip()
+    changed = False
+    while out:
+        step = False
+        cq_match = _CQ_AT_LEADING_RE.match(out)
+        if cq_match and (not bot_id_text or cq_match.group("qq") == bot_id_text):
+            out = out[cq_match.end() :].lstrip()
+            step = True
+        else:
+            at_match = _AT_PLAIN_LEADING_RE.match(out)
+            if at_match and at_match.group("name").casefold() in names:
+                out = out[at_match.end() :].lstrip()
+                step = True
+        if not step:
+            break
+        changed = True
+    return out, changed
 
 
 def _cleanup_spacing(text: str) -> str:
@@ -309,6 +348,9 @@ async def rewrite_llm_reply(
     if _task_name(metadata) == "llm_chat":
         out, deco_rules = _sanitize_llm_chat_decorations(out)
         applied_rules.extend(deco_rules)
+        out, changed = _strip_leading_self_at_mentions(out, metadata)
+        if changed:
+            applied_rules.append("strip_self_at_mention")
     out, changed = _trim_overexplaining_reply(out, metadata)
     if changed:
         applied_rules.append("trim_overexplaining")

@@ -65,6 +65,12 @@ def test_classify_request_heuristic_operator_lookup() -> None:
     assert result.needs_tools is True
 
 
+def test_classify_request_heuristic_self_identity_skips_tools() -> None:
+    result = classify_request_heuristic("你是谁", task="llm_chat", metadata={})
+    assert result.needs_tools is False
+    assert not needs_tools_for_request("我又是谁", task="llm_chat", metadata={})
+
+
 def test_needs_vision_from_has_image_metadata() -> None:
     assert needs_vision_for_request("你好", metadata={"has_image": True})
     assert not needs_vision_for_request("你好", metadata={"has_image": False})

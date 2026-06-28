@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Body, HTTPException
 
+from app.api.api_errors import LLM_CHAT_DISABLED
 from app.core.config import settings
 from app.core.logger import logger
 from app.schemas.llm_api import LlmTaskResponse
@@ -15,7 +16,7 @@ router = APIRouter()
 @router.post("/v1/chat/completions/{request_id}", response_model=LlmChatCompletionResponse)
 async def llm_chat_completions_endpoint(request_id: str, body: dict = Body(...)):
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="unified llm chat disabled")
+        raise HTTPException(status_code=503, detail=LLM_CHAT_DISABLED)
     try:
         request = parse_llm_chat_completion_request(body)
         task_id = await submit_llm_chat_completion(request_id, request)
@@ -32,7 +33,7 @@ async def llm_chat_completions_endpoint(request_id: str, body: dict = Body(...))
 @router.post("/v1/chat/replay", response_model=LlmReplayResponse)
 async def llm_chat_replay_endpoint(request: LlmReplayRequest):
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="unified llm chat disabled")
+        raise HTTPException(status_code=503, detail=LLM_CHAT_DISABLED)
     try:
         return await run_llm_replay(request)
     except ValueError as exc:

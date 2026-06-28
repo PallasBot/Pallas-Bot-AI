@@ -269,4 +269,4 @@ async def run_provider_chain(
 
     if last_error is not None:
         raise last_error
-    raise ProviderError("chain", "no provider available")
+    raise ProviderError("chain", "没有可用的模型提供方")

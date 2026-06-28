@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from app.api.api_errors import LLM_BACKEND_DISABLED
 from app.core.config import settings
 from app.core.llm_backend_runtime import (
     get_llm_model,
@@ -26,7 +27,7 @@ legacy_router = APIRouter()
 
 
 def _llm_disabled() -> HTTPException:
-    return HTTPException(status_code=503, detail="llm chat backend disabled")
+    return HTTPException(status_code=503, detail=LLM_BACKEND_DISABLED)
 
 
 async def _legacy_chat(request_id: str, request: LlmLegacyChatRequest) -> LlmTaskResponse:

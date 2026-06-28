@@ -17,7 +17,7 @@ async def queue_llm_chat(
     metadata: dict | None = None,
     request_messages: list[dict[str, str]] | None = None,
 ) -> str:
-    # 过期丢弃：worker 重启后不执行积压超时的旧消息，避免一开机刷屏。expires=0 表示关闭。
+    # 过期丢弃：后台进程重启后不执行积压过旧消息；expires=0 关闭。
     expires = settings.llm_chat_task_expires or None
     task = llm_chat_task.apply_async(
         args=(
@@ -37,7 +37,7 @@ async def queue_llm_chat(
     celery_id = short_log_id(task.id)
     celery_part = f"celery={celery_id} " if celery_id else ""
     logger.info(
-        "LLM 已提交 Celery：{}{}模型={}",
+        "LLM 已提交后台任务：{}{}模型={}",
         log_id_clause(request_id),
         celery_part,
         (model or "").strip() or "(默认)",

@@ -4,6 +4,8 @@ import hashlib
 
 from fastapi import APIRouter, Body, HTTPException
 
+from app.api.api_errors import EMBEDDINGS_INPUT_EMPTY, EMBEDDINGS_INPUT_TYPE
+
 router = APIRouter()
 
 
@@ -24,9 +26,9 @@ async def embeddings_endpoint(body: dict = Body(...)):
     elif isinstance(raw_input, list):
         inputs = [str(item) for item in raw_input]
     else:
-        raise HTTPException(status_code=400, detail="input must be string or string[]")
+        raise HTTPException(status_code=400, detail=EMBEDDINGS_INPUT_TYPE)
     if not inputs:
-        raise HTTPException(status_code=400, detail="input is empty")
+        raise HTTPException(status_code=400, detail=EMBEDDINGS_INPUT_EMPTY)
     model = str(body.get("model") or "stub")
     data = [
         {

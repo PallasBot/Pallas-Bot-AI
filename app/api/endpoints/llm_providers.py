@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 from fastapi import HTTPException
 
+from app.api.api_errors import LLM_BACKEND_DISABLED
 from app.core.config import settings
 from app.providers.config_store import export_providers_for_api, save_providers_document
 from app.providers.local_backend import local_tags_url, ping_local_provider_sync, resolve_local_provider
@@ -32,7 +33,7 @@ from .llm_manage import router
 @router.get("/llm/providers", response_model=ProvidersConfigResponse)
 async def get_providers_config() -> ProvidersConfigResponse:
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+        raise HTTPException(status_code=503, detail=LLM_BACKEND_DISABLED)
     payload = export_providers_for_api()
     return ProvidersConfigResponse(**payload)
 
@@ -40,7 +41,7 @@ async def get_providers_config() -> ProvidersConfigResponse:
 @router.put("/llm/providers")
 async def put_providers_config(body: ProvidersDocument) -> dict[str, Any]:
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+        raise HTTPException(status_code=503, detail=LLM_BACKEND_DISABLED)
     path = save_providers_document(body.model_dump())
     health = llm_health_snapshot()
     return {
@@ -53,7 +54,7 @@ async def put_providers_config(body: ProvidersDocument) -> dict[str, Any]:
 @router.get("/llm/local-routing", response_model=LocalRoutingConfigResponse)
 async def get_local_routing_config() -> LocalRoutingConfigResponse:
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+        raise HTTPException(status_code=503, detail=LLM_BACKEND_DISABLED)
     payload = export_local_routing_config()
     return LocalRoutingConfigResponse(**payload)
 
@@ -61,7 +62,7 @@ async def get_local_routing_config() -> LocalRoutingConfigResponse:
 @router.put("/llm/local-routing", response_model=LocalRoutingConfigResponse)
 async def put_local_routing_config(body: LocalRoutingConfigResponse) -> LocalRoutingConfigResponse:
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+        raise HTTPException(status_code=503, detail=LLM_BACKEND_DISABLED)
     payload = save_local_routing_config(body.model_dump())
     return LocalRoutingConfigResponse(**payload)
 
@@ -94,7 +95,7 @@ def _parse_openai_models(payload: Any) -> list[str]:
 async def list_provider_models(provider_id: str) -> ProviderModelsResponse:
     """在线发现某 Provider 的可用模型：local 走 /api/tags，remote 走 /v1/models。"""
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+        raise HTTPException(status_code=503, detail=LLM_BACKEND_DISABLED)
     try:
         spec = provider_spec_or_error(provider_id)
     except ValueError as exc:
@@ -138,7 +139,7 @@ async def list_provider_models(provider_id: str) -> ProviderModelsResponse:
 async def test_provider(provider_id: str) -> ProviderTestResponse:
     """实时连通性测试，复用已有 ping helper。"""
     if not settings.llm_chat_enabled:
-        raise HTTPException(status_code=503, detail="llm chat backend disabled")
+        raise HTTPException(status_code=503, detail=LLM_BACKEND_DISABLED)
     try:
         spec = provider_spec_or_error(provider_id)
     except ValueError as exc:

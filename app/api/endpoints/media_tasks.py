@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.api_errors import MEDIA_TASK_NOT_FOUND
 from app.media_task_runtime import (
     get_media_task,
     media_task_runtime_status,
@@ -31,5 +32,5 @@ async def get_media_task_runtime() -> MediaTaskRuntimeStatus:
 async def get_media_task_status(task_id: str) -> MediaTaskStatus:
     status = get_media_task(task_id)
     if status is None:
-        raise HTTPException(status_code=404, detail="task not found")
+        raise HTTPException(status_code=404, detail=MEDIA_TASK_NOT_FOUND)
     return status

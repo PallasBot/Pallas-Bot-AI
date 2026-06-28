@@ -12,8 +12,7 @@ from app.services.llm_token_metrics import flush_stats_sync as flush_token_stats
 
 
 def infer_task(meta: dict[str, Any]) -> str:
-    # 延迟 import：app.providers.router 依赖本模块，模块顶层 import 会形成循环
-    # （chain.py -> llm_task_metrics -> router -> ... -> chain），导致 media worker 初始化 chat 任务时 ImportError。
+    # 延迟 import，避免与 app.providers.router 循环依赖
     from app.providers.router import infer_task as _infer_task
 
     return _infer_task(meta)

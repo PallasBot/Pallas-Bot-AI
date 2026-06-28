@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     song_cache_size: int = 100
     song_cache_days: int = 30
     # GPU 全局互斥锁：所有上卡任务（LLM 推理 / 唱歌 / SVC / TTS）共用同一把锁，
-    # 单卡显存装不下多任务并发，必须串行化。详见 app/utils/gpu_locker.py。
+    # 单卡显存装不下多任务并发，必须串行化（实现见 gpu_locker）。
     gpu_lock_wait_timeout: int = Field(
         default=60,
         ge=1,
@@ -63,24 +63,19 @@ class Settings(BaseSettings):
         le=7200,
         validation_alias=AliasChoices("gpu_lock_max_hold", "GPU_LOCK_MAX_HOLD"),
     )
-    # 媒体子进程（demucs/DDSP-SVC 等 os 级命令）单次执行硬超时。demucs 偶发卡死
-    # （CUDA ext 编译 / ffmpeg 管道 hang）会让持锁的 with 块永久退不出，GPU 空着
-    # 写锁却占满 max_hold（30 分钟），期间所有 LLM 读锁全部等待超时。子进程级超时
-    # 是第一道防线：超时即杀进程组并释放写锁，远早于看门狗的硬上限兜底。
+    # 媒体子进程硬超时：demucs/ffmpeg 卡死时杀进程组并释放 GPU 写锁。
     media_subprocess_timeout: int = Field(
         default=600,
         ge=30,
         le=7200,
         validation_alias=AliasChoices("media_subprocess_timeout", "MEDIA_SUBPROCESS_TIMEOUT"),
     )
-    # 是否让本地 LLM 推理也参与 GPU 锁。单卡部署必须开（默认），否则 LLM 与媒体
-    # 任务会同时上卡 OOM。远程 LLM（LLM_BACKEND_URL 指向独立机器）可关掉省开销。
+    # 单卡部署须开，避免 LLM 与媒体任务同时占显存 OOM；远程 LLM 可关。
     gpu_lock_llm_enabled: bool = Field(
         default=True,
         validation_alias=AliasChoices("gpu_lock_llm_enabled", "GPU_LOCK_LLM_ENABLED"),
     )
-    # 媒体任务（唱歌分离 / SVC / TTS）运行设备：auto=用 GPU（sing_cuda_device），
-    # cpu=强制 CPU。显存吃紧或想把 GPU 专留给 LLM 时设 cpu，代价是媒体任务变慢数倍。
+    # auto=GPU，cpu=强制 CPU（媒体变慢，可把 GPU 留给 LLM）。
     media_device: str = Field(
         default="auto",
         validation_alias=AliasChoices("media_device", "MEDIA_DEVICE"),
@@ -468,9 +463,7 @@ class Settings(BaseSettings):
         default="llm",
         validation_alias=AliasChoices("celery_task_packages", "CELERY_TASK_PACKAGES"),
     )
-    # 任务级超时兜底：软超时抛 SoftTimeLimitExceeded（任务可捕获并回调 failed），
-    # 硬超时直接杀线程，防止单个卡死任务（GPU hang / ollama 无响应）拖垮整个 worker。
-    # 软超时需大于 llm_request_timeout(默认90s)，媒体任务（唱歌分离/SVC）耗时更长，故默认给到分钟级。
+    # 软/硬超时兜底；软限须大于 llm_request_timeout，媒体任务默认分钟级。
     celery_task_soft_time_limit: float = Field(
         default=600.0,
         ge=0.0,
@@ -483,9 +476,7 @@ class Settings(BaseSettings):
         le=7200.0,
         validation_alias=AliasChoices("celery_task_time_limit", "CELERY_TASK_TIME_LIMIT"),
     )
-    # LLM 聊天任务的入队过期时间（秒）：worker 取到时若已超过此时长，直接丢弃不执行。
-    # 防止 worker 重启后把积压几小时的旧消息一股脑跑出来刷屏（聊天回复积压超过 2 分钟已无意义）。
-    # 设 0 关闭过期（旧行为：积压任务全部执行）。
+    # LLM 入队过期（秒）：worker 取到过旧任务直接丢弃，防重启后刷屏；0=关闭。
     llm_chat_task_expires: float = Field(
         default=120.0,
         ge=0.0,

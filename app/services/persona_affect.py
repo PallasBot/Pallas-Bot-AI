@@ -182,7 +182,7 @@ async def call_local_backend_json(system_prompt: str, user_prompt: str) -> str:
 
 async def refine_group_affect(request: AffectRefineRequest) -> AffectRefineResponse:
     if not settings.persona_affect_refine_enabled:
-        raise RuntimeError("persona affect refine disabled")
+        raise RuntimeError("牛格精炼未启用")
 
     system_prompt = (
         "你是群聊语气分析助手。根据统计与脱敏样本，输出 JSON："

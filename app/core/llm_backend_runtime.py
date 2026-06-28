@@ -303,10 +303,10 @@ def prepare_local_backend_for_worker_sync() -> None:
         return
     status, body = unload_resident_backend_model_sync()
     if status != 200:
-        logger.warning("celery worker unload stale model returned {} {}", status, body)
+        logger.warning("后台任务卸载过期模型返回 {} {}", status, body)
     mark_llm_gpu_config_dirty()
     logger.info(
-        "celery worker prepared local llm backend: model={} num_gpu={}",
+        "后台任务已就绪本地 LLM：model={} num_gpu={}",
         get_llm_model(),
         get_llm_num_gpu(),
     )

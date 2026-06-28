@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.api_errors import IMAGE_RUNTIME_DISABLED
 from app.core.config import settings
 from app.image_runtime import (
     image_runtime_status,
@@ -24,7 +25,7 @@ router = APIRouter()
 @router.post("/images/generate", response_model=ImageGenerateResponse)
 async def post_image_generate(body: ImageGenerateRequest) -> ImageGenerateResponse:
     if not settings.image_enabled:
-        raise HTTPException(status_code=503, detail="image runtime disabled")
+        raise HTTPException(status_code=503, detail=IMAGE_RUNTIME_DISABLED)
     if body.policy.force_task_mode:
         task_body = MediaTaskSubmitRequest(
             request_id=body.request_id,

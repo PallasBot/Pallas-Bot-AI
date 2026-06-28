@@ -58,7 +58,7 @@ def require_celery_task_package(alias: str) -> None:
     if celery_task_package_enabled(alias):
         return
     raise RuntimeError(
-        f"Celery 未注册 {alias} 任务：请在 .env 设置 CELERY_TASK_PACKAGES=all 或包含 {alias}，并重启 worker"
+        f"任务队列未注册 {alias}：请在 .env 设置 CELERY_TASK_PACKAGES=all 或包含 {alias}，并重启后台任务进程"
     )
 
 
@@ -82,7 +82,7 @@ def on_celery_worker_ready(**kwargs):
     register_startup_fact("session", session_backend)
     if session_backend == "redis" and not ping_redis_sync():
         register_startup_warning("redis", "unreachable")
-        logger.error("Redis 不可达：{}（Celery 与 LLM 会话依赖此项）", settings.redis_url)
+        logger.error("Redis 不可达：{}（任务队列与 LLM 会话依赖此项）", settings.redis_url)
     if settings.llm_chat_enabled:
         prepare_local_backend_for_worker_sync()
         register_startup_fact("llm_model", get_llm_model())
@@ -106,9 +106,7 @@ celery_app.conf.update(
     worker_pool="threads",
     worker_concurrency=settings.celery_worker_concurrency,
     worker_prefetch_multiplier=1,
-    # 任务超时兜底：soft 抛 SoftTimeLimitExceeded（任务捕获后回调 failed），hard 作为最后防线。
-    # 注意 threads pool 下 hard limit 无法强制中断 CPU/CUDA 阻塞调用，soft limit 才是主要兜底，
-    # 因此真正卡死的 GPU 计算还需 gpu_locker 看门狗（见 P1）配合。
+    # soft 超时抛 SoftTimeLimitExceeded；threads 池下 hard 无法打断 GPU 阻塞，靠 gpu_locker 兜底
     task_soft_time_limit=settings.celery_task_soft_time_limit,
     task_time_limit=settings.celery_task_time_limit,
     worker_soft_shutdown_timeout=settings.celery_worker_soft_shutdown_timeout,

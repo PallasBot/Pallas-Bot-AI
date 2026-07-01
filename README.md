@@ -19,7 +19,30 @@ Pallas-Bot AI Backend，与 Pallas-Bot 本体解耦的 AI 功能服务端。
 
 ## 快速开始（LLM）
 
-### 1. 复制配置
+### 方式 A：一键脚本（推荐，本机开发）
+
+```bash
+cp .env.example .env
+# 编辑 CALLBACK_HOST / CALLBACK_PORT 指向已运行的 Bot（默认 localhost:8088）
+./scripts/ai_bootstrap.sh
+```
+
+仅体检：`./scripts/ai_bootstrap.sh --check-only`  
+远端 API、不用 Ollama：`./scripts/ai_bootstrap.sh --remote-only`  
+含唱歌/TTS：`./scripts/ai_bootstrap.sh --with-media`
+
+### 方式 B：Docker（仅 AI + Redis + Ollama）
+
+```bash
+docker compose -f docker-compose.llm.yml up -d
+curl -s http://127.0.0.1:9099/health | python3 -m json.tool
+```
+
+有 NVIDIA GPU：`docker compose -f docker-compose.llm.yml -f docker-compose.llm.gpu.yml up -d`
+
+同机 Bot 未进 compose 时，默认 `CALLBACK_HOST=host.docker.internal`。
+
+### 1. 复制配置（手动步骤）
 
 ```bash
 cp .env.example .env

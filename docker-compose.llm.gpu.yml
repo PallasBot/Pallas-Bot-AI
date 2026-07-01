@@ -1,0 +1,13 @@
+# GPU 覆盖层：为 Ollama 启用 NVIDIA runtime（需 container toolkit）
+#   docker compose -f docker-compose.llm.yml -f docker-compose.llm.gpu.yml up -d
+
+services:
+  ollama:
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

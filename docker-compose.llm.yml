@@ -1,0 +1,114 @@
+# LLM 最小栈：Redis + Ollama + Pallas-Bot-AI（无 Bot / 无 NapCat）
+#
+#   docker compose -f docker-compose.llm.yml up -d
+#
+# GPU（需 NVIDIA container toolkit）:
+#   docker compose -f docker-compose.llm.yml -f docker-compose.llm.gpu.yml up -d
+#
+# 仅远端 LLM（无 Ollama 容器）:
+#   docker compose -f docker-compose.llm.yml up -d redis pallasbot-ai
+#   # 并在环境变量设 LLM_PROVIDER_MODE=remote_only、LLM_REMOTE_*
+#
+# Bot 同机：CALLBACK_HOST=host.docker.internal（默认）
+# Bot 同 compose 网络：CALLBACK_HOST=pallasbot（见 Bot 仓 docker-compose.full.yml）
+
+name: pallas-ai-llm
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: pallas-ai-redis
+    command: redis-server --appendonly yes
+    networks:
+      - pallas-ai
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pallas-ai-ollama
+    networks:
+      - pallas-ai
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: pallas-ai-ollama-init
+    networks:
+      - pallas-ai
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      OLLAMA_CATEGORIZER_MODEL: ${LLM_CATEGORIZER_MODEL:-qwen2.5:0.5b}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until wget -q -O- http://ollama:11434/api/tags >/dev/null 2>&1; do sleep 2; done
+        ollama pull "$${OLLAMA_MODEL:-qwen2.5:7b}"
+        ollama pull "$${OLLAMA_CATEGORIZER_MODEL:-qwen2.5:0.5b}"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  pallasbot-ai:
+    image: pallasbot/pallas-bot-ai:latest
+    container_name: pallasbot-ai
+    ports:
+      - "${AI_SERVER_PORT:-9099}:9099"
+    environment:
+      TZ: Asia/Shanghai
+      REDIS_URL: redis://redis:6379/0
+      LLM_SESSION_BACKEND: redis
+      CALLBACK_HOST: ${CALLBACK_HOST:-host.docker.internal}
+      CALLBACK_PORT: ${CALLBACK_PORT:-8088}
+      LLM_CHAT_ENABLED: "true"
+      LLM_PROVIDER_MODE: ${LLM_PROVIDER_MODE:-local_only}
+      LLM_BACKEND_URL: ${LLM_BACKEND_URL:-http://ollama:11434}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      LLM_CATEGORIZER_MODEL: ${LLM_CATEGORIZER_MODEL:-qwen2.5:0.5b}
+      LLM_AUTO_START: "false"
+      CELERY_TASK_PACKAGES: llm
+    networks:
+      - pallas-ai
+    volumes:
+      - ./logs:/server/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9099/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+networks:
+  pallas-ai:
+
+volumes:
+  redis_data:
+  ollama_data:

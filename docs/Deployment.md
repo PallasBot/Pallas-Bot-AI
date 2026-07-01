@@ -13,6 +13,10 @@
 
 联调最小 Redis：`docker compose -f docker-compose.4.0-ci.yml up -d`
 
+本机一键安装（依赖 + Redis + Ollama + 启停）：`./scripts/ai_bootstrap.sh`（见根目录 [README](../README.md#快速开始llm)）。
+
+仅 LLM 的 Docker 栈：`docker compose -f docker-compose.llm.yml up -d`
+
 ## 方式一：使用 Docker 部署
 
 本项目的 `docker-compose.yml` 提供了全栈服务一键部署。

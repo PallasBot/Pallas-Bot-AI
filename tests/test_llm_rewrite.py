@@ -143,6 +143,21 @@ def test_rewrite_llm_reply_skips_length_trim_when_persona_shaping_active() -> No
     assert "trim_overexplaining" not in result.applied_rules
 
 
+def test_rewrite_llm_reply_skips_length_trim_when_preserve_colloquial_rewrite() -> None:
+    result = asyncio.run(
+        rewrite_llm_reply(
+            "这事可以做，不过得先把前面的状态收一收。",
+            metadata={
+                "task": "repeater_polish",
+                "preserve_colloquial_rewrite": True,
+                "variation_hint": "【本轮表达去重】\n- 最近解释偏满，这轮优先短一点，像顺手接一句",
+            },
+        )
+    )
+    assert result.reply == "这事可以做，不过得先把前面的状态收一收。"
+    assert "trim_overexplaining" not in result.applied_rules
+
+
 def test_rewrite_llm_reply_does_not_adapt_length_for_repeater_tasks() -> None:
     result = asyncio.run(
         rewrite_llm_reply(

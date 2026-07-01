@@ -203,6 +203,8 @@ def _persona_shaping_active(metadata: dict[str, Any] | None) -> bool:
     meta = metadata or {}
     if bool(meta.get("persona_shaping_active")):
         return True
+    if bool(meta.get("preserve_colloquial_rewrite")):
+        return True
     return bool(str(meta.get("persona_affect_block") or "").strip())
 
 

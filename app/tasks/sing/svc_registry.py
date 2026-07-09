@@ -64,6 +64,31 @@ class ModelBackend(BaseModel):
             p = (Path.cwd() / p).absolute()
         return p
 
+    def find_output(self, output_path: Path, *, since_mtime: float = 0.0) -> Path | None:
+        """根据后端约定,定位本次推理产生的实际产物文件路径;没找到返回 None。
+
+        不同 arg_style 写出策略不同:
+          - DDSP:`-o <file>`,脚本直接写文件,output_path 就是产物。
+          - SoVITS:`-o <dir>`,文件名由脚本内部决定,我们只能 glob 同目录
+            找 mtime > since_mtime 的最新目标格式文件。
+
+        since_mtime:调用方传入的"调用前 output_dir 中目标格式文件的最大 mtime",
+                     用于过滤掉上次推理的残留文件(避免误认)。
+        """
+        if self.arg_style is ArgStyle.DDSP:
+            if not output_path.exists():
+                return None
+            # DDSP 缓存命中路径在 inference() 里已处理,这里再核一次 mtime 防 TOCTOU
+            if since_mtime and output_path.stat().st_mtime <= since_mtime:
+                return None
+            return output_path
+        # SoVITS 等以目录为 -o 的后端:取 output_path.parent 下 mtime > since_mtime
+        # 的目标格式文件中 mtime 最大的那一个
+        candidates = [p for p in output_path.parent.glob(f"*.{self.output_format}") if p.stat().st_mtime > since_mtime]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda p: p.stat().st_mtime)
+
 
 class SvcRegistry(BaseModel):
     """注册表根对象。"""
@@ -137,11 +162,28 @@ def load_registry(path: Path | str) -> SvcRegistry:
 
 
 def get_registry() -> SvcRegistry:
-    """获取注册表单例(懒加载,首次调用时读 settings.svc_registry_path)。"""
+    """获取注册表单例(懒加载,首次调用时读 settings.svc_registry_path)。
+
+    YAML 缺失 / 解析失败时不抛异常,而是返回一个空注册表(空 backends + 空
+    fallback_order),让服务仍可启动。后续 inference() 调用会因
+    `compatible_backends` 返回空列表而直接报"无可用 backend",不会让
+    SVC 整个模块在配置错误时崩溃。
+    """
     global _REGISTRY
     if _REGISTRY is None:
-        _REGISTRY = load_registry(settings.svc_registry_path)
-        logger.info("svc registry 已加载: backends={} fallback={}", list(_REGISTRY.backends), _REGISTRY.fallback_order)
+        try:
+            _REGISTRY = load_registry(settings.svc_registry_path)
+            logger.info(
+                "svc registry 已加载: backends={} fallback={}",
+                list(_REGISTRY.backends),
+                _REGISTRY.fallback_order,
+            )
+        except (FileNotFoundError, ValueError) as e:
+            logger.error(
+                "svc registry 加载失败,降级为空注册表(后续 SVC 推理会全部失败): {}",
+                e,
+            )
+            _REGISTRY = SvcRegistry(backends={}, fallback_order=[])
     return _REGISTRY
 
 
@@ -214,10 +256,15 @@ def build_command(
 
 
 def build_env() -> dict[str, str]:
-    """构造带 CUDA_VISIBLE_DEVICES 的环境变量,跨平台兼容。"""
+    """构造带 CUDA_VISIBLE_DEVICES 的环境变量,跨平台兼容。
+
+    注意:`cuda_device = 0` 是合法的 GPU 0 设备,**不是**"未配置"。
+    只有 `None` 才视作未配置,跳过设置,以避免在默认部署下静默关闭 CUDA。
+    (settings.sing_cuda_device 类型是 int,默认 0,这里 `is None` 等价于"未设置"。)
+    """
     env = os.environ.copy()
     cuda_device = settings.sing_cuda_device
-    if cuda_device in (None, 0, ""):
+    if cuda_device is None:
         return env
     key = "CUDA_VISIBLE_DEVICES"
     if platform.system() == "Windows":

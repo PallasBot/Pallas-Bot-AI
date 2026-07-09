@@ -70,9 +70,21 @@ def _try_backend(
     model_path: Path,
     locker: GPULockManager | None,
 ) -> Path | None:
-    """在 GPU 锁内执行单个 backend 的推理。成功返回 output_path,失败返回 None。"""
+    """在 GPU 锁内执行单个 backend 的推理。成功返回实际产物 Path,失败返回 None。
+
+    重要:DDSP 把 -o 当文件用,SoVITS 把 -o 当目录用(脚本内部决定文件名)——验证产物
+    是否真的写出来不能一刀切看 `output_path.exists()`,而是委托 backend 的
+    `find_output(output_path, since_mtime=...)` 按约定去找,避免 SoVITS 成功却误判失败。
+    """
     cmd = build_command(backend, speaker_dir, song_path, output_path, key, model_path)
     logger.info("svc inference try: backend={} speaker={} cmd={}", backend.name, speaker_dir.name, cmd)
+
+    # 快照:调用前 output_dir 里目标格式文件的最大 mtime。
+    # 用作 find_output 的过滤阈值,排除上次推理的残留(尤其是 SoVITS 那种 -o 是目录的情况)。
+    pre_max_mtime = max(
+        (p.stat().st_mtime for p in output_path.parent.glob(f"*.{backend.output_format}")),
+        default=0.0,
+    )
 
     with _maybe_lock(locker):
         try:
@@ -101,17 +113,27 @@ def _try_backend(
         )
         return None
 
-    if not output_path.exists():
+    actual_output = backend.find_output(output_path, since_mtime=pre_max_mtime)
+    if actual_output is None:
         logger.warning(
-            "svc inference rc=0 but output missing: backend={} speaker={} expected={}",
+            "svc inference rc=0 but no fresh output: backend={} speaker={} expected={} dir={}",
             backend.name,
             speaker_dir.name,
             output_path,
+            output_path.parent,
         )
         return None
 
-    logger.info("svc inference ok: backend={} out={}", backend.name, output_path)
-    return output_path
+    if actual_output != output_path:
+        logger.info(
+            "svc inference ok: backend={} predicted={} actual={}",
+            backend.name,
+            output_path,
+            actual_output,
+        )
+    else:
+        logger.info("svc inference ok: backend={} out={}", backend.name, actual_output)
+    return actual_output
 
 
 def inference(
@@ -152,10 +174,12 @@ def inference(
             # 理论上 compatible_backends 已保证 model_glob 命中,这里双保险
             continue
         output_path = _resolve_output_path(output_dir, stem, key, speaker, backend)
-        if output_path.exists():
-            # 缓存命中,直接返回,不打 GPU
-            logger.debug("svc cache hit: {}", output_path)
-            return output_path
+        # 缓存命中检查必须用 backend.find_output——SoVITS 的产物文件名跟预测不一致,
+        # 直接 `output_path.exists()` 会漏掉 SoVITS 缓存。
+        cached = backend.find_output(output_path)
+        if cached is not None:
+            logger.debug("svc cache hit: backend={} out={}", backend.name, cached)
+            return cached
         result = _try_backend(backend, speaker_dir, song_path, output_path, key, model_path, locker)
         if result is not None:
             return result

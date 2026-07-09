@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     sing_cuda_device: int = 0
     song_cache_size: int = 100
     song_cache_days: int = 30
+    # SVC 模型后端注册表:加新模型族改 registry.yaml 即可,无需改 Python
+    svc_models_root: str = "resource/sing/models"
+    svc_registry_path: str = "resource/sing/registry.yaml"
+    svc_inference_timeout: int = 600
     ncm_phone: str = ""
     ncm_email: str = ""
     ncm_password: str = ""

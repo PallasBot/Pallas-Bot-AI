@@ -28,7 +28,7 @@ cp .env.example .env
 ```
 
 仅体检：`./scripts/ai_bootstrap.sh --check-only`  
-远端 API、不用 Ollama：`./scripts/ai_bootstrap.sh --remote-only`  
+远端 API、不用 Ollama：`./scripts/ai_bootstrap.sh --remote-only`（完整步骤见 **[docs/deploy/remote-only.md](docs/deploy/remote-only.md)**）  
 含唱歌/TTS：`./scripts/ai_bootstrap.sh --with-media`
 
 ### 方式 B：Docker（仅 AI + Redis + Ollama）

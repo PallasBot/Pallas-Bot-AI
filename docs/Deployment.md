@@ -15,6 +15,8 @@
 
 本机一键安装（依赖 + Redis + Ollama + 启停）：`./scripts/ai_bootstrap.sh`（见根目录 [README](../README.md#快速开始llm)）。
 
+**无 GPU / 纯第三方 API**：见 **[remote-only 部署指南](deploy/remote-only.md)**（`./scripts/ai_bootstrap.sh --remote-only` 或 Docker 仅起 `redis` + `pallasbot-ai`）。
+
 仅 LLM 的 Docker 栈：`docker compose -f docker-compose.llm.yml up -d`
 
 ## 方式一：使用 Docker 部署

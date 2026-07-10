@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import json
@@ -24,6 +26,27 @@ class GPUHoldTimeoutError(RuntimeError):
 
 class MediaSubprocessTimeoutError(RuntimeError):
     """媒体子进程执行超过单次硬超时，已被杀掉。"""
+
+
+def resolve_gpu_lock_lease_ttl(
+    lease_ttl: int,
+    *,
+    subprocess_timeout: int,
+    minimum: int = 120,
+) -> int:
+    """写/读锁租约须覆盖媒体子进程典型耗时，避免 demucs 中途续租失败。"""
+    floor = max(minimum, int(subprocess_timeout) // 4)
+    return max(int(lease_ttl), floor)
+
+
+def is_process_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 
 def _kill_process_tree(proc: subprocess.Popen, grace: float = 5.0) -> None:
@@ -146,6 +169,92 @@ class GPULockManager:
         parts.extend(f"{key}={normalized[key]}" for key in sorted(normalized))
         return " ".join(parts) or "unknown"
 
+    def _reader_payload(self, owner: Mapping[str, Any] | None) -> str:
+        payload: dict[str, Any] = {
+            "pid": os.getpid(),
+            "started_at": time.time(),
+        }
+        payload.update(self._normalize_owner(owner))
+        return json.dumps(payload, ensure_ascii=False)
+
+    def _parse_reader_payload(self, raw: Any) -> dict[str, Any] | None:
+        text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw or "").strip()
+        if not text:
+            return None
+        if text == "1":
+            return {"legacy": True}
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _reader_is_stale(self, raw: Any, *, aggressive: bool) -> bool:
+        data = self._parse_reader_payload(raw)
+        if data is None:
+            return aggressive
+        if data.get("legacy"):
+            return aggressive
+        pid = data.get("pid")
+        if isinstance(pid, int) and not is_process_alive(pid):
+            return True
+        if isinstance(pid, float) and pid.is_integer() and not is_process_alive(int(pid)):
+            return True
+        started = data.get("started_at")
+        if isinstance(started, int | float):
+            return time.time() - float(started) > self.lease_ttl + 30
+        return aggressive
+
+    def _reader_detail_text(self, key: str, raw: Any) -> str:
+        data = self._parse_reader_payload(raw)
+        if not data:
+            return key
+        if data.get("legacy"):
+            return f"{key} legacy"
+        pid = data.get("pid")
+        owner = self._owner_text(data)
+        started = data.get("started_at")
+        age = ""
+        if isinstance(started, int | float):
+            age = f" age={int(time.time() - float(started))}s"
+        return f"{key} pid={pid} {owner}{age}".strip()
+
+    def sweep_all_readers(self) -> int:
+        removed = 0
+        for key in list(redis_client.scan_iter(match=f"{self.reader_prefix}*", count=100)):
+            try:
+                redis_client.delete(key)
+                removed += 1
+            except Exception:
+                pass
+        return removed
+
+    def sweep_stale_readers(self, *, aggressive: bool = False) -> int:
+        removed = 0
+        for key in list(redis_client.scan_iter(match=f"{self.reader_prefix}*", count=100)):
+            try:
+                raw = redis_client.get(key)
+            except Exception:
+                continue
+            if not self._reader_is_stale(raw, aggressive=aggressive):
+                continue
+            try:
+                redis_client.delete(key)
+                removed += 1
+            except Exception:
+                pass
+        return removed
+
+    def _list_active_reader_details(self) -> list[str]:
+        details: list[str] = []
+        for key in redis_client.scan_iter(match=f"{self.reader_prefix}*", count=100):
+            try:
+                raw = redis_client.get(key)
+            except Exception:
+                raw = None
+            details.append(self._reader_detail_text(str(key), raw))
+        return details
+
     def _set_writer_meta(self, owner: Mapping[str, Any] | None, started: float) -> None:
         payload = dict(self._normalize_owner(owner))
         payload["started_at"] = f"{started:.6f}"
@@ -262,13 +371,11 @@ class GPULockManager:
     acquire = acquire_write
 
     # ── 读锁（LLM 推理，共享）───────────────────────────────────────────
-    @contextlib.contextmanager
-    def acquire_read(self, owner: Mapping[str, Any] | None = None):
+    def enter_read(self, owner: Mapping[str, Any] | None = None) -> ReadLockHandle:
         reader_key = f"{self.reader_prefix}{uuid.uuid4().hex}"
         deadline = time.monotonic() + self.wait_timeout
         owner_text = self._owner_text(owner)
         while True:
-            # 有写者在场 → 让路等待。
             if redis_client.exists(self.write_key):
                 if time.monotonic() >= deadline:
                     logger.warning(
@@ -280,8 +387,7 @@ class GPULockManager:
                     raise GPULockTimeoutError(f"GPU {self.gpu_id} read wait timeout {self.wait_timeout}s")
                 time.sleep(0.2)
                 continue
-            # 乐观登记读者，再复查写者：写者若在登记瞬间出现，撤销并重试（写优先）。
-            redis_client.set(reader_key, "1", ex=self.lease_ttl)
+            redis_client.set(reader_key, self._reader_payload(owner), ex=self.lease_ttl)
             if redis_client.exists(self.write_key):
                 redis_client.delete(reader_key)
                 if time.monotonic() >= deadline:
@@ -307,23 +413,38 @@ class GPULockManager:
 
         watcher = threading.Thread(target=_watchdog, name=f"gpu-rlock-{self.gpu_id}", daemon=True)
         watcher.start()
+        return ReadLockHandle(self, reader_key, stop, watcher)
+
+    @contextlib.contextmanager
+    def acquire_read(self, owner: Mapping[str, Any] | None = None):
+        handle = self.enter_read(owner=owner)
         try:
             yield self.gpu_id
         finally:
-            stop.set()
-            watcher.join(timeout=self.renew_interval + 1)
-            try:
-                redis_client.delete(reader_key)
-            except Exception:
-                pass
+            handle.release()
 
     def _wait_readers_drain(self) -> None:
         deadline = time.monotonic() + self.wait_timeout
+        swept_once = False
         while True:
             if not self._active_reader_count():
                 return
-            if time.monotonic() >= deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                details = self._list_active_reader_details()
+                logger.warning(
+                    "GPU {} readers drain timeout {}s active={} detail={}",
+                    self.gpu_id,
+                    self.wait_timeout,
+                    len(details),
+                    "; ".join(details[:8]),
+                )
                 raise GPULockTimeoutError(f"GPU {self.gpu_id} readers drain timeout {self.wait_timeout}s")
+            if not swept_once and remaining <= self.wait_timeout * 0.5:
+                removed = self.sweep_stale_readers(aggressive=True)
+                if removed:
+                    logger.warning("GPU {} drain 中途清扫僵尸读锁 count={}", self.gpu_id, removed)
+                swept_once = True
             time.sleep(0.2)
 
     def _active_reader_count(self) -> int:
@@ -331,6 +452,37 @@ class GPULockManager:
         for _ in redis_client.scan_iter(match=f"{self.reader_prefix}*", count=100):
             count += 1
         return count
+
+
+class ReadLockHandle:
+    """读锁句柄：可重复 release，供 async 与 Celery 取消时兜底清理。"""
+
+    __slots__ = ("gpu_id", "reader_key", "_locker", "_stop", "_watcher", "_released")
+
+    def __init__(
+        self,
+        locker: GPULockManager,
+        reader_key: str,
+        stop: threading.Event,
+        watcher: threading.Thread,
+    ) -> None:
+        self._locker = locker
+        self.gpu_id = locker.gpu_id
+        self.reader_key = reader_key
+        self._stop = stop
+        self._watcher = watcher
+        self._released = False
+
+    def release(self) -> None:
+        if self._released:
+            return
+        self._released = True
+        self._stop.set()
+        self._watcher.join(timeout=self._locker.renew_interval + 1)
+        try:
+            redis_client.delete(self.reader_key)
+        except Exception:
+            pass
 
 
 def _safe_release(lock) -> None:
@@ -366,15 +518,33 @@ def get_gpu_locker(gpu_id: int | None = None) -> GPULockManager:
     gid = settings.sing_cuda_device if gpu_id is None else gpu_id
     locker = _shared_locks.get(gid)
     if locker is None:
+        lease_ttl = resolve_gpu_lock_lease_ttl(
+            settings.gpu_lock_lease_ttl,
+            subprocess_timeout=settings.media_subprocess_timeout,
+        )
         locker = GPULockManager(
             gid,
             wait_timeout=settings.gpu_lock_wait_timeout,
-            lease_ttl=settings.gpu_lock_lease_ttl,
+            lease_ttl=lease_ttl,
             max_hold=settings.gpu_lock_max_hold,
             subprocess_timeout=settings.media_subprocess_timeout,
         )
         _shared_locks[gid] = locker
     return locker
+
+
+def sweep_gpu_lock_state_on_worker_startup(gpu_id: int | None = None) -> int:
+    """Celery worker 启动时清掉其它进程遗留的读锁与孤儿写锁元数据。"""
+    locker = get_gpu_locker(gpu_id)
+    removed = locker.sweep_all_readers()
+    try:
+        if not redis_client.exists(locker.write_key):
+            locker._clear_writer_meta()
+    except Exception:
+        pass
+    if removed:
+        logger.info("GPU {} worker 启动清扫残留读锁 count={}", locker.gpu_id, removed)
+    return removed
 
 
 @contextlib.asynccontextmanager
@@ -386,11 +556,11 @@ async def acquire_gpu_read_async(
 
     读锁的等待/登记是同步 redis 调用，直接在协程里执行会卡住事件循环，
     故 enter/exit 都丢到线程里。读者之间并发，仅与媒体写者互斥。
+    退出时用 shield 保证 Celery 取消时仍会 release。
     """
     locker = get_gpu_locker(gpu_id)
-    cm = locker.acquire_read(owner=owner)
-    await asyncio.to_thread(cm.__enter__)
+    handle = await asyncio.to_thread(locker.enter_read, owner)
     try:
         yield locker.gpu_id
     finally:
-        await asyncio.to_thread(cm.__exit__, None, None, None)
+        await asyncio.shield(asyncio.to_thread(handle.release))

@@ -5,10 +5,12 @@ from kombu import Queue
 from app.core.config import settings
 from app.core.llm_backend_runtime import get_llm_model, prepare_local_backend_for_worker_sync
 from app.core.logger import configure_stdlib_logging, logger
+from app.core.ollama_gpu_guard import ensure_ollama_gpu_ready_sync, start_ollama_gpu_guard_background
 from app.core.startup_report import emit_startup_summary, register_startup_fact, register_startup_warning
 from app.services.llm_task_metrics import start_background_flush
 from app.session import normalize_session_backend
 from app.session.redis_store import ping_redis_sync
+from app.utils.gpu_locker import sweep_gpu_lock_state_on_worker_startup
 
 celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_url)
 
@@ -77,6 +79,7 @@ def on_celery_setup_logging(**kwargs):
 
 @worker_ready.connect
 def on_celery_worker_ready(**kwargs):
+    sweep_gpu_lock_state_on_worker_startup()
     session_backend = normalize_session_backend(settings.llm_session_backend)
     register_startup_fact("concurrency", str(settings.celery_worker_concurrency))
     register_startup_fact("session", session_backend)
@@ -85,6 +88,8 @@ def on_celery_worker_ready(**kwargs):
         logger.error("Redis 不可达：{}（任务队列与 LLM 会话依赖此项）", settings.redis_url)
     if settings.llm_chat_enabled:
         prepare_local_backend_for_worker_sync()
+        ensure_ollama_gpu_ready_sync()
+        start_ollama_gpu_guard_background()
         register_startup_fact("llm_model", get_llm_model())
     register_startup_fact("packages", ",".join(resolve_celery_task_packages()))
     emit_startup_summary(api_version="4.0.0", role="celery")

@@ -40,6 +40,8 @@ curl -s http://127.0.0.1:9099/health | python3 -m json.tool
 
 有 NVIDIA GPU：`docker compose -f docker-compose.llm.yml -f docker-compose.llm.gpu.yml up -d`
 
+Ollama 长跑后 GPU 失效（推理变慢）：内置 guard（`LLM_OLLAMA_GPU_GUARD` + `OLLAMA_CONTAINER`）或 [`docs/operate/ollama-gpu-watchdog.md`](docs/operate/ollama-gpu-watchdog.md)
+
 同机 Bot 未进 compose 时，默认 `CALLBACK_HOST=host.docker.internal`。
 
 ### 1. 复制配置（手动步骤）

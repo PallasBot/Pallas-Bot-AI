@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("gpu_lock_wait_timeout", "GPU_LOCK_WAIT_TIMEOUT"),
     )
     gpu_lock_lease_ttl: int = Field(
-        default=60,
+        default=120,
         ge=10,
         le=600,
         validation_alias=AliasChoices("gpu_lock_lease_ttl", "GPU_LOCK_LEASE_TTL"),
@@ -161,6 +161,70 @@ class Settings(BaseSettings):
             "ollama_request_timeout",
             "OLLAMA_REQUEST_TIMEOUT",
         ),
+    )
+    llm_ollama_gpu_guard: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("llm_ollama_gpu_guard", "LLM_OLLAMA_GPU_GUARD"),
+    )
+    ollama_container: str = Field(
+        default="",
+        validation_alias=AliasChoices("ollama_container", "OLLAMA_CONTAINER"),
+    )
+    ollama_gpu_auto_recover: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ollama_gpu_auto_recover", "OLLAMA_GPU_AUTO_RECOVER"),
+    )
+    ollama_gpu_check_interval_sec: int = Field(
+        default=600,
+        ge=60,
+        le=86400,
+        validation_alias=AliasChoices("ollama_gpu_check_interval_sec", "OLLAMA_GPU_CHECK_INTERVAL_SEC"),
+    )
+    ollama_gpu_recover_cooldown_sec: int = Field(
+        default=300,
+        ge=60,
+        le=86400,
+        validation_alias=AliasChoices("ollama_gpu_recover_cooldown_sec", "OLLAMA_GPU_RECOVER_COOLDOWN_SEC"),
+    )
+    ollama_gpu_recover_wait_sec: float = Field(
+        default=15.0,
+        ge=3.0,
+        le=120.0,
+        validation_alias=AliasChoices("ollama_gpu_recover_wait_sec", "OLLAMA_GPU_RECOVER_WAIT_SEC"),
+    )
+    ollama_gpu_probe_model: str = Field(
+        default="",
+        validation_alias=AliasChoices("ollama_gpu_probe_model", "OLLAMA_GPU_PROBE_MODEL"),
+    )
+    ollama_gpu_probe_tokens: int = Field(
+        default=8,
+        ge=1,
+        le=32,
+        validation_alias=AliasChoices("ollama_gpu_probe_tokens", "OLLAMA_GPU_PROBE_TOKENS"),
+    )
+    ollama_gpu_probe_timeout: float = Field(
+        default=45.0,
+        ge=5.0,
+        le=180.0,
+        validation_alias=AliasChoices("ollama_gpu_probe_timeout", "OLLAMA_GPU_PROBE_TIMEOUT"),
+    )
+    ollama_gpu_min_tokens_per_sec: float = Field(
+        default=8.0,
+        ge=0.5,
+        le=1000.0,
+        validation_alias=AliasChoices("ollama_gpu_min_tokens_per_sec", "OLLAMA_GPU_MIN_TOKENS_PER_SEC"),
+    )
+    ollama_gpu_probe_slow_wall_sec: float = Field(
+        default=12.0,
+        ge=1.0,
+        le=120.0,
+        validation_alias=AliasChoices("ollama_gpu_probe_slow_wall_sec", "OLLAMA_GPU_PROBE_SLOW_WALL_SEC"),
+    )
+    ollama_gpu_slow_task_sec: float = Field(
+        default=45.0,
+        ge=10.0,
+        le=600.0,
+        validation_alias=AliasChoices("ollama_gpu_slow_task_sec", "OLLAMA_GPU_SLOW_TASK_SEC"),
     )
     llm_max_retries: int = Field(
         default=1,

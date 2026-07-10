@@ -301,6 +301,9 @@ main() {
     ensure_redis || true
     if [[ "$REMOTE_ONLY" != "1" ]]; then
       ollama_http_ok "$(read_env_key LLM_BACKEND_URL "http://127.0.0.1:11434")" && log "Ollama OK" || warn "Ollama 不可达"
+      if [[ "${OLLAMA_SKIP_GPU:-}" != "1" ]] && [[ "$REMOTE_ONLY" != "1" ]]; then
+        "$ROOT/scripts/ollama_gpu_watchdog.sh" --quiet || warn "Ollama GPU 探活失败，可执行: ./scripts/ollama_gpu_watchdog.sh --fix"
+      fi
     fi
     health_check || true
     exit 0

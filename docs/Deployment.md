@@ -79,6 +79,8 @@
 
 本地推理环境变量见下文 [LLM 配置参考](#llm-配置参考)。运行时说明见 [runtime.md](architecture/runtime.md)。
 
+GPU 长跑后 Ollama 可能回退 CPU（HTTP 仍 200、推理极慢）：见 [Ollama GPU 探活](operate/ollama-gpu-watchdog.md)（`scripts/ollama_gpu_watchdog.sh`）。
+
 ## LLM 配置参考
 
 Bot 插件 **llm_chat** / **chat** / **repeater LLM** 依赖 AI 服务统一 Chat API；与「酒后聊天」legacy RWKV 路径相互独立。

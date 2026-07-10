@@ -11,3 +11,10 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    healthcheck:
+      # ollama list 只证明进程在跑；GPU 栈需 nvidia-smi 才能发现 NVML 断联
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1"]
+      interval: 5m
+      timeout: 15s
+      retries: 2
+      start_period: 60s

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import time
 
 import pytest
@@ -11,6 +13,8 @@ from app.utils.gpu_locker import (
     GPULockManager,
     GPULockTimeoutError,
     MediaSubprocessTimeoutError,
+    resolve_gpu_lock_lease_ttl,
+    sweep_gpu_lock_state_on_worker_startup,
 )
 
 
@@ -262,3 +266,39 @@ def test_read_timeout_logs_current_writer_owner(patch_redis, monkeypatch):
         with mgr.acquire_read(owner={"kind": "llm_chat", "request_id": "req-3"}):
             pass
     assert any("读锁等待超时" in line and "current_writer=kind=chat request_id=req-2" in line for line in warnings)
+
+
+def test_resolve_gpu_lock_lease_ttl_aligns_with_media_subprocess() -> None:
+    assert resolve_gpu_lock_lease_ttl(60, subprocess_timeout=600) == 150
+    assert resolve_gpu_lock_lease_ttl(180, subprocess_timeout=600) == 180
+
+
+def test_sweep_stale_readers_removes_dead_pid(patch_redis) -> None:
+    fake = patch_redis(FakeRedis())
+    fake.store["gpu_reader:0:stale"] = json.dumps({"pid": 999_999_999, "started_at": time.time()})
+    fake.store["gpu_reader:0:live"] = json.dumps({"pid": os.getpid(), "started_at": time.time()})
+    mgr = GPULockManager(0, lease_ttl=30)
+    removed = mgr.sweep_stale_readers(aggressive=False)
+    assert removed == 1
+    assert "gpu_reader:0:stale" not in fake.store
+    assert "gpu_reader:0:live" in fake.store
+
+
+def test_drain_sweeps_stale_reader_before_timeout(patch_redis) -> None:
+    fake = patch_redis(FakeRedis())
+    fake.store["gpu_reader:0:stale"] = json.dumps({"pid": 999_999_999, "started_at": time.time() - 999})
+    mgr = GPULockManager(0, wait_timeout=0.6, lease_ttl=30, renew_interval=0.05)
+    with mgr.acquire_write():
+        pass
+    assert "gpu_reader:0:stale" not in fake.store
+
+
+def test_worker_startup_sweeps_all_readers(patch_redis, monkeypatch) -> None:
+    fake = patch_redis(FakeRedis())
+    fake.store["gpu_reader:0:a"] = "1"
+    fake.store["gpu_reader:0:b"] = "1"
+    monkeypatch.setattr(gl, "_shared_locks", {})
+    monkeypatch.setattr(gl, "get_gpu_locker", lambda gpu_id=None: GPULockManager(0, lease_ttl=30))
+    removed = sweep_gpu_lock_state_on_worker_startup(0)
+    assert removed == 2
+    assert fake.store == {}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,11 @@ from app.core.llm_backend_runtime import (
     stop_local_backend_if_started,
 )
 from app.core.logger import logger
+from app.core.ollama_gpu_guard import (
+    ensure_ollama_gpu_ready_sync,
+    start_ollama_gpu_guard_background,
+    stop_ollama_gpu_guard_background,
+)
 from app.core.startup_report import emit_startup_summary, register_startup_fact, register_startup_warning
 from app.image_runtime import image_runtime_status
 from app.media_task_runtime import media_task_runtime_status
@@ -44,10 +50,13 @@ async def lifespan(app: FastAPI):
             register_startup_fact("llm_mode", str(settings.llm_provider_mode or "local_only"))
             if local_is_required():
                 await ensure_local_backend_ready()
+                await asyncio.to_thread(ensure_ollama_gpu_ready_sync)
+                start_ollama_gpu_guard_background()
                 register_startup_fact("llm_model", get_llm_model())
     emit_startup_summary(api_version=API_VERSION, role="api")
     start_background_flush()
     yield
+    stop_ollama_gpu_guard_background()
     stop_background_flush()
     if settings.llm_auto_start:
         stop_local_backend_if_started()

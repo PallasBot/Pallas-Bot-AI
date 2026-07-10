@@ -14,6 +14,7 @@ from app.core.llm_backend_runtime import (
     is_llm_gpu_config_dirty,
     unload_resident_backend_model,
 )
+from app.core.ollama_gpu_guard import maybe_recover_after_slow_local_inference
 from app.core.logger import log_id_clause, log_id_suffix, logger, task_log
 from app.providers.categorizer import classify_request_async, request_tier_for_metadata
 from app.providers.chain import run_provider_chain
@@ -103,6 +104,8 @@ async def llm_chat_async(
 ):
     meta = metadata if isinstance(metadata, dict) else {}
     succeeded = False
+    primary_kind = ""
+    started = time.monotonic()
     record_ai_llm_task_state(celery_task_id, infer_task(meta), "running")
     try:
         if not settings.llm_chat_enabled:
@@ -282,6 +285,10 @@ async def llm_chat_async(
         logger.error("LLM 重试耗尽{} err={}", log_id_suffix(request_id), last_error)
         await callback(request_id, status="failed")
     finally:
+        maybe_recover_after_slow_local_inference(
+            elapsed_sec=time.monotonic() - started,
+            provider_kind=primary_kind,
+        )
         clear_ai_llm_task_state(celery_task_id)
         record_ai_llm_task_from_metadata(meta, "task_ok" if succeeded else "task_fail")
 

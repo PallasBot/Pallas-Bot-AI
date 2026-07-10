@@ -496,6 +496,8 @@ def provider_reachability(cfg: Settings | None = None) -> dict[str, bool | None]
 
 
 def llm_health_snapshot(cfg: Settings | None = None) -> dict[str, Any]:
+    from app.core.ollama_gpu_guard import ollama_gpu_snapshot
+
     c = cfg or settings
     registry = load_provider_registry(c)
     mode = normalize_provider_mode(c.llm_provider_mode)
@@ -565,6 +567,7 @@ def llm_health_snapshot(cfg: Settings | None = None) -> dict[str, Any]:
             "threshold": int(c.llm_session_summary_threshold),
             "keep_messages": int(c.llm_session_summary_keep_messages),
         },
+        "ollama_gpu": ollama_gpu_snapshot(),
         **reachability,
         **aggregate,
     }

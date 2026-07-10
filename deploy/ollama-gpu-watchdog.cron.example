@@ -1,0 +1,13 @@
+# Pallas-Bot-AI：Ollama GPU 探活（每 10 分钟，异常则 restart 容器）
+#
+# 安装:
+#   sudo cp deploy/ollama-gpu-watchdog.cron.example /etc/cron.d/pallas-ollama-gpu
+#   sudo sed -i 's|/path/to/Pallas-Bot-AI|'"$(pwd)"'|g' /etc/cron.d/pallas-ollama-gpu
+#   sudo chmod 644 /etc/cron.d/pallas-ollama-gpu
+#
+# 1Panel 等独立 Ollama 容器名多为 ollama；compose 默认可留空（脚本自动探测 pallas-ai-ollama）
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+*/10 * * * * root OLLAMA_CONTAINER=ollama /path/to/Pallas-Bot-AI/scripts/ollama_gpu_watchdog.sh --fix --quiet >>/var/log/ollama-gpu-watchdog.log 2>&1

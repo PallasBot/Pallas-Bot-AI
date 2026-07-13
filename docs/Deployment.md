@@ -60,7 +60,15 @@
    docker compose logs -f
    ```
 
-   首次启动时，可以通过 `docker compose logs -f pallasbot-ai` 查看 AI 服务端的日志，确认当前下载进度。
+   首次启动时，可通过宿主机挂载目录查看 AI 落盘日志（`docker compose logs` 仅含启动脚本输出，不含 uvicorn/celery 正文）：
+
+   ```bash
+   tail -f ./pallas-bot-ai/logs/uvicorn.log
+   tail -f ./pallas-bot-ai/logs/celery.log
+   tail -f ./pallas-bot-ai/logs/celery-media.log
+   ```
+
+   与 Pallas-Bot 全栈 compose 联用时，Bot 容器会将该目录只读挂到 `/ai-logs`，WebUI「AI 观测 · 服务日志」可 SSE 跟读。
 
 ### 服务管理
 

@@ -121,6 +121,8 @@ services:
     volumes:
       - ./pallas-bot/resource/:/app/resource
       - ./pallas-bot/.env:/app/.env
+      # 与 pallasbot-ai 共享 AI 服务落盘日志，供 WebUI SSE 跟读（挂载点为 /ai-logs）
+      - ./pallas-bot-ai/logs:/ai-logs:ro
     depends_on:
       mongodb:
         condition: service_healthy

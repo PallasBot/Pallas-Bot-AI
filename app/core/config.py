@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     callback_port: int = 8080
     callback_timeout: int = 10
     callback_max_retries: int = 3
+    api_bearer_token: str = Field(
+        default="",
+        description="与 Bot WebUI「AI 服务」Bearer Token 一致；非空时 /api/ops/logs 等需 Authorization Bearer",
+        validation_alias=AliasChoices("api_bearer_token", "PALLAS_AI_API_TOKEN", "API_BEARER_TOKEN"),
+    )
 
     sing_speakers: dict = {"帕拉斯": "pallas", "牛牛": "pallas"}
     sing_length: int = 60

@@ -13,6 +13,7 @@ DEFAULT_ENDPOINTS = frozenset({
     "llm_stats",
     "media_tasks",
     "ncm_login",
+    "ops_logs",
     "persona_affect",
     "sing",
     "tts",
@@ -68,6 +69,10 @@ def _load_persona_affect() -> APIRouter:
     return import_module("app.api.endpoints.persona_affect").router
 
 
+def _load_ops_logs() -> APIRouter:
+    return import_module("app.api.endpoints.ops_logs").router
+
+
 ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
     "sing": _load_sing,
     "chat": _load_chat,
@@ -80,6 +85,7 @@ ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
     "llm_providers": _load_llm_providers,
     "tts": _load_tts,
     "ncm_login": _load_ncm_login,
+    "ops_logs": _load_ops_logs,
     "persona_affect": _load_persona_affect,
 }
 

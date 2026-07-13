@@ -149,6 +149,22 @@ curl -X POST http://127.0.0.1:9099/api/llm/model/reload
 
 单次对话还可在 `POST /api/llm/chat/{request_id}` 请求体传可选字段 **`model`** 临时指定。
 
+### API Bearer Token（运维日志鉴权）
+
+Bot WebUI「AI 服务」里的 **Bearer Token** 须与 AI 侧环境变量 **`PALLAS_AI_API_TOKEN`** 保持一致。
+
+- 配置后：`GET /api/ops/logs`（WebUI 扩展日志 HTTP 回退）要求请求头 `Authorization: Bearer <token>`
+- 未配置 `PALLAS_AI_API_TOKEN`：不对 Bearer 校验（仅建议本机调试）
+- Bot 落盘配置示例：`Pallas-Bot` 仓库 `config/ai_extension.example.json` 的 `token` 字段
+
+```bash
+# AI 服务 .env
+PALLAS_AI_API_TOKEN=请改为强随机值
+
+# 验证（替换 token 与端口）
+curl -H "Authorization: Bearer 你的token" "http://127.0.0.1:9099/api/ops/logs?kind=uvicorn&n=5"
+```
+
 <details>
 <summary>遗留路径（deprecated，兼容期保留）</summary>
 

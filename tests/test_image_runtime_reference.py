@@ -212,3 +212,114 @@ def test_download_reference_blobs_inline() -> None:
 
     blobs = asyncio.run(run())
     assert blobs == [PNG_BYTES]
+
+
+def test_submit_image_generate_uses_request_gateway_not_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.schemas.image_api import ImageGatewayBackend, ImageGatewaySpec
+
+    monkeypatch.setattr(settings, "image_enabled", True)
+    monkeypatch.setattr(settings, "image_base_url", "https://packy.example.com")
+    monkeypatch.setattr(settings, "image_api_key", "packy-key")
+    monkeypatch.setattr(settings, "image_model", "packy-model")
+
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self) -> dict:
+            return {"data": [{"b64_json": PNG_B64}]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            return None
+
+        async def post(self, url: str, **kwargs) -> FakeResponse:
+            captured["post_url"] = url
+            return FakeResponse()
+
+    monkeypatch.setattr("app.image_runtime.httpx.AsyncClient", FakeClient)
+
+    body = ImageGenerateRequest(
+        request_id="req-gw",
+        caller=RuntimeCaller(source="bot", bot_id=1, plugin="draw"),
+        policy=RuntimePolicy(),
+        payload=ImageGeneratePayload(
+            prompt="一只羊",
+            reference_urls=[],
+            gateway=ImageGatewaySpec(
+                backends=[
+                    ImageGatewayBackend(
+                        base_url="https://aigateway.example/",
+                        api_key="sk-bot",
+                        model="gpt-image-2",
+                    )
+                ]
+            ),
+        ),
+    )
+    result = asyncio.run(submit_image_generate(body))
+    assert result.result_state == "success"
+    assert captured["post_url"] == "https://aigateway.example/v1/images/generations"
+    assert result.provider_id == "bot-gateway"
+
+
+def test_submit_image_generate_falls_through_request_backends(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.schemas.image_api import ImageGatewayBackend, ImageGatewaySpec
+
+    monkeypatch.setattr(settings, "image_enabled", False)
+    calls: list[str] = []
+
+    class FakeResponse:
+        def __init__(self, status_code: int) -> None:
+            self.status_code = status_code
+            self.text = "err"
+
+        def json(self) -> dict:
+            return {"data": [{"b64_json": PNG_B64}]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            return None
+
+        async def post(self, url: str, **kwargs) -> FakeResponse:
+            calls.append(url)
+            if "bad.example" in url:
+                return FakeResponse(500)
+            return FakeResponse(200)
+
+    monkeypatch.setattr("app.image_runtime.httpx.AsyncClient", FakeClient)
+
+    body = ImageGenerateRequest(
+        request_id="req-fb",
+        caller=RuntimeCaller(source="bot", bot_id=1, plugin="draw"),
+        policy=RuntimePolicy(),
+        payload=ImageGeneratePayload(
+            prompt="一只羊",
+            gateway=ImageGatewaySpec(
+                backends=[
+                    ImageGatewayBackend(base_url="https://bad.example/", api_key="a", model="m1"),
+                    ImageGatewayBackend(base_url="https://good.example/", api_key="b", model="m2"),
+                ]
+            ),
+        ),
+    )
+    result = asyncio.run(submit_image_generate(body))
+    assert result.result_state == "success"
+    assert calls == [
+        "https://bad.example/v1/images/generations",
+        "https://good.example/v1/images/generations",
+    ]
+    assert result.backend_id.startswith("req-1")

@@ -14,7 +14,13 @@ from app.core.celery import (
 )
 from app.core.config import settings
 from app.core.logger import logger
-from app.image_runtime import load_image_backend, submit_image_generate
+from app.image_runtime import (
+    backends_from_payload,
+    image_runtime_feature_allowed,
+    load_image_backend,
+    payload_has_request_gateway,
+    submit_image_generate,
+)
 from app.media_task_store import (
     MediaTaskRecord,
     clear_media_task_store,
@@ -24,7 +30,7 @@ from app.media_task_store import (
     update_task_record,
 )
 from app.runtime_health import aggregate_media_task_runtime_health
-from app.schemas.image_api import ImageGenerateRequest, RuntimeErrorBody
+from app.schemas.image_api import ImageGeneratePayload, ImageGenerateRequest, RuntimeErrorBody
 from app.schemas.media_task_api import (
     MediaCapabilityId,
     MediaTaskCapabilityRuntime,
@@ -124,8 +130,8 @@ def submit_media_task(body: MediaTaskSubmitRequest) -> MediaTaskSubmitResponse:
             ),
         )
 
-    provider_id, backend_id = provider_backend_for_capability(body.capability)
-    if body.capability == "image.generate" and not settings.image_enabled:
+    provider_id, backend_id = provider_backend_for_capability(body.capability, payload=body.payload)
+    if body.capability == "image.generate" and not image_runtime_feature_allowed(body.payload):
         return MediaTaskSubmitResponse(
             request_id=body.request_id,
             result_state="failed",
@@ -194,8 +200,20 @@ def submit_media_task(body: MediaTaskSubmitRequest) -> MediaTaskSubmitResponse:
     )
 
 
-def provider_backend_for_capability(capability: MediaCapabilityId) -> tuple[str, str]:
+def provider_backend_for_capability(
+    capability: MediaCapabilityId,
+    *,
+    payload: dict | None = None,
+) -> tuple[str, str]:
     if capability == "image.generate":
+        if payload_has_request_gateway(payload):
+            try:
+                parsed = ImageGeneratePayload.model_validate(payload or {})
+                backends = backends_from_payload(parsed)
+                if backends:
+                    return backends[0].provider_id, backends[0].backend_id
+            except Exception:
+                pass
         backend = load_image_backend()
         return backend.provider_id, backend.backend_id
     return "sing-worker", "sing-local"

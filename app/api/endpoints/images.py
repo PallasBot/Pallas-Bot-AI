@@ -3,11 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from app.api.api_errors import IMAGE_RUNTIME_DISABLED
-from app.core.config import settings
 from app.image_runtime import (
+    image_runtime_feature_allowed,
     image_runtime_status,
     record_image_failure,
     record_image_success,
+    resolve_image_backends,
     submit_image_generate,
 )
 from app.media_task_runtime import submit_media_task
@@ -24,7 +25,7 @@ router = APIRouter()
 
 @router.post("/images/generate", response_model=ImageGenerateResponse)
 async def post_image_generate(body: ImageGenerateRequest) -> ImageGenerateResponse:
-    if not settings.image_enabled:
+    if not image_runtime_feature_allowed(body.payload):
         raise HTTPException(status_code=503, detail=IMAGE_RUNTIME_DISABLED)
     if body.policy.force_task_mode:
         task_body = MediaTaskSubmitRequest(
@@ -57,10 +58,13 @@ async def post_image_generate(body: ImageGenerateRequest) -> ImageGenerateRespon
         if isinstance(raw_result, ImageGenerateResponse)
         else ImageGenerateResponse.model_validate(raw_result)
     )
+    # 仅本地默认上游计入进程熔断；请求携带网关由 Bot 侧 circuit 负责
+    used_request_gateway = any(item.from_request for item in resolve_image_backends(body))
     if result.result_state == "success":
-        record_image_success(latency_ms=result.latency_ms)
+        if not used_request_gateway:
+            record_image_success(latency_ms=result.latency_ms)
         return result
-    if result.error is not None:
+    if result.error is not None and not used_request_gateway:
         err = (
             result.error
             if isinstance(result.error, RuntimeErrorBody)

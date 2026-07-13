@@ -53,9 +53,24 @@ class RuntimeErrorBody(BaseModel):
     failure_class: FailureClass
 
 
+class ImageGatewayBackend(BaseModel):
+    """Bot 下发的单条画图上游（主网关或备线）。"""
+
+    base_url: str = Field(default="", max_length=2_048)
+    api_key: str = Field(default="", max_length=2_048)
+    model: str = Field(default="", max_length=256)
+    omit_response_format: bool = False
+    name: str = Field(default="", max_length=128)
+
+
+class ImageGatewaySpec(BaseModel):
+    backends: list[ImageGatewayBackend] = Field(default_factory=list, max_length=16)
+
+
 class ImageGeneratePayload(BaseModel):
     prompt: str = Field(min_length=1, max_length=8_000)
     reference_urls: list[str] = Field(default_factory=list, max_length=8)
+    gateway: ImageGatewaySpec | None = None
 
 
 class ImageGenerateRequest(BaseModel):

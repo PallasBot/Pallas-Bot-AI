@@ -85,6 +85,10 @@ class Settings(BaseSettings):
         default="auto",
         validation_alias=AliasChoices("media_device", "MEDIA_DEVICE"),
     )
+    # SVC 模型后端注册表:加新模型族改 registry.yaml 即可,无需改 Python
+    svc_models_root: str = "resource/sing/models"
+    svc_registry_path: str = "resource/sing/registry.yaml"
+    svc_inference_timeout: int = 600
     ncm_phone: str = ""
     ncm_email: str = ""
     ncm_password: str = ""

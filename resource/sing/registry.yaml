@@ -1,0 +1,73 @@
+# SVC 模型后端注册表
+# ─────────────────────────────────────────────────────────────
+# 加新模型族(如 RVC、DDSP-4)只需在 `backends` 加一段,然后把名字加到
+# `fallback_order` 末尾。无需改 Python 代码,无需改 svc_inference.py。
+#
+# 字段说明:
+#   script:         子模块入口 .py(相对项目根)
+#   arg_style:      CLI 参数风格,当前支持 ddsp / sovits
+#   model_glob:     在 speaker_dir 下找模型文件的 glob 模式
+#   required_files: 判定该 backend 适用于某个 speaker 必须存在的文件
+#   extra_args:     每次调用都要追加的固定参数(如开浅扩散)
+#   output_suffix:  输出文件名后缀,用于区分不同 backend 的产物
+#   enabled:        false 可临时下线某个 backend
+
+backends:
+  # ── DDSP-SVC 系列(三个变体 CLI 一致,自动按 fallback 顺序尝试) ──
+  ddsp_6.3:
+    script: app/tasks/sing/DDSP-SVC-6.3/main_reflow.py
+    arg_style: ddsp
+    model_glob: "*.pt"
+    required_files: []
+    extra_args: []
+    output_suffix: "_ddsp"
+    output_format: "flac"
+    enabled: true
+
+  ddsp_6.2:
+    script: app/tasks/sing/DDSP-SVC-6.2/main_reflow.py
+    arg_style: ddsp
+    model_glob: "*.pt"
+    required_files: []
+    extra_args: []
+    output_suffix: "_ddsp"
+    output_format: "flac"
+    enabled: true
+
+  ddsp_6.1:
+    script: app/tasks/sing/DDSP-SVC/main_reflow.py
+    arg_style: ddsp
+    model_glob: "*.pt"
+    required_files: []
+    extra_args: []
+    output_suffix: "_ddsp"
+    output_format: "flac"
+    enabled: true
+
+  # ── SoVITS 系列(若 DDSP 全失败,降级到 SoVITS) ──
+  sovits_4.1:
+    script: app/tasks/sing/so_vits_svc_41/inference_main.py
+    arg_style: sovits
+    model_glob: "G_*.pth"
+    required_files: ["config.json"]
+    extra_args: []
+    output_suffix: "_sovits"
+    output_format: "flac"
+    enabled: true
+
+  sovits_4.0:
+    script: app/tasks/sing/so_vits_svc/inference_main.py
+    arg_style: sovits
+    model_glob: "G_*.pth"
+    required_files: ["config.json"]
+    extra_args: []
+    output_suffix: "_sovits"
+    output_format: "flac"
+    enabled: true
+# 回退顺序:前面的优先尝试,失败自动切到下一个
+fallback_order:
+  - ddsp_6.3
+  - ddsp_6.2
+  - ddsp_6.1
+  - sovits_4.1
+  - sovits_4.0

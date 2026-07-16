@@ -121,14 +121,15 @@ jobs:
 
     - name: Test docker-compose configuration
       run: |
-        docker-compose config
+        # 用 Docker Compose V2 插件(ubuntu-latest 镜像不再预装 V1 docker-compose 二进制)
+        docker compose config
 
     - name: Build Summary
       run: |
         echo "## ✅ Docker 测试构建成功" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ Dockerfile 构建通过" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ docker-compose 配置验证通过" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ docker compose 配置验证通过" >> $GITHUB_STEP_SUMMARY
         echo "- 🏗 平台: linux/amd64" >> $GITHUB_STEP_SUMMARY
         echo "- 📝 提交: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "- ℹ️ 注意: 实际镜像推送由 docker-build.yml 处理" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,3 @@
+from app.windows_compat import configure_windows_compatibility
+
+configure_windows_compatibility()

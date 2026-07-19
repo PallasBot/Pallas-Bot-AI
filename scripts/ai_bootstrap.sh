@@ -12,7 +12,7 @@
 # 环境变量（非交互）:
 #   PALLAS_BOT_HOST / PALLAS_BOT_PORT — callback 目标（默认 localhost:8088）
 #   PALLAS_SKIP_REDIS=1               — 不尝试拉起 Redis 容器
-#   PALLAS_GPU=1                      — uv sync 使用 --extra gpu
+#   PALLAS_GPU=1                      — 仅配合 --with-media：uv sync 使用 --extra gpu（否则忽略）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -27,7 +27,7 @@ BOT_PORT="${PALLAS_BOT_PORT:-8088}"
 USE_GPU="${PALLAS_GPU:-0}"
 
 usage() {
-  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -171,23 +171,24 @@ ensure_redis() {
 }
 
 sync_deps() {
-  log "安装 Python 依赖（uv sync --group dev）..."
-  if [[ "$USE_GPU" == "1" ]]; then
-    uv sync --group dev --extra gpu
-  else
-    uv sync --group dev --extra cpu
-  fi
+  # LLM-only：不装 torch。唱歌/TTS/RWKV 才需要 --extra cpu|gpu。
+  log "安装 Python 依赖（uv sync --group dev，LLM-only）..."
+  uv sync --group dev
   if [[ "$WITH_MEDIA" == "1" ]]; then
-    log "安装媒体任务依赖（sing/tts/chat）..."
     if [[ "$USE_GPU" == "1" ]]; then
+      log "安装媒体任务依赖（sing/tts/chat + torch GPU）..."
       uv sync --all-groups --extra gpu
     else
+      log "安装媒体任务依赖（sing/tts/chat + torch CPU）..."
       uv sync --all-groups --extra cpu
     fi
+    set_env_key CELERY_TASK_PACKAGES "all"
     if [[ -d "$ROOT/.git" ]]; then
       log "更新 git 子模块（媒体模型路径）..."
       git submodule update --init --recursive || warn "子模块更新失败，媒体功能可能不可用"
     fi
+  elif [[ "$USE_GPU" == "1" ]]; then
+    warn "已设 PALLAS_GPU=1 但未加 --with-media：跳过 torch。本地 LLM 用 Ollama 自带 GPU，无需本仓 torch。"
   fi
 }
 
@@ -285,6 +286,7 @@ print_next_steps() {
    AI_SERVER_PORT=${ai_port}
 2. 确认 AI 能回调 Bot：CALLBACK_HOST=$(read_env_key CALLBACK_HOST "$BOT_HOST") CALLBACK_PORT=$(read_env_key CALLBACK_PORT "$BOT_PORT")
 3. Docker 同网部署时 CALLBACK_HOST 填 Bot 服务名（如 pallasbot），见 docker-compose.full.yml
+4. 需要唱歌/TTS 时加：./scripts/ai_bootstrap.sh --with-media（可选 PALLAS_GPU=1）
 
 常用命令:
   ./scripts/ctl.sh status

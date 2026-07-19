@@ -143,19 +143,25 @@ else
     exit 1
 fi
 
-echo "启动 Celery Worker (media 队列: 唱歌/TTS/chat)..."
-CELERY_TASK_PACKAGES="${AI_MEDIA_WORKER_PACKAGES:-sing,tts,chat}" \
-    /server/.venv/bin/python -m celery -A app.core.celery worker \
-    --loglevel=warning -Q media -n media@%h >> logs/celery-media.log 2>&1 &
-CELERY_MEDIA_PID=$!
+# 默认启 media（全功能镜像）。纯 LLM / remote-only 可设 AI_ENABLE_MEDIA_WORKER=0 省资源。
+CELERY_MEDIA_PID=0
+if [ "${AI_ENABLE_MEDIA_WORKER:-1}" != "0" ]; then
+    echo "启动 Celery Worker (media 队列: 唱歌/TTS/chat)..."
+    CELERY_TASK_PACKAGES="${AI_MEDIA_WORKER_PACKAGES:-sing,tts,chat}" \
+        /server/.venv/bin/python -m celery -A app.core.celery worker \
+        --loglevel=warning -Q media -n media@%h >> logs/celery-media.log 2>&1 &
+    CELERY_MEDIA_PID=$!
 
-sleep 5
-if kill -0 "$CELERY_MEDIA_PID" 2>/dev/null; then
-    echo "✅ Celery Worker (media) 启动成功 (PID: $CELERY_MEDIA_PID)"
+    sleep 5
+    if kill -0 "$CELERY_MEDIA_PID" 2>/dev/null; then
+        echo "✅ Celery Worker (media) 启动成功 (PID: $CELERY_MEDIA_PID)"
+    else
+        echo "❌ Celery Worker (media) 启动失败"
+        stop_child "$CELERY_PID" "Celery Worker"
+        exit 1
+    fi
 else
-    echo "❌ Celery Worker (media) 启动失败"
-    stop_child "$CELERY_PID" "Celery Worker"
-    exit 1
+    echo "跳过 media worker（AI_ENABLE_MEDIA_WORKER=0）"
 fi
 
 # 启动 FastAPI 服务器 (后台运行，由当前脚本统一托管两个子进程)

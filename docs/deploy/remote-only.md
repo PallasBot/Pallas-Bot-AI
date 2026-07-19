@@ -7,10 +7,10 @@
 
 | 项目 | 说明 |
 | --- | --- |
-| **需要** | 轻量 **Pallas-Bot-AI**（Redis + FastAPI + Celery），**不需要** Ollama / GPU / 本地模型 |
+| **需要** | 轻量 **Pallas-Bot-AI**（Redis + FastAPI + Celery），**不需要** Ollama / GPU / 本地模型 / **torch** |
 | **需要** | 第三方 **OpenAI 兼容 API**（DeepSeek、OpenAI、硅基流动等）及 API Key |
 | **不需要** | Bot 直连第三方；API Key 只配置在 **AI 仓** `.env` 或 `providers.toml` |
-| **不在 scope** | 唱歌、醉聊 RWKV、本地 TTS（仍依赖本地模型与媒体 worker） |
+| **不在 scope** | 唱歌、醉聊 RWKV、本地 TTS（需 `--with-media` + 本地模型与媒体 worker） |
 
 架构边界见 [Pallas AI 终态架构](https://github.com/PallasBot/Pallas-Bot/blob/dev/docs/architecture/internal/pallas-final-ai-shape.md)：Bot 负责触发与 callback，AI 仓负责 provider 路由、队列与异步回推。
 
@@ -45,7 +45,8 @@ uv run pallas ai setup --remote-only --bot-port 8088
 
 - 设置 `LLM_PROVIDER_MODE=remote_only`、`LLM_AUTO_START=false`
 - **跳过** Ollama 检测与模型拉取
-- 安装依赖、尝试拉起 Redis、启动 LLM worker 与 API
+- 安装 **LLM-only** 依赖（`uv sync --group dev`，不装 torch）、尝试拉起 Redis、启动 LLM worker 与 API
+- 唱歌/TTS 仍需另行 `--with-media`（与 remote-only 可叠加：`./scripts/ai_bootstrap.sh --remote-only --with-media`）
 
 仅体检、不启动：`./scripts/ai_bootstrap.sh --remote-only --check-only`
 
@@ -58,6 +59,8 @@ cp .env.example .env
 # 编辑 .env 填入远端 API（见下节）
 docker compose -f docker-compose.llm.yml up -d redis pallasbot-ai
 ```
+
+`docker-compose.llm.yml` 默认 `AI_ENABLE_MEDIA_WORKER=0`（不启唱歌/TTS worker）。需要媒体时设 `AI_ENABLE_MEDIA_WORKER=1`。
 
 **不要**启动 `ollama` / `ollama-init` 服务。`docker-compose.llm.yml` 已支持 `pallasbot-ai` 在无 Ollama 时单独运行（`depends_on.ollama.required: false`）。
 

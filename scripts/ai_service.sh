@@ -101,16 +101,26 @@ stop_api() {
 }
 
 start_service() {
+  local with_media="${AI_SERVICE_WITH_MEDIA:-0}"
+  if [[ "${1:-}" == "all" || "${1:-}" == "--with-media" ]]; then
+    with_media=1
+  fi
   run_worker start "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
-  run_worker start "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  if [[ "$with_media" == "1" ]]; then
+    run_worker start "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  else
+    echo "跳过 media worker（LLM-only）。需要唱歌/TTS 时： $0 start --with-media"
+  fi
   start_api
   echo "AI service 已启动"
   echo "API PID file: $API_PID_FILE"
   echo "API log file: $API_LOG_FILE"
   echo "default worker PID file: $DEFAULT_WORKER_PID_FILE"
   echo "default worker log file: $DEFAULT_WORKER_LOG_FILE"
-  echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
-  echo "media worker log file: $MEDIA_WORKER_LOG_FILE"
+  if [[ "$with_media" == "1" ]]; then
+    echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
+    echo "media worker log file: $MEDIA_WORKER_LOG_FILE"
+  fi
 }
 
 stop_service() {
@@ -140,22 +150,30 @@ purge_stale_service() {
 }
 
 restart_clean_service() {
+  local with_media="${AI_SERVICE_WITH_MEDIA:-0}"
+  if [[ "${1:-}" == "all" || "${1:-}" == "--with-media" ]]; then
+    with_media=1
+  fi
   stop_api
   run_worker restart-clean "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
-  run_worker restart-clean "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  if [[ "$with_media" == "1" ]]; then
+    run_worker restart-clean "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  fi
   start_api
   echo "AI service 已启动"
 }
 
 case "${1:-}" in
-  start) start_service ;;
+  start) start_service "${2:-}" ;;
   stop) stop_service ;;
-  restart) stop_service; start_service ;;
+  restart) stop_service; start_service "${2:-}" ;;
   purge-stale) purge_stale_service ;;
-  restart-clean) restart_clean_service ;;
+  restart-clean) restart_clean_service "${2:-}" ;;
   status) status_service ;;
   *)
-    echo "用法: $0 {start|stop|restart|restart-clean|purge-stale|status}"
+    echo "用法: $0 {start|stop|restart|restart-clean|purge-stale|status} [all|--with-media]"
+    echo "  start              — LLM worker + API（默认，不开 media）"
+    echo "  start --with-media — 额外启动唱歌/TTS media worker"
     exit 1
     ;;
 esac

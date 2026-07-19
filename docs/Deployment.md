@@ -15,7 +15,9 @@
 
 本机一键安装（依赖 + Redis + Ollama + 启停）：`./scripts/ai_bootstrap.sh`（见根目录 [README](../README.md#快速开始llm)）。
 
-**无 GPU / 纯第三方 API**：见 **[remote-only 部署指南](deploy/remote-only.md)**（`./scripts/ai_bootstrap.sh --remote-only` 或 Docker 仅起 `redis` + `pallasbot-ai`）。
+默认只装 **LLM 栈**（`uv sync --group dev`，**不装 torch**）。唱歌/TTS/醉聊 RWKV 再加 `--with-media`（才会 `--all-groups --extra cpu|gpu`）。
+
+**无 GPU / 纯第三方 API**：见 **[remote-only 部署指南](deploy/remote-only.md)**（`./scripts/ai_bootstrap.sh --remote-only` 或 Docker 仅起 `redis` + `pallasbot-ai`）。本地 Ollama 用的是 Ollama 自带 GPU，与本仓 PyTorch `--extra gpu` 无关。
 
 仅 LLM 的 Docker 栈：`docker compose -f docker-compose.llm.yml up -d`
 
@@ -207,25 +209,32 @@ docker run -d --name redis -p 6379:6379 redis
 
 2. 配置虚拟环境并安装依赖
 
+    **仅 LLM（推荐开箱）**：
+
     ```bash
     uv venv --python 3.12
-    uv lock
-    # 使用 CPU 推理
+    uv sync --group dev
+    ```
+
+    **含唱歌 / TTS / 醉聊 RWKV（会装 torch）**：
+
+    ```bash
+    # CPU torch
     uv sync --all-groups --extra cpu
-    # 使用 GPU 推理
+    # 或 NVIDIA GPU torch
     uv sync --all-groups --extra gpu
     ```
 
-    如果只需要启用部分功能，可仅安装对应依赖：
+    若只要某一媒体能力，可收窄 group（仍需对应 `--extra` 提供 torch）：
 
     ```bash
-    uv sync --group sing --extra gpu
+    uv sync --group sing --extra cpu
     ```
 
     依赖 `group` 对应的功能如下：
 
-    - `dev`: 开发环境
-    - `chat`: 聊天
+    - `dev`: LLM API / Celery / 联调（**不含** torch）
+    - `chat`: 醉聊 RWKV
     - `sing`: 唱歌
     - `tts`: 语音合成
 

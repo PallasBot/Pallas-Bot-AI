@@ -86,6 +86,8 @@ services:
       LLM_CATEGORIZER_MODEL: ${LLM_CATEGORIZER_MODEL:-qwen2.5:0.5b}
       LLM_AUTO_START: "false"
       CELERY_TASK_PACKAGES: llm
+      # 本 compose 面向 LLM；全功能镜像仍含媒体依赖，默认不启 media worker
+      AI_ENABLE_MEDIA_WORKER: "${AI_ENABLE_MEDIA_WORKER:-0}"
     networks:
       - pallas-ai
     volumes:

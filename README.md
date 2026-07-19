@@ -27,9 +27,16 @@ cp .env.example .env
 ./scripts/ai_bootstrap.sh
 ```
 
-仅体检：`./scripts/ai_bootstrap.sh --check-only`  
-远端 API、不用 Ollama：`./scripts/ai_bootstrap.sh --remote-only`（完整步骤见 **[docs/deploy/remote-only.md](docs/deploy/remote-only.md)**）  
-含唱歌/TTS：`./scripts/ai_bootstrap.sh --with-media`
+默认只装 **LLM 栈**（`uv sync --group dev`，**不装 torch**），并启动 llm worker + API。
+
+| 场景 | 命令 |
+| --- | --- |
+| 仅体检 | `./scripts/ai_bootstrap.sh --check-only` |
+| 远端 API、不用 Ollama | `./scripts/ai_bootstrap.sh --remote-only`（见 **[docs/deploy/remote-only.md](docs/deploy/remote-only.md)**） |
+| 含唱歌/TTS/醉聊 RWKV | `./scripts/ai_bootstrap.sh --with-media`（装 torch CPU） |
+| 媒体 + NVIDIA GPU torch | `PALLAS_GPU=1 ./scripts/ai_bootstrap.sh --with-media` |
+
+本地 Ollama 推理用的是 **Ollama 自己的 GPU**，与本仓 `--extra gpu`（PyTorch）无关。
 
 ### 方式 B：Docker（仅 AI + Redis + Ollama）
 
@@ -71,7 +78,10 @@ curl -X POST http://127.0.0.1:11434/api/pull -d '{"name":"qwen2.5:0.5b"}'
 
 ```bash
 uv sync --group dev
-./scripts/ai_service.sh start
+./scripts/ai_service.sh start          # LLM worker + API（默认不开 media）
+# 需要唱歌/TTS：
+# uv sync --all-groups --extra cpu     # 或 --extra gpu
+# ./scripts/ai_service.sh start --with-media
 ```
 
 查看状态 / 停止服务：
@@ -81,7 +91,9 @@ uv sync --group dev
 ./scripts/ai_service.sh stop
 ```
 
-默认仅注册 **LLM** 任务（`CELERY_TASK_PACKAGES=llm`）。若需酒后 RWKV、唱歌、TTS，在 `.env` 设 `CELERY_TASK_PACKAGES=all` 并安装对应依赖：`uv sync --all-groups --extra gpu`。
+也可用 `./scripts/ctl.sh start llm` / `start api` / `start media` 精细启停。
+
+默认仅注册 **LLM** 任务（`CELERY_TASK_PACKAGES=llm`）。若需酒后 RWKV、唱歌、TTS，在 `.env` 设 `CELERY_TASK_PACKAGES=all` 并安装对应依赖：`uv sync --all-groups --extra cpu`（有 NVIDIA 时用 `--extra gpu`），或直接 `./scripts/ai_bootstrap.sh --with-media`。
 
 Bot 侧须开启 `LLM_CHAT_ENABLED=true`，并配置 `AI_SERVER_HOST` / `AI_SERVER_PORT` 指向本服务。
 

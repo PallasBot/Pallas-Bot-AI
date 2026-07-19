@@ -14,8 +14,8 @@ from app.core.llm_backend_runtime import (
     is_llm_gpu_config_dirty,
     unload_resident_backend_model,
 )
-from app.core.ollama_gpu_guard import maybe_recover_after_slow_local_inference
 from app.core.logger import log_id_clause, log_id_suffix, logger, task_log
+from app.core.ollama_gpu_guard import maybe_recover_after_slow_local_inference
 from app.providers.categorizer import classify_request_async, request_tier_for_metadata
 from app.providers.chain import run_provider_chain
 from app.providers.local_backend import unload_local_model

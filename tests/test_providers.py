@@ -173,17 +173,15 @@ def test_resolve_provider_order_tier_remote_without_fallback() -> None:
 def test_resolve_provider_order_prefers_bot_provider_hint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     providers = tmp_path / "providers.toml"
     providers.write_text(
-        "\n".join(
-            [
-                "[[providers]]",
-                'id = "deepseek"',
-                'kind = "remote"',
-                'base_url = "https://api.deepseek.com"',
-                'api_key = "secret"',
-                'default_model = "deepseek-chat"',
-                "",
-            ]
-        ),
+        "\n".join([
+            "[[providers]]",
+            'id = "deepseek"',
+            'kind = "remote"',
+            'base_url = "https://api.deepseek.com"',
+            'api_key = "secret"',
+            'default_model = "deepseek-chat"',
+            "",
+        ]),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)

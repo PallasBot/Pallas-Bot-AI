@@ -81,7 +81,9 @@ def test_submit_image_task_disabled_returns_failed(client: TestClient, monkeypat
 def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.media_task_runtime.require_celery_task_package", lambda _alias: None)
     celery_result = MagicMock(id="celery-sing-1")
-    with patch("app.media_task_runtime.sing_task.apply_async", return_value=celery_result) as apply_mock:
+    fake_sing_task = MagicMock()
+    fake_sing_task.apply_async.return_value = celery_result
+    with patch("app.tasks.sing.sing_task", fake_sing_task):
         response = client.post(
             "/api/media/tasks",
             json={
@@ -99,8 +101,8 @@ def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.
     assert response.status_code == 200
     body = response.json()
     assert body["result_state"] == "accepted"
-    apply_mock.assert_called_once()
-    _, kwargs = apply_mock.call_args
+    fake_sing_task.apply_async.assert_called_once()
+    _, kwargs = fake_sing_task.apply_async.call_args
     assert kwargs["queue"] == "media"
     task = get_media_task(body["task_id"])
     assert task is not None

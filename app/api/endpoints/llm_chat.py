@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.post("/v1/chat/completions/{request_id}", response_model=LlmChatCompletionResponse)
-async def llm_chat_completions_endpoint(request_id: str, body: dict = Body(...)):
+async def llm_chat_completions_endpoint(request_id: str, body: dict = Body(...)):  # noqa: B008
     if not settings.llm_chat_enabled:
         raise HTTPException(status_code=503, detail=LLM_CHAT_DISABLED)
     try:

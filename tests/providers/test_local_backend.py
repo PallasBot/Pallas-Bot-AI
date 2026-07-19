@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.config import Settings
+from app.core.config import Settings, settings
 from app.providers.local_backend import complete_local_message, resolve_local_provider
 from app.providers.registry import clear_provider_registry_cache, load_provider_registry, local_base_url_for_spec
 
@@ -35,6 +35,8 @@ base_url = "http://127.0.0.1:11435"
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(settings, "llm_providers_file", str(providers_file))
+    clear_provider_registry_cache()
     load_provider_registry(Settings(llm_providers_file=str(providers_file)))
     pid, spec, base_url = resolve_local_provider("ollama-tools")
     assert pid == "ollama-tools"
@@ -59,6 +61,8 @@ base_url = "http://127.0.0.1:11435"
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(settings, "llm_providers_file", str(providers_file))
+    clear_provider_registry_cache()
     load_provider_registry(Settings(llm_providers_file=str(providers_file)))
 
     captured: dict[str, str] = {}

@@ -496,7 +496,7 @@ def provider_reachability(cfg: Settings | None = None) -> dict[str, bool | None]
 
 
 def llm_health_snapshot(cfg: Settings | None = None) -> dict[str, Any]:
-    from app.core.ollama_gpu_guard import ollama_gpu_snapshot
+    from app.core.ollama_gpu_guard import ollama_gpu_snapshot  # noqa: PLC0415
 
     c = cfg or settings
     registry = load_provider_registry(c)

@@ -117,8 +117,8 @@ def test_ai_service_script_start_status_stop(tmp_path: Path) -> None:
     assert f"API log file: {tmp_path / 'api.log'}" in start.stdout
     assert f"default worker PID file: {tmp_path / 'worker.pid'}" in start.stdout
     assert f"default worker log file: {tmp_path / 'worker.log'}" in start.stdout
-    assert f"media worker PID file: {tmp_path / 'worker-media.pid'}" in start.stdout
-    assert f"media worker log file: {tmp_path / 'worker-media.log'}" in start.stdout
+    assert "跳过 media worker（LLM-only）" in start.stdout
+    assert f"media worker PID file: {tmp_path / 'worker-media.pid'}" not in start.stdout
 
     status = _run_script(tmp_path, "status")
     assert status.returncode == 0
@@ -126,7 +126,7 @@ def test_ai_service_script_start_status_stop(tmp_path: Path) -> None:
     assert f"API PID file: {tmp_path / 'api.pid'}" in status.stdout
     assert "celery worker 运行中: queue=default" in status.stdout
     assert f"default worker PID file: {tmp_path / 'worker.pid'}" in status.stdout
-    assert "celery worker 运行中: queue=media" in status.stdout
+    assert "celery worker 未运行: queue=media" in status.stdout
     assert f"media worker PID file: {tmp_path / 'worker-media.pid'}" in status.stdout
 
     stop = _run_script(tmp_path, "stop")
@@ -155,15 +155,29 @@ def test_ai_service_script_reuses_existing_processes(tmp_path: Path) -> None:
     assert stop.returncode == 0
 
 
-def test_ai_service_status_only_reports_single_worker(tmp_path: Path) -> None:
+def test_ai_service_status_only_reports_default_worker(tmp_path: Path) -> None:
     _run_script(tmp_path, "start")
 
     status = _run_script(tmp_path, "status")
     assert status.returncode == 0
     assert "celery worker 运行中: queue=default" in status.stdout
     assert f"default worker PID file: {tmp_path / 'worker.pid'}" in status.stdout
-    assert "celery worker 运行中: queue=media" in status.stdout
+    assert "celery worker 未运行: queue=media" in status.stdout
     assert f"media worker PID file: {tmp_path / 'worker-media.pid'}" in status.stdout
+
+
+def test_ai_service_start_with_media_reports_media_worker(tmp_path: Path) -> None:
+    start = _run_script(tmp_path, "start", "--with-media")
+    assert start.returncode == 0
+    assert f"media worker PID file: {tmp_path / 'worker-media.pid'}" in start.stdout
+    assert f"media worker log file: {tmp_path / 'worker-media.log'}" in start.stdout
+
+    status = _run_script(tmp_path, "status")
+    assert status.returncode == 0
+    assert "celery worker 运行中: queue=media" in status.stdout
+
+    stop = _run_script(tmp_path, "stop")
+    assert stop.returncode == 0
 
 
 def test_ai_service_forwards_worker_actions(tmp_path: Path) -> None:
@@ -175,4 +189,9 @@ def test_ai_service_forwards_worker_actions(tmp_path: Path) -> None:
     restart_clean = _run_script(tmp_path, "restart-clean")
     assert restart_clean.returncode == 0
     assert "worker restart-clean queue=default" in restart_clean.stdout
-    assert "worker restart-clean queue=media" in restart_clean.stdout
+    assert "worker restart-clean queue=media" not in restart_clean.stdout
+
+    restart_clean_media = _run_script(tmp_path, "restart-clean", "--with-media")
+    assert restart_clean_media.returncode == 0
+    assert "worker restart-clean queue=default" in restart_clean_media.stdout
+    assert "worker restart-clean queue=media" in restart_clean_media.stdout

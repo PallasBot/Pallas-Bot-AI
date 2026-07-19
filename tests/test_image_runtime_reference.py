@@ -16,7 +16,14 @@ from app.image_reference import (
     reference_request_headers,
 )
 from app.image_runtime import clear_image_runtime_state, submit_image_generate
-from app.schemas.image_api import ImageGeneratePayload, ImageGenerateRequest, RuntimeCaller, RuntimePolicy
+from app.schemas.image_api import (
+    ImageGatewayBackend,
+    ImageGatewaySpec,
+    ImageGeneratePayload,
+    ImageGenerateRequest,
+    RuntimeCaller,
+    RuntimePolicy,
+)
 
 PNG_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADU0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
@@ -215,8 +222,6 @@ def test_download_reference_blobs_inline() -> None:
 
 
 def test_submit_image_generate_uses_request_gateway_not_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.schemas.image_api import ImageGatewayBackend, ImageGatewaySpec
-
     monkeypatch.setattr(settings, "image_enabled", True)
     monkeypatch.setattr(settings, "image_base_url", "https://packy.example.com")
     monkeypatch.setattr(settings, "image_api_key", "packy-key")
@@ -271,8 +276,6 @@ def test_submit_image_generate_uses_request_gateway_not_settings(monkeypatch: py
 
 
 def test_submit_image_generate_falls_through_request_backends(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.schemas.image_api import ImageGatewayBackend, ImageGatewaySpec
-
     monkeypatch.setattr(settings, "image_enabled", False)
     calls: list[str] = []
 

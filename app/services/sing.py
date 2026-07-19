@@ -3,7 +3,6 @@ from fastapi import HTTPException
 from app.core.celery import require_celery_task_package, resolve_celery_queue_for_task
 from app.core.config import settings
 from app.core.logger import logger
-from app.tasks.sing import play_task, request_task, sing_task
 
 
 def ensure_sing_worker() -> None:
@@ -21,6 +20,8 @@ async def sing(
     chunk_index: int,
     sing_length: int | None = None,
 ):
+    from app.tasks.sing import sing_task
+
     ensure_sing_worker()
     length = sing_length if sing_length is not None and sing_length > 0 else settings.sing_length
     task = sing_task.apply_async(
@@ -32,6 +33,8 @@ async def sing(
 
 
 async def play(request_id: str, speaker: str = ""):
+    from app.tasks.sing import play_task
+
     ensure_sing_worker()
     task = play_task.apply_async(
         args=(request_id, speaker),
@@ -42,6 +45,8 @@ async def play(request_id: str, speaker: str = ""):
 
 
 async def download(request_id: str, song_id: int):
+    from app.tasks.sing import request_task
+
     ensure_sing_worker()
     task = request_task.apply_async(
         args=(request_id, song_id),

@@ -2,8 +2,10 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
+from app.services import sing as sing_mod
 from app.services.llm_queue import queue_llm_chat
-from app.services.sing import download, play, sing
 
 
 def test_queue_llm_chat_routes_to_default(monkeypatch) -> None:
@@ -34,11 +36,13 @@ def test_queue_llm_chat_expires_disabled(monkeypatch) -> None:
 
 
 def test_sing_routes_to_media_queue(monkeypatch) -> None:
-    apply_async = MagicMock(return_value=SimpleNamespace(id="celery-sing-1"))
-    monkeypatch.setattr("app.services.sing.ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.services.sing.sing_task.apply_async", apply_async)
+    pytest.importorskip("app.tasks.sing.sing_tasks")
 
-    task_id = asyncio.run(sing("req-1", "amiya", 123, 0, 0, 30))
+    apply_async = MagicMock(return_value=SimpleNamespace(id="celery-sing-1"))
+    monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
+    monkeypatch.setattr("app.tasks.sing.sing_task.apply_async", apply_async)
+
+    task_id = asyncio.run(sing_mod.sing("req-1", "amiya", 123, 0, 0, 30))
 
     assert task_id == "celery-sing-1"
     _, kwargs = apply_async.call_args
@@ -46,11 +50,13 @@ def test_sing_routes_to_media_queue(monkeypatch) -> None:
 
 
 def test_play_routes_to_media_queue(monkeypatch) -> None:
-    apply_async = MagicMock(return_value=SimpleNamespace(id="celery-play-1"))
-    monkeypatch.setattr("app.services.sing.ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.services.sing.play_task.apply_async", apply_async)
+    pytest.importorskip("app.tasks.sing.sing_tasks")
 
-    request_id = asyncio.run(play("req-play-1", "amiya"))
+    apply_async = MagicMock(return_value=SimpleNamespace(id="celery-play-1"))
+    monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
+    monkeypatch.setattr("app.tasks.sing.play_task.apply_async", apply_async)
+
+    request_id = asyncio.run(sing_mod.play("req-play-1", "amiya"))
 
     assert request_id == "req-play-1"
     _, kwargs = apply_async.call_args
@@ -58,11 +64,13 @@ def test_play_routes_to_media_queue(monkeypatch) -> None:
 
 
 def test_download_routes_to_media_queue(monkeypatch) -> None:
-    apply_async = MagicMock(return_value=SimpleNamespace(id="celery-request-1"))
-    monkeypatch.setattr("app.services.sing.ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.services.sing.request_task.apply_async", apply_async)
+    pytest.importorskip("app.tasks.sing.sing_tasks")
 
-    task_id = asyncio.run(download("req-2", 456))
+    apply_async = MagicMock(return_value=SimpleNamespace(id="celery-request-1"))
+    monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
+    monkeypatch.setattr("app.tasks.sing.request_task.apply_async", apply_async)
+
+    task_id = asyncio.run(sing_mod.download("req-2", 456))
 
     assert task_id == "celery-request-1"
     _, kwargs = apply_async.call_args

@@ -30,7 +30,6 @@ def test_legacy_chat_cpu_strategy_skips_gpu_write_lock(monkeypatch) -> None:
 
     monkeypatch.setattr(chat_tasks.ChatManager, "get_chat", fake_get_chat)
     monkeypatch.setattr(chat_tasks, "callback", fake_callback)
-    monkeypatch.setattr(chat_tasks, "tts_req", lambda _text: None)
 
     asyncio.run(chat_tasks._chat_task_async("req-1", "sess-1", "你好", 50, False))
 

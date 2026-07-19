@@ -32,7 +32,7 @@ run_worker() {
 
 read_api_pids() {
   if [[ -f "$API_PID_FILE" ]]; then
-    tr ' ' '\n' <"$API_PID_FILE" | rg -v '^\s*$' || true
+    tr ' ' '\n' <"$API_PID_FILE" | grep -v '^\s*$' || true
   fi
 }
 

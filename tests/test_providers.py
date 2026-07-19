@@ -52,7 +52,12 @@ def test_categorize_request_tier() -> None:
 
 
 def test_resolve_provider_order_remote_only() -> None:
-    cfg = Settings(llm_provider_mode="remote_only")
+    cfg = Settings(
+        llm_provider_mode="remote_only",
+        llm_remote_base_url="https://api.example.com/v1",
+        llm_remote_api_key="secret",
+        llm_providers_file=str(Path(__file__).resolve().parent / "_fixtures" / "empty_providers.toml"),
+    )
     assert resolve_provider_order(cfg) == ["remote"]
 
 

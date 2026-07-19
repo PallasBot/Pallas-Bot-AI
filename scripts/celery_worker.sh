@@ -25,7 +25,7 @@ detect_cuda_home() {
 
 read_pids() {
   if [[ -f "$PID_FILE" ]]; then
-    tr ' ' '\n' <"$PID_FILE" | rg -v '^\s*$' || true
+    tr ' ' '\n' <"$PID_FILE" | grep -v '^\s*$' || true
   fi
 }
 
@@ -110,7 +110,7 @@ resolve_redis_url() {
   fi
   if [[ -f "$ROOT/.env" ]]; then
     local raw
-    raw="$(rg -N '^REDIS_URL=' "$ROOT/.env" | tail -n 1 || true)"
+    raw="$(grep -E '^REDIS_URL=' "$ROOT/.env" | tail -n 1 || true)"
     raw="${raw#REDIS_URL=}"
     raw="${raw#\"}"
     raw="${raw%\"}"

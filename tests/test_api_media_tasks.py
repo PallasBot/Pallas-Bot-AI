@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.app_factory import create_app
 from app.core.config import settings
 from app.media_task_runtime import clear_media_task_runtime, get_media_task
-from app.media_task_store import MediaTaskRecord, store_task_record
+from app.media_task_store import MediaTaskRecord, store_task_record, update_task_record
 
 
 @pytest.fixture
@@ -80,30 +80,31 @@ def test_submit_image_task_disabled_returns_failed(client: TestClient, monkeypat
 
 def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.media_task_runtime.require_celery_task_package", lambda _alias: None)
-    celery_result = MagicMock(id="celery-sing-1")
-    fake_sing_task = MagicMock()
-    fake_sing_task.apply_async.return_value = celery_result
-    with patch("app.tasks.sing.sing_task", fake_sing_task):
-        response = client.post(
-            "/api/media/tasks",
-            json={
-                "request_id": "req-media-sing",
-                "capability": "media.sing",
-                "caller": {"source": "bot", "bot_id": 1, "plugin": "sing"},
-                "payload": {
-                    "speaker": "帕拉斯",
-                    "song_id": 12345,
-                    "key": 0,
-                    "chunk_index": 0,
-                },
+    calls: list[tuple[str, str]] = []
+
+    def fake_dispatch(record, body) -> None:
+        calls.append((record.task_id, body.request_id))
+        update_task_record(record.task_id, celery_task_id="celery-sing-1", state="queued")
+
+    monkeypatch.setattr("app.media_task_runtime.dispatch_sing_task", fake_dispatch)
+    response = client.post(
+        "/api/media/tasks",
+        json={
+            "request_id": "req-media-sing",
+            "capability": "media.sing",
+            "caller": {"source": "bot", "bot_id": 1, "plugin": "sing"},
+            "payload": {
+                "speaker": "帕拉斯",
+                "song_id": 12345,
+                "key": 0,
+                "chunk_index": 0,
             },
-        )
+        },
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["result_state"] == "accepted"
-    fake_sing_task.apply_async.assert_called_once()
-    _, kwargs = fake_sing_task.apply_async.call_args
-    assert kwargs["queue"] == "media"
+    assert calls == [(body["task_id"], "req-media-sing")]
     task = get_media_task(body["task_id"])
     assert task is not None
     assert task.state == "queued"

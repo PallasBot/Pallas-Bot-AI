@@ -19,6 +19,8 @@ def isolate_provider_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_PROVIDERS_FILE", str(_ISOLATED_PROVIDERS))
     monkeypatch.setattr(settings, "llm_providers_file", str(_ISOLATED_PROVIDERS))
     monkeypatch.setattr(settings, "api_bearer_token", "")
+    # CI 无 Redis：默认走内存会话，避免连 localhost:6379
+    monkeypatch.setattr(settings, "llm_session_backend", "memory")
     clear_provider_registry_cache()
     yield
     clear_provider_registry_cache()

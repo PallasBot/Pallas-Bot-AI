@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.config import settings
 from app.image_runtime import clear_image_runtime_state, image_runtime_status
 from app.media_task_runtime import clear_media_task_runtime, run_image_task
 from app.media_task_store import MediaTaskRecord, get_record, store_task_record
@@ -46,6 +47,9 @@ def _store_image_record(task_id: str, request_id: str) -> None:
 def test_run_image_task_callbacks_bot_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
     notify = AsyncMock()
     monkeypatch.setattr("app.media_task_runtime.notify_image_media_task_result", notify)
+    monkeypatch.setattr(settings, "image_enabled", True)
+    monkeypatch.setattr(settings, "image_base_url", "https://image.example.com/v1")
+    monkeypatch.setattr(settings, "image_api_key", "test-key")
     monkeypatch.setattr(
         "app.media_task_runtime.submit_image_generate",
         AsyncMock(

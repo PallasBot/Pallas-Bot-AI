@@ -153,7 +153,8 @@ jobs:
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      # PR 大 diff 会被标成大量「new alerts」并红掉检查；仅在推默认分支时上传
+      if: always() && github.event_name != 'pull_request'
       with:
         sarif_file: 'trivy-results.sarif'
         wait-for-processing: true

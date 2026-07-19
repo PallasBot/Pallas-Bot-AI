@@ -124,16 +124,71 @@ def media_packages_enabled() -> dict[str, bool]:
     }
 
 
+def asset_content_ready(asset_id: str, base: Path) -> bool:
+    """按运行时实际依赖探测权重是否已落地（兼容老用户无 .extracted 的情况）。"""
+    if asset_id == "chat":
+        models = base / "resource/chat/models"
+        return any(models.glob("*.pth")) and (models / "rwkv_vocab_v20230424.txt").is_file()
+    if asset_id == "sing_pallas":
+        return (base / "resource/sing/models/pallas/pallas.pt").is_file()
+    if asset_id == "sing_pretrain":
+        contentvec = base / "resource/sing/models/pretrain/contentvec"
+        rmvpe = base / "resource/sing/models/pretrain/rmvpe/model.pt"
+        return rmvpe.is_file() and (
+            (contentvec / "checkpoint_best_legacy_500.pt").is_file() or any(contentvec.glob("*.pt"))
+        )
+    if asset_id == "tts":
+        pm = base / "resource/tts/pretrained_models"
+        if not pm.is_dir():
+            return False
+        return (
+            (pm / "chinese-hubert-base").is_dir()
+            or (pm / "s1v3.ckpt").is_file()
+            or any(pm.rglob("*.pth"))
+            or any(pm.rglob("*.ckpt"))
+        )
+    return False
+
+
+def heal_extracted_markers(*, root: Path | None = None) -> list[str]:
+    """内容已就绪但缺标记时补写 .extracted，避免升级后误报缺失或重复下载。"""
+    base = repo_root(root)
+    healed: list[str] = []
+    for asset_id, marker_rel, _zip_rel in ASSET_SPECS:
+        marker = base / marker_rel
+        if marker.is_file():
+            continue
+        if not asset_content_ready(asset_id, base):
+            continue
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+        except OSError as exc:
+            logger.warning("media assets heal marker failed for {}: {}", asset_id, exc)
+            continue
+        healed.append(asset_id)
+        logger.info("media assets healed marker for {} -> {}", asset_id, marker_rel)
+    return healed
+
+
+def asset_is_ready(asset_id: str, marker_rel: str, base: Path) -> bool:
+    marker = base / marker_rel
+    if marker.is_file():
+        return True
+    return asset_content_ready(asset_id, base)
+
+
 def collect_asset_status(root: Path | None = None) -> MediaAssetStatus:
     base = repo_root(root)
+    # 老用户升级：有权重无标记时先补标记，再汇总状态
+    heal_extracted_markers(root=base)
     mode = detect_deploy_mode(base)
     packages = media_packages_enabled()
     assets: dict[str, dict[str, Any]] = {}
     hints: list[str] = []
     all_ready = True
     for asset_id, marker_rel, zip_rel in ASSET_SPECS:
-        marker = base / marker_rel
-        ready = marker.is_file()
+        ready = asset_is_ready(asset_id, marker_rel, base)
         assets[asset_id] = {
             "ready": ready,
             "marker": marker_rel,
@@ -173,10 +228,12 @@ def download_and_extract_missing(*, root: Path | None = None, progress: list[str
     """同步下载并解压缺失资产（供脚本/job 调用）。"""
     base = repo_root(root)
     log = progress if progress is not None else []
+    for asset_id in heal_extracted_markers(root=base):
+        log.append(f"heal {asset_id}: content present, marker restored")
     urls = parse_models_txt(base / "Docker" / "models.txt")
     for asset_id, marker_rel, zip_rel in ASSET_SPECS:
         marker = base / marker_rel
-        if marker.is_file():
+        if asset_is_ready(asset_id, marker_rel, base):
             log.append(f"skip {asset_id}: already extracted")
             continue
         url = urls.get(zip_rel) or _DEFAULT_URLS.get(zip_rel)

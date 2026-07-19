@@ -11,6 +11,13 @@ mkdir -p \
   resource/sing/models/pretrain \
   resource/tts
 
+# 老用户：已有解压权重但无标记时先补齐，避免误下 zip
+if command -v uv >/dev/null 2>&1; then
+  uv run python -c "from app.media_assets import heal_extracted_markers; print(heal_extracted_markers())" || true
+elif command -v python >/dev/null 2>&1; then
+  python -c "from app.media_assets import heal_extracted_markers; print(heal_extracted_markers())" || true
+fi
+
 if [[ -x "$ROOT/Docker/downloader.sh" ]] || [[ -f "$ROOT/Docker/downloader.sh" ]]; then
   if command -v aria2c >/dev/null 2>&1; then
     echo "using Docker/downloader.sh (aria2c)"

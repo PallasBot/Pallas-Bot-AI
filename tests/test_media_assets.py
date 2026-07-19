@@ -57,6 +57,40 @@ def test_collect_asset_status_ready_markers(tmp_path: Path, monkeypatch: pytest.
     assert st.all_media_assets_ready is True
 
 
+def test_heal_markers_from_legacy_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """老用户：权重已落地但无 .extracted 时，状态应就绪并自动补标记。"""
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    monkeypatch.setattr("app.media_assets.celery_task_package_enabled", lambda alias: True)
+
+    chat = tmp_path / "resource/chat/models"
+    chat.mkdir(parents=True)
+    (chat / "rwkv7-g1f-1.5b.pth").write_bytes(b"x")
+    (chat / "rwkv_vocab_v20230424.txt").write_text("v", encoding="utf-8")
+
+    pallas = tmp_path / "resource/sing/models/pallas"
+    pallas.mkdir(parents=True)
+    (pallas / "pallas.pt").write_bytes(b"x")
+
+    pretrain = tmp_path / "resource/sing/models/pretrain"
+    (pretrain / "contentvec").mkdir(parents=True)
+    (pretrain / "rmvpe").mkdir(parents=True)
+    (pretrain / "contentvec/checkpoint_best_legacy_500.pt").write_bytes(b"x")
+    (pretrain / "rmvpe/model.pt").write_bytes(b"x")
+
+    tts_pm = tmp_path / "resource/tts/pretrained_models"
+    tts_pm.mkdir(parents=True)
+    (tts_pm / "chinese-hubert-base").mkdir()
+    (tts_pm / "chinese-hubert-base/config.json").write_text("{}", encoding="utf-8")
+
+    assert not (tmp_path / "resource/chat/models/.extracted").is_file()
+    st = collect_asset_status(tmp_path)
+    assert st.all_media_assets_ready is True
+    assert (tmp_path / "resource/chat/models/.extracted").is_file()
+    assert (tmp_path / "resource/sing/models/pallas/.extracted").is_file()
+    assert (tmp_path / "resource/sing/models/pretrain/.extracted").is_file()
+    assert (tmp_path / "resource/tts/.extracted").is_file()
+
+
 def test_download_and_extract_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
 

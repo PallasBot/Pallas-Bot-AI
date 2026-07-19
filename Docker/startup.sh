@@ -38,6 +38,13 @@ fi
 # 检查并下载模型文件
 echo "检查模型文件..."
 
+# 老用户升级：权重已在但无 .extracted 时补标记，避免误触发全量下载
+if [ -x /server/.venv/bin/python ]; then
+    /server/.venv/bin/python -c "from app.media_assets import heal_extracted_markers; print(heal_extracted_markers())" \
+        && echo "✅ 已按内容补齐媒体权重标记" \
+        || echo "⚠️  补齐媒体权重标记失败，继续按标记文件检查"
+fi
+
 # 定义模型解压标记文件列表
 MODEL_MARKERS=(
     "resource/chat/models/.extracted"

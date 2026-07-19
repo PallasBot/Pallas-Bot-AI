@@ -2,7 +2,7 @@ name: Docker Build and Push
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [master, main, dev, dev-v2]
 
 env:
   REGISTRY: docker.io
@@ -11,14 +11,12 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Free up disk space
       run: |
         echo "Available disk space before cleanup:"
         df -h
-        
-        # 删除不必要的软件和文件
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf /usr/local/lib/android
         sudo rm -rf /opt/ghc
@@ -26,13 +24,8 @@ jobs:
         sudo rm -rf /usr/local/share/boost
         sudo rm -rf /usr/lib/jvm
         sudo rm -rf /usr/share/swift
-        
-        # 清理APT缓存
         sudo apt-get clean
-        
-        # 清理Docker系统
         docker system prune -af
-        
         echo "Available disk space after cleanup:"
         df -h
 
@@ -50,55 +43,80 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Extract metadata
+    - name: Extract CUDA metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.IMAGE_NAME }}
         tags: |
-          type=raw,value=latest,enable=${{ github.ref_name == 'master' }}
-          type=raw,value=dev,enable=${{ github.ref_name == 'dev' }}
-          type=raw,value=cuda12.4-latest,enable=${{ github.ref_name == 'master' }}
-          type=raw,value=cuda12.4-dev,enable=${{ github.ref_name == 'dev' }}
+          type=raw,value=latest,enable=${{ github.ref_name == 'master' || github.ref_name == 'main' }}
+          type=raw,value=dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
+          type=raw,value=cuda12.4-latest,enable=${{ github.ref_name == 'master' || github.ref_name == 'main' }}
+          type=raw,value=cuda12.4-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
         labels: |
           org.opencontainers.image.title=Pallas Bot AI
           org.opencontainers.image.description=AI-powered chatbot with TTS and singing capabilities
           org.opencontainers.image.vendor=Pallas Bot Team
 
-    - name: Build and push Docker image
+    - name: Build and push CUDA image
       id: build
       uses: docker/build-push-action@v5
       with:
         context: .
+        file: Dockerfile
         platforms: linux/amd64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=cuda
+        cache-to: type=gha,mode=max,scope=cuda
         build-args: |
           BUILDKIT_INLINE_CACHE=1
-        
+
+    - name: Extract slim metadata
+      id: meta-slim
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.IMAGE_NAME }}
+        tags: |
+          type=raw,value=slim,enable=${{ github.ref_name == 'master' || github.ref_name == 'main' }}
+          type=raw,value=slim-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
+        labels: |
+          org.opencontainers.image.title=Pallas Bot AI (slim)
+          org.opencontainers.image.description=LLM-only AI Runtime without CUDA
+          org.opencontainers.image.vendor=Pallas Bot Team
+
+    - name: Build and push slim image
+      id: build-slim
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: Dockerfile.slim
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.meta-slim.outputs.tags }}
+        labels: ${{ steps.meta-slim.outputs.labels }}
+        cache-from: type=gha,scope=slim
+        cache-to: type=gha,mode=max,scope=slim
+
     - name: Clean up build cache
       if: always()
       run: |
         docker builder prune -af
         docker system prune -af
 
-    - name: Image digest
-      run: echo ${{ steps.build.outputs.digest }}
-
     - name: Summary
       run: |
-        echo "## 🚀 Docker 镜像构建成功" >> $GITHUB_STEP_SUMMARY
+        echo "## Docker 镜像构建成功" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📦 推送的镜像标签:" >> $GITHUB_STEP_SUMMARY
+        echo "### CUDA / 全功能" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🛠 使用方法:" >> $GITHUB_STEP_SUMMARY
-        echo '```bash' >> $GITHUB_STEP_SUMMARY
-        echo "docker pull ${{ env.IMAGE_NAME }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "docker run -d --gpus all -p 8000:8000 ${{ env.IMAGE_NAME }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "### slim（LLM-only，compose 默认）" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.meta-slim.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "全栈默认: \`docker pull ${{ env.IMAGE_NAME }}:slim\`" >> $GITHUB_STEP_SUMMARY
+        echo "GPU 媒体: \`docker pull ${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY

@@ -2,8 +2,13 @@
 #
 #   docker compose -f docker-compose.llm.yml up -d
 #
-# GPU（需 NVIDIA container toolkit）:
-#   docker compose -f docker-compose.llm.yml -f docker-compose.llm.gpu.yml up -d
+# 默认不预拉模型；需要时：
+#   docker compose -f docker-compose.llm.yml --profile pull-models up -d
+# 首次请在 Bot WebUI「AI 配置 → 接入」选择/拉取模型。
+#
+# GPU 全功能镜像（CUDA）:
+#   PALLAS_AI_IMAGE=pallasbot/pallas-bot-ai:latest \
+#     docker compose -f docker-compose.llm.yml -f docker-compose.llm.gpu.yml up -d
 #
 # 仅远端 LLM（无 Ollama 容器）:
 #   docker compose -f docker-compose.llm.yml up -d redis pallasbot-ai
@@ -47,6 +52,7 @@ services:
       start_period: 30s
 
   ollama-init:
+    profiles: ["pull-models"]
     image: ollama/ollama:latest
     container_name: pallas-ai-ollama-init
     networks:
@@ -69,7 +75,7 @@ services:
     restart: "no"
 
   pallasbot-ai:
-    image: pallasbot/pallas-bot-ai:latest
+    image: ${PALLAS_AI_IMAGE:-pallasbot/pallas-bot-ai:slim}
     container_name: pallasbot-ai
     ports:
       - "${AI_SERVER_PORT:-9099}:9099"
@@ -86,8 +92,7 @@ services:
       LLM_CATEGORIZER_MODEL: ${LLM_CATEGORIZER_MODEL:-qwen2.5:0.5b}
       LLM_AUTO_START: "false"
       CELERY_TASK_PACKAGES: llm
-      # 本 compose 面向 LLM；全功能镜像仍含媒体依赖，默认不启 media worker
-      AI_ENABLE_MEDIA_WORKER: "${AI_ENABLE_MEDIA_WORKER:-0}"
+      AI_ENABLE_MEDIA_WORKER: "0"
     networks:
       - pallas-ai
     volumes:

@@ -17,6 +17,8 @@ dependencies = [
     "httpx[socks]>=0.28.1",
     "requests>=2.32.0",
     "ninja>=1.13.0",
+    # media_tasks / images 任务 ID；LLM-only 安装也需要，勿仅放在 sing 组
+    "python-ulid>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -56,7 +58,6 @@ sing = [
     "torchfcpe>=0.0.4",
     "tqdm>=4.66.5",
     "transformers>=4.49.0",
-    "python-ulid>=3.0.0",
 ]
 tts = [
     "numpy==1.26.4",

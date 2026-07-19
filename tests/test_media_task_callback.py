@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.image_runtime import clear_image_runtime_state, image_runtime_status
 from app.media_task_runtime import clear_media_task_runtime, run_image_task
 from app.media_task_store import MediaTaskRecord, get_record, store_task_record
 from app.schemas.media_task_api import MediaTaskSubmitRequest
@@ -56,6 +57,7 @@ def test_run_image_task_callbacks_bot_on_success(monkeypatch: pytest.MonkeyPatch
             ),
         ),
     )
+    clear_image_runtime_state()
     task_id = "task-callback-ok"
     body = _image_task_body()
     _store_image_record(task_id, body.request_id)
@@ -64,6 +66,7 @@ def test_run_image_task_callbacks_bot_on_success(monkeypatch: pytest.MonkeyPatch
     record = get_record(task_id)
     assert record is not None
     assert record.state == "succeeded"
+    assert image_runtime_status().health_state == "healthy"
 
 
 def test_run_image_task_callbacks_bot_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:

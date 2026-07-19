@@ -3,8 +3,11 @@ from importlib import import_module
 
 from fastapi import APIRouter
 
-DEFAULT_ENDPOINTS = frozenset({
-    "chat",
+from app.core.celery import celery_task_package_enabled
+from app.core.logger import logger
+
+# LLM 栈默认可用的 HTTP 端点（不依赖 sing/tts/chat 可选依赖组）
+LLM_CORE_ENDPOINTS = frozenset({
     "embeddings",
     "images",
     "llm_chat",
@@ -12,12 +15,31 @@ DEFAULT_ENDPOINTS = frozenset({
     "llm_providers",
     "llm_stats",
     "media_tasks",
-    "ncm_login",
     "ops_logs",
     "persona_affect",
-    "sing",
-    "tts",
 })
+
+# 可选任务包 → 额外挂载的路由名
+_PACKAGE_EXTRA_ENDPOINTS: dict[str, frozenset[str]] = {
+    "chat": frozenset({"chat"}),
+    "sing": frozenset({"sing", "ncm_login"}),
+    "tts": frozenset({"tts"}),
+}
+
+DEFAULT_ENDPOINTS = frozenset().union(LLM_CORE_ENDPOINTS, *(_PACKAGE_EXTRA_ENDPOINTS.values()))
+
+
+def resolve_enabled_endpoints(
+    enabled_endpoints: set[str] | frozenset[str] | None = None,
+) -> frozenset[str]:
+    """按 CELERY_TASK_PACKAGES 裁剪默认路由；显式传入时原样使用。"""
+    if enabled_endpoints is not None:
+        return frozenset(enabled_endpoints)
+    selected = set(LLM_CORE_ENDPOINTS)
+    for package, names in _PACKAGE_EXTRA_ENDPOINTS.items():
+        if celery_task_package_enabled(package):
+            selected.update(names)
+    return frozenset(selected)
 
 
 def _load_sing() -> APIRouter:
@@ -92,11 +114,15 @@ ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
 
 def build_api_router(enabled_endpoints: set[str] | frozenset[str]) -> APIRouter:
     router = APIRouter()
-    for endpoint_name in enabled_endpoints:
+    for endpoint_name in sorted(enabled_endpoints):
         loader = ENDPOINT_LOADERS.get(endpoint_name)
         if loader is None:
             continue
-        loaded = loader()
+        try:
+            loaded = loader()
+        except ImportError as exc:
+            logger.warning("跳过路由 {}：缺少可选依赖 ({})", endpoint_name, exc)
+            continue
         if isinstance(loaded, tuple):
             for sub_router in loaded:
                 router.include_router(sub_router)

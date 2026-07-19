@@ -58,11 +58,11 @@ async def post_image_generate(body: ImageGenerateRequest) -> ImageGenerateRespon
         if isinstance(raw_result, ImageGenerateResponse)
         else ImageGenerateResponse.model_validate(raw_result)
     )
-    # 仅本地默认上游计入进程熔断；请求携带网关由 Bot 侧 circuit 负责
+    # 成功一律回写进程健康度（含请求携带网关），便于控制台观测；
+    # 失败时仅默认上游计入熔断，请求网关仍由 Bot 侧 circuit 负责。
     used_request_gateway = any(item.from_request for item in resolve_image_backends(body))
     if result.result_state == "success":
-        if not used_request_gateway:
-            record_image_success(latency_ms=result.latency_ms)
+        record_image_success(latency_ms=result.latency_ms)
         return result
     if result.error is not None and not used_request_gateway:
         err = (

@@ -19,6 +19,8 @@ from app.image_runtime import (
     image_runtime_feature_allowed,
     load_image_backend,
     payload_has_request_gateway,
+    record_image_failure,
+    record_image_success,
     submit_image_generate,
 )
 from app.media_task_store import (
@@ -42,7 +44,6 @@ from app.schemas.media_task_api import (
     parse_media_task_payload,
 )
 from app.services.media_task_callback import notify_image_media_task_result, notify_sing_media_task_failed
-from app.tasks.sing import sing_task
 
 _BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
 
@@ -354,6 +355,7 @@ async def run_image_task(task_id: str, body: MediaTaskSubmitRequest) -> None:
     if record is None:
         return
     if result.result_state == "success" and result.data is not None:
+        record_image_success(latency_ms=result.latency_ms)
         mark_task_succeeded(
             record,
             data={
@@ -372,6 +374,7 @@ async def run_image_task(task_id: str, body: MediaTaskSubmitRequest) -> None:
         retryable=False,
         failure_class="task_failed",
     )
+    record_image_failure(failure_class=err.failure_class)
     mark_task_failed(
         record,
         code=err.code,
@@ -385,6 +388,8 @@ async def run_image_task(task_id: str, body: MediaTaskSubmitRequest) -> None:
 
 
 def dispatch_sing_task(record: MediaTaskRecord, body: MediaTaskSubmitRequest) -> None:
+    from app.tasks.sing import sing_task  # noqa: PLC0415 — 避免 API 启动强依赖 sing 可选包
+
     require_celery_task_package("sing")
     parsed = parse_media_task_payload("media.sing", body.payload)
     assert isinstance(parsed, SingTaskPayload)

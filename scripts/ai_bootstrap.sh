@@ -274,20 +274,22 @@ health_check() {
 }
 
 print_next_steps() {
+  local ai_port
+  ai_port="$(read_env_key UVICORN_PORT "9099")"
   cat <<EOF
 
 ── 下一步（Bot 侧）──
 1. 在 Bot 的 config/pallas.toml 的 [env] 或 WebUI「智能对话与 AI 服务」配置：
    LLM_CHAT_ENABLED=true
    AI_SERVER_HOST=127.0.0.1
-   AI_SERVER_PORT=9099
+   AI_SERVER_PORT=${ai_port}
 2. 确认 AI 能回调 Bot：CALLBACK_HOST=$(read_env_key CALLBACK_HOST "$BOT_HOST") CALLBACK_PORT=$(read_env_key CALLBACK_PORT "$BOT_PORT")
 3. Docker 同网部署时 CALLBACK_HOST 填 Bot 服务名（如 pallasbot），见 docker-compose.full.yml
 
 常用命令:
   ./scripts/ctl.sh status
   ./scripts/ctl.sh restart llm
-  curl -s http://127.0.0.1:9099/health | python3 -m json.tool
+  curl -s http://127.0.0.1:${ai_port}/health | python3 -m json.tool
 
 EOF
 }

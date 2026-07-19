@@ -65,12 +65,13 @@ services:
       - "9099:9099"
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - LLM_SESSION_BACKEND=redis
       - CALLBACK_HOST=pallasbot
       - CALLBACK_PORT=8088
-      - OLLAMA_ENABLE=true
-      - OLLAMA_URL=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
-      - OLLAMA_AUTO_START=false
+      - LLM_CHAT_ENABLED=true
+      - LLM_BACKEND_URL=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-qwen2.5:7b}
+      - LLM_AUTO_START=false
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     networks:
@@ -120,6 +121,8 @@ services:
     volumes:
       - ./pallas-bot/resource/:/app/resource
       - ./pallas-bot/.env:/app/.env
+      # 与 pallasbot-ai 共享 AI 服务落盘日志，供 WebUI SSE 跟读（挂载点为 /ai-logs）
+      - ./pallas-bot-ai/logs:/ai-logs:ro
     depends_on:
       mongodb:
         condition: service_healthy

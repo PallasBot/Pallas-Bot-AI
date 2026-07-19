@@ -1,0 +1,49 @@
+# 复制为 config/providers.toml；无文件时回退 .env 的 LLM_REMOTE_*。
+
+[[providers]]
+id = "local"
+kind = "local"
+default_model = "qwen2.5:7b"
+
+[[providers]]
+id = "deepseek"
+kind = "remote"
+base_url = "https://api.deepseek.com"
+api_key_env = "LLM_REMOTE_API_KEY"
+default_model = "deepseek-v4-flash"
+enabled = true
+
+# 可选：第二个本地 Ollama（须写 base_url）
+# [[providers]]
+# id = "ollama-tools"
+# kind = "local"
+# base_url = "http://127.0.0.1:11435"
+# default_model = "qwen2.5:7b"
+
+# 可选：第二个远端
+# [[providers]]
+# id = "openai"
+# kind = "remote"
+# base_url = "https://api.openai.com"
+# api_key_env = "OPENAI_API_KEY"
+# default_model = "gpt-4o-mini"
+# enabled = true
+
+# task 路由，优先于 LLM_CHAIN_LOCAL/REMOTE_TASKS
+[routing]
+chain_fallback = ["local", "deepseek"]
+
+[routing.tasks]
+llm_chat = "deepseek"
+repeater_fallback = "local"
+repeater_polish = "local"
+repeater_polish_lite = "local"
+repeater_select = "local"
+drunk = "local"
+# llm_chat = "ollama-tools"
+
+# 可选：按 task 覆盖某 provider 的模型
+# [providers.models.deepseek]
+# llm_chat = "deepseek-chat"
+# repeater_polish = "deepseek-v4-flash"
+# repeater_select 推荐与 categorizer / simple 同档小模型，不经 categorizer 预分类

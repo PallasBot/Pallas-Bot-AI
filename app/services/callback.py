@@ -1,7 +1,7 @@
 import httpx
 
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logger import log_id_suffix, logger, task_log
 from app.utils.retry import async_retry
 
 CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callback"
@@ -31,20 +31,47 @@ async def callback(
     song_id: str = None,
     chunk_index: int = None,
     key: int = None,
+    history_summary: str | None = None,
+    history_keep_messages: int | None = None,
+    agent_trace: str | None = None,
 ):
     callback_url = f"{CALLBACK_URL}/{request_id}"
 
     data = {"status": status}
+    task_log(
+        (
+            "准备回调 Bot{} status={} has_text={} has_audio={} song_id={} chunk_index={} "
+            "key={} history_summary={} history_keep_messages={} agent_trace={}"
+        ),
+        log_id_suffix(request_id),
+        status,
+        bool(text),
+        audio is not None,
+        song_id,
+        chunk_index,
+        key,
+        bool(history_summary),
+        history_keep_messages,
+        bool(agent_trace),
+    )
 
     if status == "failed":
         try:
-            await send_callback(callback_url, data)
+            result = await send_callback(callback_url, data)
+            task_log("回调 Bot 完成{} status=failed result={}", log_id_suffix(request_id), result)
         except httpx.HTTPStatusError as err:
             logger.warning(
-                "callback failed permanently: request_id={} status={} url={}",
-                request_id,
+                "回调 Bot 失败{} http={} url={}",
+                log_id_suffix(request_id),
                 err.response.status_code,
                 callback_url,
+            )
+        except Exception as exc:
+            logger.exception(
+                "回调 Bot 异常{} status=failed url={} error={}",
+                log_id_suffix(request_id),
+                callback_url,
+                exc,
             )
         return
 
@@ -56,16 +83,31 @@ async def callback(
         data["chunk_index"] = chunk_index
     if key is not None:
         data["key"] = key
+    if history_summary:
+        data["history_summary"] = history_summary
+    if history_keep_messages is not None:
+        data["history_keep_messages"] = str(int(history_keep_messages))
+    if agent_trace:
+        data["agent_trace"] = agent_trace
 
     try:
         if audio:
-            await send_callback(callback_url, data, files={"file": audio})
+            result = await send_callback(callback_url, data, files={"file": audio})
         else:
-            await send_callback(callback_url, data)
+            result = await send_callback(callback_url, data)
+        task_log("回调 Bot 完成{} status={} result={}", log_id_suffix(request_id), status, result)
     except httpx.HTTPStatusError as err:
         logger.warning(
-            "callback failed permanently: request_id={} status={} url={}",
-            request_id,
+            "回调 Bot 失败{} http={} url={}",
+            log_id_suffix(request_id),
             err.response.status_code,
             callback_url,
+        )
+    except Exception as exc:
+        logger.exception(
+            "回调 Bot 异常{} status={} url={} error={}",
+            log_id_suffix(request_id),
+            status,
+            callback_url,
+            exc,
         )

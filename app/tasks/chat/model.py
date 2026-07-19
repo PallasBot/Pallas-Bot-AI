@@ -64,8 +64,8 @@ class Chat:
             ends_if_too_long=("。", "！", "？", "\n"),
         )
 
-        INIT_STATE = deepcopy(self.pipeline.generate(INIT_PROMPT, token_count=200, args=self.args)[1])
-        self.all_state = defaultdict(lambda: deepcopy(INIT_STATE))
+        init_state = deepcopy(self.pipeline.generate(INIT_PROMPT, token_count=200, args=self.args)[1])
+        self.all_state = defaultdict(lambda: deepcopy(init_state))
 
     def chat(self, session: str, text: str, token_count: int = 50) -> str:
         while self.pipeline is None:

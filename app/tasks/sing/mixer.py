@@ -41,16 +41,16 @@ def splice(
     chunk_index: int,
     speaker: str,
     key: int = 0,
-    format: str = "mp3",
+    audio_format: str = "mp3",
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
     # os.makedirs(output_dir)
     # 随机播放的时候要根据文件名判断进度，这个文件名之后改的话要注意下
-    last_file_path = output_dir / f"{song_id}_spliced{chunk_index - 1}_{key}key_{speaker}.{format}"
-    now_file_path = output_dir / f"{song_id}_spliced{chunk_index}_{key}key_{speaker}.{format}"
+    last_file_path = output_dir / f"{song_id}_spliced{chunk_index - 1}_{key}key_{speaker}.{audio_format}"
+    now_file_path = output_dir / f"{song_id}_spliced{chunk_index}_{key}key_{speaker}.{audio_format}"
 
     if finished:
-        now_file_path = output_dir / f"{song_id}_full_{key}key_{speaker}.{format}"
+        now_file_path = output_dir / f"{song_id}_full_{key}key_{speaker}.{audio_format}"
 
     if chunk_index == 0:
         if input_song.exists() and not now_file_path.exists():
@@ -67,7 +67,7 @@ def splice(
     if input_song.exists():
         output_audio += AudioSegment.from_file(input_song)
     # 保存
-    output_audio.export(now_file_path, format=format)
+    output_audio.export(now_file_path, format=audio_format)
 
     last_file_path.unlink()
 

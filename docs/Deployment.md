@@ -1,5 +1,26 @@
 # 部署指南
 
+> V4 演进与兼容策略见 [architecture/platform-roadmap.md](architecture/platform-roadmap.md)。文档总索引：[README.md](README.md)。
+
+## V4 双仓最低版本
+
+| 组件 | 最低要求 | 校验方式 |
+| --- | --- | --- |
+| **Pallas-Bot-AI** | `api_version` ≥ `4.0.0` | `GET /health` → `api_version` |
+| **Pallas-Bot** | 支持 `LLM_CHAT_ENABLED` + `AI_SERVER_*` 的 V4 线（如 `dev-v2`） | 启动日志 / integration 脚本 |
+| **Redis** | 可达（Celery broker + 默认 LLM session） | AI 仓 `REDIS_URL`；compose 已含 redis 服务 |
+| **LLM 后端** | `local_only` 需本地 HTTP 后端；或 `remote_only` | `/health.llm.provider_mode` |
+
+联调最小 Redis：`docker compose -f docker-compose.4.0-ci.yml up -d`
+
+本机一键安装（依赖 + Redis + Ollama + 启停）：`./scripts/ai_bootstrap.sh`（见根目录 [README](../README.md#快速开始llm)）。
+
+默认只装 **LLM 栈**（`uv sync --group dev`，**不装 torch**）。唱歌/TTS/醉聊 RWKV 再加 `--with-media`（才会 `--all-groups --extra cpu|gpu`）。
+
+**无 GPU / 纯第三方 API**：见 **[remote-only 部署指南](deploy/remote-only.md)**（`./scripts/ai_bootstrap.sh --remote-only` 或 Docker 仅起 `redis` + `pallasbot-ai`）。本地 Ollama 用的是 Ollama 自带 GPU，与本仓 PyTorch `--extra gpu` 无关。
+
+仅 LLM 的 Docker 栈：`docker compose -f docker-compose.llm.yml up -d`
+
 ## 方式一：使用 Docker 部署
 
 本项目的 `docker-compose.yml` 提供了全栈服务一键部署。
@@ -41,7 +62,15 @@
    docker compose logs -f
    ```
 
-   首次启动时，可以通过 `docker compose logs -f pallasbot-ai` 查看 AI 服务端的日志，确认当前下载进度。
+   首次启动时，可通过宿主机挂载目录查看 AI 落盘日志（`docker compose logs` 仅含启动脚本输出，不含 uvicorn/celery 正文）：
+
+   ```bash
+   tail -f ./pallas-bot-ai/logs/uvicorn.log
+   tail -f ./pallas-bot-ai/logs/celery.log
+   tail -f ./pallas-bot-ai/logs/celery-media.log
+   ```
+
+   与 Pallas-Bot 全栈 compose 联用时，Bot 容器会将该目录只读挂到 `/ai-logs`，WebUI「AI 观测 · 服务日志」可 SSE 跟读。
 
 ### 服务管理
 
@@ -55,47 +84,95 @@
 
 全栈 `docker-compose.yml` 已包含 **Ollama** 容器，与 `pallasbot-ai` 同网段启动：
 
-- 容器名：`pallas-ollama`；AI 服务通过 `OLLAMA_URL=http://ollama:11434` 访问
-- `pallasbot-ai` 环境变量 **`OLLAMA_AUTO_START=false`**（由 compose 管 Ollama，AI 进程不再二次拉起）
-- 首次启动时 `ollama-init` 会拉取模型（默认 `qwen2.5:7b`，可通过 **`OLLAMA_MODEL`** 覆盖）
-- Bot 侧在 WebUI **插件 → ollama** 或 **`config/pallas.toml` 的 `[env]`** 设置 **`OLLAMA_ENABLE=true`** 后启用
+- 容器名：`pallas-ollama`；AI 服务通过 `LLM_BACKEND_URL=http://ollama:11434` 访问
+- `pallasbot-ai` 环境变量 **`LLM_AUTO_START=false`**（由 compose 管 Ollama，AI 进程不再二次拉起）
+- 首次启动时 `ollama-init` 会拉取模型（默认 `qwen2.5:7b`，可通过 **`LLM_MODEL`** 覆盖）
+- Bot 侧配置 **`LLM_CHAT_ENABLED=true`**（见主仓 WebUI「LLM 与 AI 服务」）
 
-Ollama 环境变量、热更换模型等共用说明见下文 [Ollama 配置参考](#ollama-配置参考)。
+本地推理环境变量见下文 [LLM 配置参考](#llm-配置参考)。运行时说明见 [runtime.md](architecture/runtime.md)。
 
-## Ollama 配置参考
+GPU 长跑后 Ollama 可能回退 CPU（HTTP 仍 200、推理极慢）：见 [Ollama GPU 探活](operate/ollama-gpu-watchdog.md)（`scripts/ollama_gpu_watchdog.sh`）。
 
-Bot 插件 **牛牛聊天**（`ollama`）依赖 AI 服务的 Ollama HTTP 接口；与「酒后聊天」（RWKV）相互独立。
+## LLM 配置参考
+
+Bot 插件 **llm_chat** / **chat** / **repeater LLM** 依赖 AI 服务统一 Chat API；与「酒后聊天」legacy RWKV 路径相互独立。
 
 ### AI 服务环境变量（`.env`）
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `OLLAMA_ENABLE` | `true` | 是否注册 Ollama 相关 API |
-| `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama 根地址（Docker 全栈填 `http://ollama:11434`） |
-| `OLLAMA_MODEL` | `qwen2.5:7b` | 默认模型名；亦可通过运行时 API 覆盖 |
-| `OLLAMA_AUTO_START` | `false` | **`true`** 时，FastAPI / Celery 启动前若连不上 `OLLAMA_URL` 则自动 `ollama serve`（**手动部署推荐**；Docker 全栈请保持 `false`） |
-| `OLLAMA_BINARY` | `ollama` | 自动拉起时使用的可执行文件 |
-| `OLLAMA_AUTO_PULL` | `true` | 自动拉起成功后是否 `pull` 当前模型 |
-| `OLLAMA_STARTUP_TIMEOUT` | `60` | 等待 Ollama 就绪的最长秒数 |
+| `LLM_CHAT_ENABLED` | `true` | 是否启用 LLM Chat API（遗留 `OLLAMA_ENABLE` 仍可读） |
+| `LLM_BACKEND_URL` | `http://127.0.0.1:11434` | 本地推理后端根地址（遗留 `OLLAMA_URL`） |
+| `LLM_MODEL` | `qwen2.5:7b` | 默认模型名（遗留 `OLLAMA_MODEL`） |
+| `LLM_AUTO_START` | `false` | **`true`** 时，启动前若连不上后端则自动 `ollama serve`（Docker 全栈请 `false`） |
+| `LLM_BACKEND_BINARY` | `ollama` | 自动拉起时的可执行文件（遗留 `OLLAMA_BINARY`） |
+| `LLM_AUTO_PULL` | `true` | 自动拉起成功后是否 pull 当前模型 |
+| `LLM_STARTUP_TIMEOUT` | `60` | 等待后端就绪的最长秒数 |
+| `LLM_MAX_HISTORIES` | `100` | 会话轮数上限 |
+| `LLM_TEMPERATURE` | `0.55` | 默认温度 |
+| `LLM_NUM_GPU` | `12` | 传给后端的 num_gpu |
+| `LLM_REQUEST_TIMEOUT` | `90` | 单次推理 HTTP 超时 |
+| `LLM_DRUNK_TEMPERATURE` | `1.0` | drunk mode 温度 |
+
+示例见仓库根目录 [`.env.example`](../.env.example)。
+
+**多提供方路由、请求分类器、健康检查字段**见根目录 [README.md](../README.md#provider-路由)（`providers.toml`、`LLM_CATEGORIZER_*`、`GET /health`）。
+
+### Ollama 配置参考（遗留标题，内容已合并至上一节）
+
+<details>
+<summary>旧 OLLAMA_* 键名对照</summary>
+
+| 旧变量 | 新变量 |
+| --- | --- |
+| `OLLAMA_ENABLE` | `LLM_CHAT_ENABLED` |
+| `OLLAMA_URL` | `LLM_BACKEND_URL` |
+| `OLLAMA_MODEL` | `LLM_MODEL` |
+| `OLLAMA_AUTO_START` | `LLM_AUTO_START` |
+
+</details>
 
 ### 热更换模型（无需重启 Celery / FastAPI）
 
-运行时模型写入 **`logs/ollama_runtime.json`**，API 与 Celery worker 共享。
+运行时模型写入 **`logs/llm_runtime.json`**（兼容读取旧 `logs/ollama_runtime.json`），API 与 Celery worker 共享。
 
 ```bash
-# 查看当前模型
-curl http://127.0.0.1:9099/api/ollama/model
+# 查看当前模型（canonical）
+curl http://127.0.0.1:9099/api/llm/model
 
 # 切换并拉取（推荐）
-curl -X PUT http://127.0.0.1:9099/api/ollama/model \
+curl -X PUT http://127.0.0.1:9099/api/llm/model \
   -H 'Content-Type: application/json' \
   -d '{"model":"qwen2.5:7b","pull":true}'
 
-# 从 .env 的 OLLAMA_MODEL 重新加载
-curl -X POST http://127.0.0.1:9099/api/ollama/model/reload
+# 从 .env 的 LLM_MODEL 重新加载
+curl -X POST http://127.0.0.1:9099/api/llm/model/reload
 ```
 
-单次对话还可在 `POST /api/ollama/chat/{request_id}` 请求体传可选字段 **`model`** 临时指定。
+单次对话还可在 `POST /api/llm/chat/{request_id}` 请求体传可选字段 **`model`** 临时指定。
+
+### API Bearer Token（运维日志鉴权）
+
+Bot WebUI「AI 服务」里的 **Bearer Token** 须与 AI 侧环境变量 **`PALLAS_AI_API_TOKEN`** 保持一致。
+
+- 配置后：`GET /api/ops/logs`（WebUI 扩展日志 HTTP 回退）要求请求头 `Authorization: Bearer <token>`
+- 未配置 `PALLAS_AI_API_TOKEN`：不对 Bearer 校验（仅建议本机调试）
+- Bot 落盘配置示例：`Pallas-Bot` 仓库 `config/ai_extension.example.json` 的 `token` 字段
+
+```bash
+# AI 服务 .env
+PALLAS_AI_API_TOKEN=请改为强随机值
+
+# 验证（替换 token 与端口）
+curl -H "Authorization: Bearer 你的token" "http://127.0.0.1:9099/api/ops/logs?kind=uvicorn&n=5"
+```
+
+<details>
+<summary>遗留路径（deprecated，兼容期保留）</summary>
+
+`/api/ollama/*` 与上述 `/api/llm/*` 行为相同，新集成请使用 `/api/llm/*`。
+
+</details>
 
 ## 方式二：手动部署
 
@@ -132,25 +209,32 @@ docker run -d --name redis -p 6379:6379 redis
 
 2. 配置虚拟环境并安装依赖
 
+    **仅 LLM（推荐开箱）**：
+
     ```bash
-    uv venv --python 3.10
-    uv lock
-    # 使用 CPU 推理
+    uv venv --python 3.12
+    uv sync --group dev
+    ```
+
+    **含唱歌 / TTS / 醉聊 RWKV（会装 torch）**：
+
+    ```bash
+    # CPU torch
     uv sync --all-groups --extra cpu
-    # 使用 GPU 推理
+    # 或 NVIDIA GPU torch
     uv sync --all-groups --extra gpu
     ```
 
-    如果只需要启用部分功能，可仅安装对应依赖：
+    若只要某一媒体能力，可收窄 group（仍需对应 `--extra` 提供 torch）：
 
     ```bash
-    uv sync --group sing --extra gpu
+    uv sync --group sing --extra cpu
     ```
 
     依赖 `group` 对应的功能如下：
 
-    - `dev`: 开发环境
-    - `chat`: 聊天
+    - `dev`: LLM API / Celery / 联调（**不含** torch）
+    - `chat`: 醉聊 RWKV
     - `sing`: 唱歌
     - `tts`: 语音合成
 
@@ -194,32 +278,32 @@ docker run -d --name redis -p 6379:6379 redis
 
     请结合注释，根据实际情况修改 `.env` 文件中的配置。保持注释即使用默认值。
 
-    **启用牛牛聊天（Ollama）** 时，在 AI 服务 `.env` 中至少配置：
+    **启用 LLM 闲聊** 时，在 AI 服务 `.env` 中至少配置：
 
     ```env
-    OLLAMA_ENABLE=true
-    OLLAMA_URL=http://127.0.0.1:11434
-    OLLAMA_MODEL=qwen2.5:7b
-    OLLAMA_AUTO_START=true
+    LLM_CHAT_ENABLED=true
+    LLM_BACKEND_URL=http://127.0.0.1:11434
+    LLM_MODEL=qwen2.5:7b
+    LLM_AUTO_START=true
     ```
 
-    Ollama 有两种提供方式（二选一）：
+    本地推理后端有两种提供方式（二选一）：
 
     **A. 由 AI 服务自动拉起（推荐）**
 
     - 宿主机已安装 [Ollama](https://ollama.com/)，且 `ollama` 在 `PATH` 中
-    - 设置 **`OLLAMA_AUTO_START=true`**（见上）
-    - 启动 Celery / FastAPI 时会检测 `OLLAMA_URL`；不可达则后台执行 `ollama serve`，并在就绪后按 **`OLLAMA_AUTO_PULL`** 拉取 **`OLLAMA_MODEL`**
+    - 设置 **`LLM_AUTO_START=true`**（见上）
+    - 启动 Celery / FastAPI 时会检测 `LLM_BACKEND_URL`；不可达则后台执行 `ollama serve`，并在就绪后按 **`LLM_AUTO_PULL`** 拉取 **`LLM_MODEL`**
 
     **B. 自行常驻 Ollama 进程**
 
     - 另开终端或 systemd 运行：`ollama serve`
-    - AI 服务 `.env` 设 **`OLLAMA_AUTO_START=false`**，**`OLLAMA_URL`** 指向实际地址
+    - AI 服务 `.env` 设 **`LLM_AUTO_START=false`**，**`LLM_BACKEND_URL`** 指向实际地址
     - 首次使用前手动拉模型：`ollama pull qwen2.5:7b`
 
-    Bot 侧在 WebUI **插件 → ollama** 或 **`config/pallas.toml` 的 `[env]`** 设置 **`OLLAMA_ENABLE=true`**；**`AI_SERVER_HOST` / `AI_SERVER_PORT`** 指向本 AI 服务（可与 sing/chat 共用，通常已在 WebUI 配置）。
+    Bot 侧在 WebUI **通用配置 → LLM 与 AI 服务** 或 **`config/pallas.toml` 的 `[env]`** 设置 **`LLM_CHAT_ENABLED=true`**；**`AI_SERVER_HOST` / `AI_SERVER_PORT`** 指向本 AI 服务。
 
-    环境变量明细与热更换模型 API 见 [Ollama 配置参考](#ollama-配置参考)。
+    环境变量明细与热更换模型 API 见 [LLM 配置参考](#llm-配置参考)。
 
 6. 启动 Celery Worker
 
@@ -227,12 +311,18 @@ docker run -d --name redis -p 6379:6379 redis
     uv run celery -A app.core.celery worker --loglevel=info
     ```
 
-    Worker 就绪时同样会执行 Ollama 可达性检查；在 **`OLLAMA_AUTO_START=true`** 时会尝试拉起本地服务。
+    Worker 就绪时同样会执行本地 LLM 后端可达性检查；在 **`LLM_AUTO_START=true`** 时会尝试拉起本地服务。
 
 7. 启动 FastAPI Server
 
     ```bash
-    uv run uvicorn app.main:app --reload --port 9099
+    uv run python -m app.run_api
+    ```
+
+    开发热重载（仅监听 API 相关目录，不扫 `app/tasks` 下 TTS/sing 大目录）：
+
+    ```bash
+    UVICORN_RELOAD=true uv run python -m app.run_api
     ```
 
     若仅启 Ollama 而不启 chat / sing / tts，依赖安装可省略对应 `group`；Ollama 本身走 HTTP，**不占用** RWKV / 唱歌 / TTS 的 `resource/` 模型目录。

@@ -13,6 +13,10 @@ class RequestMusicRequest(BaseModel):
     song_id: int
 
 
+class PlayRequest(BaseModel):
+    speaker: str = ""
+
+
 class SingResponse(BaseModel):
     task_id: str
     status: str

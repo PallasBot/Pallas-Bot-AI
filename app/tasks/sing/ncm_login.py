@@ -1,6 +1,7 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, Optional
 
 from pyncm_async import (
     CreateNewSession,
@@ -8,7 +9,6 @@ from pyncm_async import (
     GetCurrentSession,
     LoadSessionFromString,
     Session,
-    SetCurrentSession,
 )
 from pyncm_async.apis.login import (
     GetCurrentLoginStatus,
@@ -172,7 +172,7 @@ ncm_login_manager = NCMLoginManager()
 
 @asynccontextmanager
 async def ncm_request_session() -> AsyncIterator[Session]:
-    """为当前 event loop 创建独立 httpx 会话（Celery 每任务新建/关闭 loop 时必需）。"""
+    """为当前 event loop 创建独立 httpx 会话（每任务新建 loop 时必需）。"""
     stored = ncm_login_manager.session
     if stored is not None:
         session = LoadSessionFromString(DumpSessionAsString(stored))

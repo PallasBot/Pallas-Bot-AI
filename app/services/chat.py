@@ -1,11 +1,25 @@
 from app.core.logger import logger
-from app.tasks.chat import ChatManager, chat_task
+from app.schemas.llm_chat import LlmChatCompletionRequest, LlmChatMessage
+from app.services.llm_chat import submit_llm_chat_completion
+from app.tasks.chat import ChatManager
 
 
 async def chat(request_id: str, session: str, text: str, token_count: int, tts: bool):
-    task = chat_task.delay(request_id, session, text, token_count, tts)
-    logger.info(f"Task {task.id} started")
-    return task.id
+    logger.info("legacy chat bridge: request_id={} session={}", request_id, session)
+    return await submit_llm_chat_completion(
+        request_id,
+        LlmChatCompletionRequest(
+            session_id=session,
+            system="你是牛牛。",
+            messages=[LlmChatMessage(role="user", content=text)],
+            metadata={
+                "task": "drunk",
+                "token_count": token_count,
+                "tts": tts,
+                "mode": "drunk",
+            },
+        ),
+    )
 
 
 async def del_session(session: str):

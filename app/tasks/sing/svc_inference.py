@@ -37,12 +37,12 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def _maybe_lock(locker: GPULockManager | None) -> Iterator[None]:
+def _maybe_lock(locker: GPULockManager | None, *, owner: dict[str, str]) -> Iterator[None]:
     """锁是可选参数——传 None 时退化为无操作 contextmanager。"""
     if locker is None:
         yield
     else:
-        with locker.acquire():
+        with locker.acquire(unload_llm=True, owner=owner):
             yield
 
 
@@ -86,7 +86,13 @@ def _try_backend(
         default=0.0,
     )
 
-    with _maybe_lock(locker):
+    owner = {
+        "kind": "sing",
+        "step": "svc",
+        "song": song_path.name,
+        "speaker": speaker_dir.name,
+    }
+    with _maybe_lock(locker, owner=owner):
         try:
             result = run_subprocess(cmd, timeout=settings.svc_inference_timeout)
         except subprocess.TimeoutExpired:

@@ -1,13 +1,13 @@
 # 部署指南
 
-> 4.0 演进路线与验收见 [architecture/platform-roadmap.md](architecture/platform-roadmap.md)。
+> V4 演进与兼容策略见 [architecture/platform-roadmap.md](architecture/platform-roadmap.md)。文档总索引：[README.md](README.md)。
 
-## 4.0 双仓最低版本
+## V4 双仓最低版本
 
 | 组件 | 最低要求 | 校验方式 |
 | --- | --- | --- |
 | **Pallas-Bot-AI** | `api_version` ≥ `4.0.0` | `GET /health` → `api_version` |
-| **Pallas-Bot** | `feat/4.0-persona` 含 `features/llm` 统一客户端 | 启动日志 / integration 脚本 |
+| **Pallas-Bot** | 支持 `LLM_CHAT_ENABLED` + `AI_SERVER_*` 的 V4 线（如 `dev-v2`） | 启动日志 / integration 脚本 |
 | **Redis** | 可达（Celery broker + 默认 LLM session） | AI 仓 `REDIS_URL`；compose 已含 redis 服务 |
 | **LLM 后端** | `local_only` 需本地 HTTP 后端；或 `remote_only` | `/health.llm.provider_mode` |
 

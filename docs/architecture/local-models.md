@@ -1,8 +1,8 @@
-# Pallas-Bot-AI · 4.0 本地模型栈评估
+# 本地模型选型笔记
 
-> **基准日期：2026-06** · **目标版本：4.0**  
-> 与主仓 [pallas-ai-service.md](https://github.com/PallasBot/Pallas-Bot/blob/feat/4.0-persona/docs/architecture/pallas-ai-service.md) 对齐。  
-> **Chat LLM** 走统一网关 + provider chain；**TTS / sing** 为独立 media 子系统，可分期升级。
+> **基准日期：2026-06** · **性质：历史选型快照，不是产品默认。**  
+> Chat LLM 走统一网关 + provider chain；TTS / sing 为独立 media 子系统。  
+> 现行部署见 [Deployment.md](../Deployment.md)。
 
 ## 2026 外部基准（选型依据）
 
@@ -194,4 +194,5 @@ media:
 ## 相关
 
 - [Deployment.md](../Deployment.md)
-- [Pallas-Bot pallas-ai-service.md](https://github.com/PallasBot/Pallas-Bot/blob/feat/4.0-persona/docs/architecture/pallas-ai-service.md)
+- [platform-roadmap.md](platform-roadmap.md)
+- [runtime.md](runtime.md)

@@ -6,16 +6,19 @@
 
 <br>
 
-Pallas-Bot AI Backend，与 Pallas-Bot 本体解耦的 AI 功能服务端。
+Pallas-Bot 的可选 AI 后端（与本体解耦）：LLM 对话 / 接话、唱歌、TTS、文生图等。
 
 </div>
 
 ## 简介
 
-使用 FastAPI + Celery(Redis) 提供 Pallas-Bot 所需的 AI 接口：LLM 闲聊、接话、唱歌、绘图等。LLM 任务异步执行，完成后通过 `/callback` 回推 Bot。
+使用 FastAPI + Celery(Redis) 为 [Pallas-Bot](https://github.com/PallasBot/Pallas-Bot) 提供 AI 能力。LLM 任务异步执行，完成后通过 `/callback` 回推 Bot。群内复读仍在 Bot 侧；本仓只负责可选的模型与媒体能力。
 
+能力概览：LLM 闲聊与接话、唱歌、TTS、文生图等（媒体能力需额外依赖或全功能镜像）。
+
+- 文档索引：[docs/README.md](./docs/README.md)
 - 部署细节：[docs/Deployment.md](./docs/Deployment.md)
-- 4.0 平台路线：[docs/architecture/platform-roadmap.md](./docs/architecture/platform-roadmap.md)
+- V4 平台路线：[docs/architecture/platform-roadmap.md](./docs/architecture/platform-roadmap.md)
 
 ## 快速开始（LLM）
 
@@ -233,6 +236,15 @@ API：`GET/PUT /api/llm/providers`（Bot 代理：`/common-config/llm/providers`
 - `config/providers.example.toml` — 多提供方配置模板
 - `docs` — 部署与架构文档
 - `tests` — 单测
+
+## 相关仓库
+
+| 仓库 | 说明 |
+| --- | --- |
+| [Pallas-Bot](https://github.com/PallasBot/Pallas-Bot) | Bot 本体（复读优先；通过 `AI_SERVER_*` 连接本服务） |
+| [Pallas-Bot-WebUI](https://github.com/PallasBot/Pallas-Bot-WebUI) | 控制台前端（含 AI 配置与模型面板） |
+| [Pallas-Bot-Docs](https://github.com/PallasBot/Pallas-Bot-Docs) | 文档站 |
+| [Pallas-Bot-Community-Stats](https://github.com/PallasBot/Pallas-Bot-Community-Stats) | 社区统计与语料中心 |
 
 ## 开发
 

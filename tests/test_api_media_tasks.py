@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 
 from app.app_factory import create_app
 from app.core.config import settings
-from app.media_task_runtime import clear_media_task_runtime, get_media_task
-from app.media_task_store import MediaTaskRecord, store_task_record, update_task_record
+from app.media_task_runtime import clear_media_task_runtime
+from app.media_task_store import MediaTaskRecord, get_record, store_task_record, update_task_record
 
 
 @pytest.fixture
@@ -105,7 +105,8 @@ def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.
     body = response.json()
     assert body["result_state"] == "accepted"
     assert calls == [(body["task_id"], "req-media-sing")]
-    task = get_media_task(body["task_id"])
+    # 勿走 get_media_task：会 refresh Celery/Redis，CI 无 Redis 会红
+    task = get_record(body["task_id"])
     assert task is not None
     assert task.state == "queued"
 

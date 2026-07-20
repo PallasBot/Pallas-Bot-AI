@@ -22,6 +22,7 @@ from pydub import AudioSegment
 
 from app.core.config import settings
 from app.core.logger import logger
+from app.media_models import order_backends_by_preference, resolve_preferred_backend, resolve_sing_speaker
 from app.tasks.sing.svc_registry import (
     ModelBackend,
     SvcRegistry,
@@ -146,7 +147,7 @@ def inference(
     song_path: Path,
     output_dir: Path,
     key: int = 0,
-    speaker: str = "pallas",
+    speaker: str = "",
     locker: GPULockManager | None = None,
 ) -> Path | None:
     """按 fallback_order 遍历注册表里"该 speaker 资源齐备"的 backend,首个成功即返回。
@@ -154,6 +155,8 @@ def inference(
     Returns:
         输出音频文件 Path(已存在磁盘上);全 backend 失败返回 None。
     """
+    speaker = resolve_sing_speaker(speaker)
+
     if platform.system() == "Windows":
         song_path = mp3_to_wav(song_path)
 
@@ -172,6 +175,16 @@ def inference(
             speaker_dir,
         )
         return None
+
+    preferred = resolve_preferred_backend()
+    candidates = order_backends_by_preference(candidates, preferred)
+    if preferred:
+        logger.info(
+            "svc inference order: preferred={} first={} speaker={}",
+            preferred,
+            candidates[0].name if candidates else None,
+            speaker,
+        )
 
     stem = song_path.stem
     for backend in candidates:

@@ -10,6 +10,7 @@ from app.api.routers import LLM_CORE_ENDPOINTS, resolve_enabled_endpoints
 from app.app_factory import create_app
 from app.media_assets import (
     collect_asset_status,
+    delete_assets,
     download_and_extract_missing,
     parse_models_txt,
     start_download_job,
@@ -133,6 +134,38 @@ def test_api_media_assets_download_docker(monkeypatch: pytest.MonkeyPatch) -> No
     assert resp.status_code == 409
 
 
+def test_delete_assets_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    monkeypatch.setattr("app.media_assets.celery_task_package_enabled", lambda alias: True)
+    marker = tmp_path / "resource/tts/.extracted"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    (tmp_path / "resource/tts/pretrained_models").mkdir(parents=True)
+    (tmp_path / "resource/tts/pretrained_models/s1v3.ckpt").write_bytes(b"x")
+    result = delete_assets(assets=["tts"], root=tmp_path)
+    assert "tts" in result["deleted"]
+    assert result["status"]["assets"]["tts"]["ready"] is False
+
+
+def test_start_download_job_selective(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    monkeypatch.setattr("app.media_assets.celery_task_package_enabled", lambda alias: True)
+
+    def fake_retrieve(url: str, filename: str | Path) -> tuple[str, None]:
+        path = Path(filename)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "w") as zf:
+            zf.writestr("dummy.txt", "ok")
+        return str(path), None
+
+    monkeypatch.setattr("app.media_assets.urlretrieve", fake_retrieve)
+    (tmp_path / "resource").mkdir()
+    job = start_download_job(root=tmp_path, assets=["tts"])
+    assert job["state"] in {"running", "done"}
+    assert "tts" in job.get("assets", [])
+
+
 def test_media_assets_in_llm_core() -> None:
     assert "media_assets" in LLM_CORE_ENDPOINTS
+    assert "media_models" in LLM_CORE_ENDPOINTS
     assert "media_assets" in resolve_enabled_endpoints({"media_assets", "llm_chat"})

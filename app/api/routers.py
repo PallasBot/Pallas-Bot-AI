@@ -15,6 +15,7 @@ LLM_CORE_ENDPOINTS = frozenset({
     "llm_providers",
     "llm_stats",
     "media_assets",
+    "media_models",
     "media_tasks",
     "ops_logs",
     "persona_affect",
@@ -67,6 +68,10 @@ def _load_media_assets() -> APIRouter:
     return import_module("app.api.endpoints.media_assets").router
 
 
+def _load_media_models() -> APIRouter:
+    return import_module("app.api.endpoints.media_models").router
+
+
 def _load_llm_chat() -> APIRouter:
     return import_module("app.api.endpoints.llm_chat").router
 
@@ -107,6 +112,7 @@ ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
     "images": _load_images,
     "media_tasks": _load_media_tasks,
     "media_assets": _load_media_assets,
+    "media_models": _load_media_models,
     "llm_chat": _load_llm_chat,
     "llm_stats": _load_llm_stats,
     "llm_manage": _load_llm_manage,

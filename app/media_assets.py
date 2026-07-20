@@ -1,4 +1,4 @@
-"""媒体权重（chat/sing/tts）就绪探测与源码侧下载任务。"""
+"""媒体权重（chat/sing/tts）就绪探测与源码侧下载 / 删除任务。"""
 
 from __future__ import annotations
 
@@ -34,6 +34,8 @@ ASSET_SPECS: tuple[tuple[str, str, str], ...] = (
     ("tts", "resource/tts/.extracted", "resource/tts/tts.zip"),
 )
 
+ASSET_IDS = frozenset(aid for aid, _, _ in ASSET_SPECS)
+
 _DEFAULT_URLS: dict[str, str] = {
     "resource/chat/models/models.zip": (
         "https://hf-mirror.com/pallasbot/Pallas-Bot/resolve/main/chat/models/models.zip"
@@ -59,6 +61,7 @@ class MediaAssetStatus:
     all_media_assets_ready: bool
     hints: list[str] = field(default_factory=list)
     download_allowed: bool = False
+    delete_allowed: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -68,6 +71,7 @@ class MediaAssetStatus:
             "all_media_assets_ready": self.all_media_assets_ready,
             "hints": self.hints,
             "download_allowed": self.download_allowed,
+            "delete_allowed": self.delete_allowed,
         }
 
 
@@ -87,7 +91,6 @@ def detect_deploy_mode(root: Path | None = None) -> str:
         resource.mkdir(parents=True, exist_ok=True)
         probe = resource / ".pallas_write_probe"
         probe.write_text("ok", encoding="utf-8")
-        probe.unlink(missing_ok=True)
     except OSError:
         return "unknown"
     return "source"
@@ -150,6 +153,38 @@ def asset_content_ready(asset_id: str, base: Path) -> bool:
     return False
 
 
+def asset_size_bytes(asset_id: str, marker_rel: str, zip_rel: str, base: Path) -> int:
+    """估算资源占用：marker 父目录（或已知内容根）+ zip。"""
+    total = 0
+    zip_path = base / zip_rel
+    if zip_path.is_file():
+        total += zip_path.stat().st_size
+    content_roots: list[Path] = []
+    if asset_id == "chat":
+        content_roots.append(base / "resource/chat/models")
+    elif asset_id == "sing_pallas":
+        content_roots.append(base / "resource/sing/models/pallas")
+    elif asset_id == "sing_pretrain":
+        content_roots.append(base / "resource/sing/models/pretrain")
+    elif asset_id == "tts":
+        content_roots.append(base / "resource/tts")
+    else:
+        content_roots.append((base / marker_rel).parent)
+    for root in content_roots:
+        if not root.exists():
+            continue
+        if root.is_file():
+            total += root.stat().st_size
+            continue
+        for path in root.rglob("*"):
+            if path.is_file() and path.name != zip_path.name:
+                try:
+                    total += path.stat().st_size
+                except OSError:
+                    continue
+    return total
+
+
 def heal_extracted_markers(*, root: Path | None = None) -> list[str]:
     """内容已就绪但缺标记时补写 .extracted，避免升级后误报缺失或重复下载。"""
     base = repo_root(root)
@@ -180,7 +215,6 @@ def asset_is_ready(asset_id: str, marker_rel: str, base: Path) -> bool:
 
 def collect_asset_status(root: Path | None = None) -> MediaAssetStatus:
     base = repo_root(root)
-    # 老用户升级：有权重无标记时先补标记，再汇总状态
     heal_extracted_markers(root=base)
     mode = detect_deploy_mode(base)
     packages = media_packages_enabled()
@@ -193,14 +227,16 @@ def collect_asset_status(root: Path | None = None) -> MediaAssetStatus:
             "ready": ready,
             "marker": marker_rel,
             "zip": zip_rel,
+            "path": str(Path(marker_rel).parent).replace("\\", "/"),
+            "size_bytes": asset_size_bytes(asset_id, marker_rel, zip_rel, base),
         }
         if not ready:
             all_ready = False
             hints.append(f"missing_{asset_id}")
     if not any(packages.values()):
         hints.append("media_packages_disabled")
-    # source 模式已在 detect_deploy_mode 验证可写；docker/unknown 禁止 API 下载
     download_allowed = mode == "source"
+    delete_allowed = mode == "source"
     if mode == "docker":
         hints.append("docker_use_latest_image")
     elif not download_allowed and not all_ready:
@@ -212,7 +248,24 @@ def collect_asset_status(root: Path | None = None) -> MediaAssetStatus:
         all_media_assets_ready=all_ready,
         hints=hints,
         download_allowed=download_allowed,
+        delete_allowed=delete_allowed,
     )
+
+
+def normalize_asset_ids(raw: list[str] | None) -> list[str]:
+    if not raw:
+        return [aid for aid, _, _ in ASSET_SPECS]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        aid = str(item or "").strip()
+        if aid not in ASSET_IDS or aid in seen:
+            continue
+        seen.add(aid)
+        out.append(aid)
+    if not out:
+        raise ValueError("assets 为空或无效")
+    return out
 
 
 def _extract_zip(zip_path: Path, target_dir: Path, marker: Path) -> None:
@@ -224,14 +277,23 @@ def _extract_zip(zip_path: Path, target_dir: Path, marker: Path) -> None:
     marker.touch()
 
 
-def download_and_extract_missing(*, root: Path | None = None, progress: list[str] | None = None) -> None:
+def download_and_extract_missing(
+    *,
+    root: Path | None = None,
+    progress: list[str] | None = None,
+    asset_ids: list[str] | None = None,
+) -> None:
     """同步下载并解压缺失资产（供脚本/job 调用）。"""
     base = repo_root(root)
     log = progress if progress is not None else []
+    wanted = set(normalize_asset_ids(asset_ids) if asset_ids is not None else [aid for aid, _, _ in ASSET_SPECS])
     for asset_id in heal_extracted_markers(root=base):
-        log.append(f"heal {asset_id}: content present, marker restored")
+        if asset_id in wanted:
+            log.append(f"heal {asset_id}: content present, marker restored")
     urls = parse_models_txt(base / "Docker" / "models.txt")
     for asset_id, marker_rel, zip_rel in ASSET_SPECS:
+        if asset_id not in wanted:
+            continue
         marker = base / marker_rel
         if asset_is_ready(asset_id, marker_rel, base):
             log.append(f"skip {asset_id}: already extracted")
@@ -249,24 +311,77 @@ def download_and_extract_missing(*, root: Path | None = None, progress: list[str
         log.append(f"ready {asset_id}")
 
 
+def _safe_rmtree(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path, ignore_errors=True)
+    elif path.is_file():
+        path.unlink(missing_ok=True)
+
+
+def delete_assets(*, assets: list[str], root: Path | None = None) -> dict[str, Any]:
+    """删除指定资源包的 zip、标记与已解压内容（仅 source）。"""
+    status = collect_asset_status(root)
+    if not status.delete_allowed:
+        raise PermissionError("当前部署不允许通过 API 删除媒体权重（Docker 请改卷或换镜像）")
+    base = repo_root(root)
+    selected = normalize_asset_ids(assets)
+    deleted: list[str] = []
+    for asset_id, marker_rel, zip_rel in ASSET_SPECS:
+        if asset_id not in selected:
+            continue
+        marker = base / marker_rel
+        zip_path = base / zip_rel
+        zip_path.unlink(missing_ok=True)
+        marker.unlink(missing_ok=True)
+        if asset_id == "chat":
+            models = base / "resource/chat/models"
+            for child in list(models.iterdir()) if models.is_dir() else []:
+                if child.name in {".extracted", "models.zip"}:
+                    continue
+                _safe_rmtree(child)
+        elif asset_id == "sing_pallas":
+            pallas = base / "resource/sing/models/pallas"
+            for child in list(pallas.iterdir()) if pallas.is_dir() else []:
+                if child.name in {".extracted", "pallas.zip"}:
+                    continue
+                _safe_rmtree(child)
+        elif asset_id == "sing_pretrain":
+            pretrain = base / "resource/sing/models/pretrain"
+            for child in list(pretrain.iterdir()) if pretrain.is_dir() else []:
+                if child.name in {".extracted", "pretrain.zip"}:
+                    continue
+                _safe_rmtree(child)
+        elif asset_id == "tts":
+            tts_root = base / "resource/tts"
+            for name in ("pretrained_models", "GPT_SoVITS", "ref_audio"):
+                _safe_rmtree(tts_root / name)
+            # 保留其它脚本/配置；标记与 zip 已删
+        deleted.append(asset_id)
+        logger.info("media assets deleted {}", asset_id)
+    return {"deleted": deleted, "status": collect_asset_status(base).as_dict()}
+
+
 def get_download_job(job_id: str) -> dict[str, Any] | None:
     with _jobs_lock:
         job = _jobs.get(job_id)
         return dict(job) if job else None
 
 
-def start_download_job(*, root: Path | None = None) -> dict[str, Any]:
+def start_download_job(*, root: Path | None = None, assets: list[str] | None = None) -> dict[str, Any]:
     status = collect_asset_status(root)
     if not status.download_allowed:
         raise PermissionError(
             "当前部署不允许通过 API 下载媒体权重（Docker 请换 pallas-bot-ai:latest 并由启动脚本拉取）"
         )
-    if status.all_media_assets_ready:
+    selected = normalize_asset_ids(assets) if assets is not None else [aid for aid, _, _ in ASSET_SPECS]
+    missing = [aid for aid in selected if not status.assets.get(aid, {}).get("ready")]
+    if not missing:
         job_id = uuid.uuid4().hex
         payload = {
             "job_id": job_id,
             "state": "done",
-            "message": "媒体权重已就绪，无需下载",
+            "message": "所选媒体权重已就绪，无需下载",
+            "assets": selected,
             "lines": [],
             "error": "",
             "created_at": time.time(),
@@ -281,6 +396,7 @@ def start_download_job(*, root: Path | None = None) -> dict[str, Any]:
         "job_id": job_id,
         "state": "running",
         "message": "正在下载媒体权重…",
+        "assets": missing,
         "lines": [],
         "error": "",
         "created_at": time.time(),
@@ -290,12 +406,16 @@ def start_download_job(*, root: Path | None = None) -> dict[str, Any]:
         _jobs[job_id] = payload
 
     base = repo_root(root)
+    # 全量且无显式过滤时优先脚本；分项下载走 Python
+    use_script = assets is None and set(missing) == {
+        aid for aid, info in status.assets.items() if not info.get("ready")
+    }
 
     def worker() -> None:
         lines: list[str] = []
         try:
             script = base / "scripts" / "download_media_assets.sh"
-            if script.is_file() and shutil.which("bash"):
+            if use_script and script.is_file() and shutil.which("bash"):
                 lines.append(f"run {script}")
                 completed = subprocess.run(
                     ["bash", str(script)],
@@ -311,7 +431,7 @@ def start_download_job(*, root: Path | None = None) -> dict[str, Any]:
                 if completed.returncode != 0:
                     raise RuntimeError(out or f"download script exit {completed.returncode}")
             else:
-                download_and_extract_missing(root=base, progress=lines)
+                download_and_extract_missing(root=base, progress=lines, asset_ids=missing)
             with _jobs_lock:
                 job = _jobs[job_id]
                 job["state"] = "done"

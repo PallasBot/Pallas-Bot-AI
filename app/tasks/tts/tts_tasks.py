@@ -2,6 +2,7 @@ import asyncio
 
 from app.core.celery import celery_app
 from app.core.config import settings
+from app.media_models import resolve_tts_request
 from app.services.callback import callback
 from app.services.translator import active_translator as translator
 from app.tasks.tts.GPT_SoVITS.interface import tts_handle
@@ -21,16 +22,7 @@ def tts_req(text: str, media_type: str = "wav"):
         else:
             print("翻译失败，使用原文")
 
-    req = {
-        "text": text,
-        "text_lang": "ja" if settings.translator_enable else "zh",
-        "ref_audio_path": "resource/tts/ref_audio/进驻设施.wav",
-        "prompt_text": "この角で家具を倒してしまわないよう、気をつけますね。",
-        "prompt_lang": "ja",
-        "media_type": media_type,
-        "streaming_mode": False,
-        "return_fragment": False,
-    }
+    req = resolve_tts_request(text=text, media_type=media_type)
 
     try:
         audio_data = tts_handle(req)
@@ -55,7 +47,13 @@ async def _tts_task_async(request_id: str, text: str, media_type: str = "wav"):
         unload_llm=True,
         owner={"kind": "tts", "request_id": request_id, "media_type": media_type},
     ):
-        audio_data = tts_handle({"text": text, "media_type": media_type})
+        req = resolve_tts_request(text=text, media_type=media_type)
+        if settings.translator_enable:
+            translated_text = translator.translate(text)
+            if translated_text:
+                req["text"] = translated_text
+                req["text_lang"] = "ja"
+        audio_data = tts_handle(req)
     if audio_data:
         await callback(request_id, audio=audio_data)
     else:

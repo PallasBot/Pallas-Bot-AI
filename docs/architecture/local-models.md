@@ -30,6 +30,8 @@
 | **唱歌 SVC** | demucs + **DDSP-SVC reflow** | `sing` group | **升级时须保持可用** |
 | **运行时** | Python **3.12** | 与主仓对齐 | 已升级 |
 
+**WebUI 管理（现行）**：Bot 控制台「能力包」可分项下载/删除 zip 资源包，并切换默认唱歌说话人与 TTS 参考音色（源码可写；Docker 默认只读权重，默认可写 `data/` 时可改默认项）。API 见 AI `/api/media/assets` 与 `/api/media/models`。
+
 ---
 
 ## 4.0 目标形态（2026 版）

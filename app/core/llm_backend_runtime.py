@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import signal
 import subprocess
 import time
@@ -164,16 +165,35 @@ def ping_local_backend_sync(timeout_sec: float = 2.0) -> bool:
 def wait_local_backend_ready_sync(timeout: float) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if ping_local_backend_sync(timeout=2.0):
+        if ping_local_backend_sync(timeout_sec=2.0):
             return True
         time.sleep(1.0)
     return False
 
 
-def spawn_local_backend_process() -> None:
+def resolve_local_backend_binary() -> str | None:
+    """Return executable path for LLM_BACKEND_BINARY, or None if missing."""
+    binary = (settings.llm_backend_binary or "").strip()
+    if not binary:
+        return None
+    if Path(binary).is_file() and os.access(binary, os.X_OK):
+        return binary
+    return shutil.which(binary)
+
+
+def spawn_local_backend_process() -> bool:
+    """尝试拉起本地后端。成功启动子进程返回 True；已在跑或无法启动返回 False。"""
     global _backend_proc, _we_started_backend
     if _backend_proc is not None and _backend_proc.poll() is None:
-        return
+        return True
+
+    binary = resolve_local_backend_binary()
+    if binary is None:
+        logger.error(
+            "LLM_AUTO_START 需要可执行文件 {!r}，但未找到；Docker 部署请设 LLM_AUTO_START=false，或安装宿主机 ollama",
+            settings.llm_backend_binary,
+        )
+        return False
 
     parsed = urlparse(settings.llm_backend_url)
     host = parsed.hostname or "127.0.0.1"
@@ -182,18 +202,24 @@ def spawn_local_backend_process() -> None:
     if host not in ("127.0.0.1", "localhost", "0.0.0.0"):
         env["OLLAMA_HOST"] = f"http://{host}:{port}"
 
-    cmd = [settings.llm_backend_binary, "serve"]
+    cmd = [binary, "serve"]
     logger.info("starting local llm backend subprocess: {}", " ".join(cmd))
-    _backend_proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        env=env,
-        start_new_session=True,
-    )
+    try:
+        _backend_proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        logger.error("failed to start local llm backend {!r}: {}", binary, exc)
+        _backend_proc = None
+        return False
     _we_started_backend = True
     _PID_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PID_FILE.write_text(str(_backend_proc.pid), encoding="utf-8")
+    return True
 
 
 def stop_local_backend_if_started() -> None:
@@ -240,7 +266,8 @@ def ensure_local_backend_ready_sync() -> None:
         )
         return
 
-    spawn_local_backend_process()
+    if not spawn_local_backend_process():
+        return
     if not wait_local_backend_ready_sync(settings.llm_startup_timeout):
         logger.error(
             "local llm backend subprocess did not become ready within {}s",

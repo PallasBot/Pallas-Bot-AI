@@ -6,14 +6,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.core import llm_backend_runtime as runtime
 from app.core.llm_backend_runtime import (
+    ensure_local_backend_ready_sync,
     get_llm_model,
     get_llm_num_gpu,
     is_llm_gpu_config_dirty,
     reload_llm_runtime_from_env,
     set_llm_num_gpu,
+    spawn_local_backend_process,
     switch_llm_model,
     switch_llm_num_gpu,
+    wait_local_backend_ready_sync,
 )
 
 
@@ -94,3 +98,42 @@ def test_switch_llm_num_gpu_unloads_and_marks_dirty(monkeypatch: pytest.MonkeyPa
     data = json.loads(runtime_file.read_text(encoding="utf-8"))
     assert data["num_gpu"] == 24
     assert data.get("gpu_config_dirty") is True
+
+
+def test_wait_local_backend_ready_uses_timeout_sec(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict] = []
+
+    def fake_ping(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(runtime, "ping_local_backend_sync", fake_ping)
+    monkeypatch.setattr(runtime.time, "sleep", lambda _s: None)
+
+    assert wait_local_backend_ready_sync(1.0) is True
+    assert calls == [{"timeout_sec": 2.0}]
+
+
+def test_spawn_local_backend_missing_binary_does_not_raise(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runtime, "_backend_proc", None)
+    monkeypatch.setattr(runtime.settings, "llm_backend_binary", "ollama-not-installed-xyz")
+    monkeypatch.setattr(runtime, "resolve_local_backend_binary", lambda: None)
+
+    assert spawn_local_backend_process() is False
+
+
+def test_ensure_local_backend_skips_wait_when_spawn_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runtime.settings, "llm_chat_enabled", True)
+    monkeypatch.setattr(runtime.settings, "llm_auto_start", True)
+    monkeypatch.setattr(runtime, "ping_local_backend_sync", lambda **_: False)
+    monkeypatch.setattr(runtime, "spawn_local_backend_process", lambda: False)
+
+    waited = {"called": False}
+
+    def boom(_timeout: float) -> bool:
+        waited["called"] = True
+        return False
+
+    monkeypatch.setattr(runtime, "wait_local_backend_ready_sync", boom)
+    ensure_local_backend_ready_sync()
+    assert waited["called"] is False

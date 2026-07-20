@@ -66,7 +66,6 @@ def create_app(*, enabled_endpoints: Iterable[str] | None = None) -> FastAPI:
     app.state.enabled_endpoints = selected
     app.include_router(build_api_router(selected), prefix="/api")
 
-    @app.get("/health")
     def health_check():
         payload = {"status": "ok", "api_version": API_VERSION}
         if {"chat", "llm_chat", "llm_manage", "llm_stats"}.intersection(selected):
@@ -84,5 +83,9 @@ def create_app(*, enabled_endpoints: Iterable[str] | None = None) -> FastAPI:
 
             payload["tts"] = tts_runtime_snapshot()
         return payload
+
+    # 规范路径为 /health；/api/health 兼容旧 WebUI health_paths 默认值
+    app.add_api_route("/health", health_check, methods=["GET"])
+    app.add_api_route("/api/health", health_check, methods=["GET"])
 
     return app

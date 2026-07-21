@@ -1,0 +1,25 @@
+# 示例：独立部署的 Bot 容器挂入 AI 的 pallas-ai 网络，用服务名互通。
+#
+# 前置：已用本仓 docker-compose.llm.yml 拉起 pallasbot-ai（网络名 pallas-ai）。
+#
+# 用法（在 Bot 部署目录，按实际 compose 文件名调整）:
+#   docker compose -f docker-compose.yml -f /path/to/Pallas-Bot-AI/deploy/docker-compose.bot-join-ai.example.yml up -d
+#
+# 或把下方 networks / environment 片段手工合并进 Bot 的 compose。
+#
+# 注意：
+# - 不要用 AI_SERVER_HOST=host.docker.internal / 127.0.0.1（Bot 容器内会超时或指到自身）
+# - AI 侧请设 CALLBACK_HOST=<Bot 容器名>、CALLBACK_PORT=<Bot 监听端口>，并重启 pallasbot-ai
+
+services:
+  pallasbot:
+    environment:
+      AI_SERVER_HOST: pallasbot-ai
+      AI_SERVER_PORT: "9099"
+    networks:
+      - pallas-ai
+
+networks:
+  pallas-ai:
+    external: true
+    name: pallas-ai

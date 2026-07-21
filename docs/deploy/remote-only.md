@@ -64,7 +64,9 @@ docker compose -f docker-compose.llm.yml up -d redis pallasbot-ai
 
 **不要**启动 `ollama` / `ollama-init` 服务。`docker-compose.llm.yml` 已支持 `pallasbot-ai` 在无 Ollama 时单独运行（`depends_on.ollama.required: false`）。
 
-同机 Bot 未进 compose 时，默认 `CALLBACK_HOST=host.docker.internal`；Bot 在其它机器上时改为 Bot 可达 IP。
+**Bot 与 AI 都在 Docker、却分属不同 compose 时**：不要让 Bot 用 `host.docker.internal` / `127.0.0.1` 访问 `:9099`（Linux 上常超时）。应让 Bot 挂入本栈固定网络 `pallas-ai`，设 `AI_SERVER_HOST=pallasbot-ai`；本侧 `CALLBACK_HOST` 改为 Bot 容器名。见 [`deploy/docker-compose.bot-join-ai.example.yml`](../../deploy/docker-compose.bot-join-ai.example.yml)。
+
+仅当 Bot 跑在**宿主机**（非容器）时，可用 `CALLBACK_HOST=host.docker.internal`（默认）或 `127.0.0.1`；Bot 在其它机器上时改为 Bot 可达 IP。
 
 启动后在 `.env` 或 compose 环境变量中至少设置：
 
@@ -162,13 +164,19 @@ WebUI **通用配置 → 模型与 Provider** 可编辑上述配置（Bot 代理
 
 ## Bot 侧配置
 
-`config/pallas.toml` 的 `[env]` 或 WebUI **智能对话与 AI 服务**：
+`config/pallas.toml` 的 `[env]` 或 WebUI **智能对话与 AI 服务** / **AI 配置 → 媒体服务**：
 
 | 键 | 说明 |
 | --- | --- |
 | `LLM_CHAT_ENABLED` | `true` |
-| `AI_SERVER_HOST` | AI 服务地址（本机 `127.0.0.1`） |
+| `AI_SERVER_HOST` | 见下表，**按 Bot 运行位置选** |
 | `AI_SERVER_PORT` | 默认 `9099` |
+
+| Bot 运行位置 | `AI_SERVER_HOST` |
+| --- | --- |
+| 宿主机进程 | `127.0.0.1`（经端口映射访问 AI） |
+| 与 AI 同 compose / 已挂入 `pallas-ai` | `pallasbot-ai`（服务名） |
+| 其它 Docker 网、未挂入 | **不要**用 `host.docker.internal`；先挂入 `pallas-ai` 或填宿主机可达 IP |
 
 Bot **不**配置 `LLM_REMOTE_*` / `OPENAI_API_KEY`；密钥仅落在 AI 仓。
 
@@ -251,10 +259,21 @@ curl -s -X POST http://127.0.0.1:9099/api/llm/providers/deepseek/test
 
 `remote_only` 下必须同时配置 `LLM_REMOTE_BASE_URL`、`LLM_REMOTE_API_KEY`、`LLM_REMOTE_MODEL`（或通过 `providers.toml` + 对应 `api_key_env`）。
 
+### Bot 容器访问 `host.docker.internal:9099` 超时
+
+常见于 Bot 与 AI 分属不同 Docker 网络：容器内 `host.docker.internal` 常解析到网关，但访问宿主机映射口会超时；反向（AI → Bot `:8088`）有时仍通。
+
+处理：
+
+1. 确认 `docker network ls` 有 `pallas-ai`（`docker-compose.llm.yml` 固定名）
+2. Bot 挂入该网并设 `AI_SERVER_HOST=pallasbot-ai`（见 [`deploy/docker-compose.bot-join-ai.example.yml`](../../deploy/docker-compose.bot-join-ai.example.yml)）
+3. AI 侧 `CALLBACK_HOST` 改为 Bot 容器名后重启
+4. 在 Bot 容器内验收：`curl -s --max-time 3 http://pallasbot-ai:9099/health`
+
 ### @ 牛无回复，但 health 正常
 
 1. Bot 侧 `LLM_CHAT_ENABLED` 是否为 `true`
-2. `CALLBACK_HOST` / `CALLBACK_PORT` 是否指向** Bot 可达**的地址（Docker 内常用 `host.docker.internal`）
+2. `CALLBACK_HOST` / `CALLBACK_PORT` 是否指向 **Bot 可达** 地址（同网用容器名；Bot 在宿主机时才用 `host.docker.internal` / `127.0.0.1`）
 3. 查看 AI 仓日志：`logs/` 或 `docker compose logs pallasbot-ai`
 4. Bot 是否收到 callback：查 Bot 日志中 `llm` / `callback` 相关条目
 

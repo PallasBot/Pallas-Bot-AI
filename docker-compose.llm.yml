@@ -14,8 +14,14 @@
 #   docker compose -f docker-compose.llm.yml up -d redis pallasbot-ai
 #   # 并在环境变量设 LLM_PROVIDER_MODE=remote_only、LLM_REMOTE_*
 #
-# Bot 同机：CALLBACK_HOST=host.docker.internal（默认）
-# Bot 同 compose 网络：CALLBACK_HOST=pallasbot（见 Bot 仓 docker-compose.full.yml）
+# 与 Bot 容器互通（推荐，避免 host.docker.internal 回环超时）：
+#   1) 本文件网络固定名为 pallas-ai（见底部 networks）
+#   2) Bot compose 挂入该 external 网络，AI_SERVER_HOST=pallasbot-ai
+#   3) 本侧 CALLBACK_HOST 改为 Bot 容器名（如 pallasbot），勿再用 host.docker.internal
+# 示例片段：deploy/docker-compose.bot-join-ai.example.yml
+#
+# Bot 跑在宿主机（非容器）时：CALLBACK_HOST 可用 host.docker.internal / 127.0.0.1；
+# Bot 侧 AI_SERVER_HOST 用 127.0.0.1 即可（经宿主机端口映射访问 9099）。
 
 name: pallas-ai-llm
 
@@ -83,6 +89,7 @@ services:
       TZ: Asia/Shanghai
       REDIS_URL: redis://redis:6379/0
       LLM_SESSION_BACKEND: redis
+      # Bot 在宿主机：可保留 host.docker.internal；Bot 已挂入 pallas-ai 时改为容器名（如 pallasbot）
       CALLBACK_HOST: ${CALLBACK_HOST:-host.docker.internal}
       CALLBACK_PORT: ${CALLBACK_PORT:-8088}
       LLM_CHAT_ENABLED: "true"
@@ -115,6 +122,10 @@ services:
 
 networks:
   pallas-ai:
+    # 固定名称，便于 Bot / 其它 compose 以 external 挂入
+    name: pallas-ai
+    driver: bridge
+    attachable: true
 
 volumes:
   redis_data:

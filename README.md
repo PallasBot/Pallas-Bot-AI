@@ -54,7 +54,9 @@ curl -s http://127.0.0.1:9099/health | python3 -m json.tool
 
 Ollama 长跑后 GPU 失效（推理变慢）：内置 guard（`LLM_OLLAMA_GPU_GUARD` + `OLLAMA_CONTAINER`）或 [`docs/operate/ollama-gpu-watchdog.md`](docs/operate/ollama-gpu-watchdog.md)
 
-同机 Bot 未进 compose 时，默认 `CALLBACK_HOST=host.docker.internal`。
+Bot 也在 Docker、且与本栈**不同网络**时：让 Bot 挂入固定网络 `pallas-ai`，`AI_SERVER_HOST=pallasbot-ai`，本侧 `CALLBACK_HOST` 用 Bot 容器名。勿让 Bot 用 `host.docker.internal` 访问 `:9099`（Linux 上常超时）。示例：[deploy/docker-compose.bot-join-ai.example.yml](deploy/docker-compose.bot-join-ai.example.yml)。
+
+Bot 跑在宿主机时，默认 `CALLBACK_HOST=host.docker.internal` 即可。
 
 ### 1. 复制配置（手动步骤）
 

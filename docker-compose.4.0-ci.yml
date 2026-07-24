@@ -1,10 +1,8 @@
-# 4.0 联调最小栈：Redis + AI 服务（无 Ollama/GPU）
+# 4.0 联调最小栈：Redis + AI 服务
 # 用法：
-#   LLM_PROVIDER_MODE=remote_only 且配置 LLM_REMOTE_* 后：
 #   docker compose -f docker-compose.4.0-ci.yml up -d
-#   uv run uvicorn app.main:app --host 0.0.0.0 --port 9099
-#   uv run celery -A app.core.celery worker --loglevel=info
-# Bot 侧：tools/integration_llm_chat.py --ai-port 9099
+#   ./scripts/ctl.sh start media
+#   ./scripts/ctl.sh start api
 
 services:
   redis:

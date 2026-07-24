@@ -1,20 +1,8 @@
 from __future__ import annotations
 
-from app.core.config import Settings
 from app.media_task_runtime import media_task_runtime_status
 from app.media_task_store import MediaTaskRecord, clear_media_task_store, store_task_record
-from app.providers.router import llm_health_snapshot
-from app.runtime_health import aggregate_llm_runtime_health, aggregate_media_task_runtime_health
-
-
-def test_aggregate_llm_runtime_health_degraded_on_config_error() -> None:
-    summary = aggregate_llm_runtime_health(
-        chat_enabled=True,
-        configuration_ok=False,
-        provider_status=[],
-    )
-    assert summary["health_state"] == "degraded"
-    assert summary["circuit_state"] == "open"
+from app.runtime_health import aggregate_media_task_runtime_health
 
 
 def test_aggregate_media_task_runtime_health_busy_queue() -> None:
@@ -25,22 +13,6 @@ def test_aggregate_media_task_runtime_health_busy_queue() -> None:
     )
     assert summary["health_state"] == "degraded"
     assert summary["degraded_state"] == "busy"
-
-
-def test_llm_health_snapshot_exposes_runtime_memory_summary_config() -> None:
-    summary = llm_health_snapshot(
-        Settings(
-            llm_chat_enabled=True,
-            llm_session_backend="memory",
-            llm_session_summary_enabled=True,
-            llm_session_summary_threshold=16,
-            llm_session_summary_keep_messages=4,
-        )
-    )
-    assert summary["session_backend"] == "memory"
-    assert summary["session_summary"]["enabled"] is True
-    assert summary["session_summary"]["threshold"] == 16
-    assert summary["session_summary"]["keep_messages"] == 4
 
 
 def test_media_task_runtime_status_exposes_state_counts() -> None:

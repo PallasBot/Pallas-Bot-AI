@@ -35,33 +35,11 @@ jobs:
 
     - name: Run Ruff (linter)
       run: |
-        uv run ruff check \
-          app/session \
-          app/providers \
-          app/services/llm_chat.py \
-          app/services/llm_queue.py \
-          app/tasks/llm \
-          app/api/endpoints/llm_chat.py \
-          app/api/endpoints/llm_manage.py \
-          app/core/llm_backend_runtime.py \
-          app/core/celery.py \
-          app/main.py \
-          tests/
+        uv run ruff check app tests
 
     - name: Run Ruff (formatter check)
       run: |
-        uv run ruff format --check \
-          app/session \
-          app/providers \
-          app/services/llm_chat.py \
-          app/services/llm_queue.py \
-          app/tasks/llm \
-          app/api/endpoints/llm_chat.py \
-          app/api/endpoints/llm_manage.py \
-          app/core/llm_backend_runtime.py \
-          app/core/celery.py \
-          app/main.py \
-          tests/
+        uv run ruff format --check app tests
 
     - name: Run pytest
       run: |
@@ -121,7 +99,6 @@ jobs:
 
     - name: Test docker-compose configuration
       run: |
-        # 用 Docker Compose V2 插件(ubuntu-latest 镜像不再预装 V1 docker-compose 二进制)
         docker compose config
 
     - name: Build Summary
@@ -153,7 +130,6 @@ jobs:
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      # PR 大 diff 会被标成大量「new alerts」并红掉检查；仅在推默认分支时上传
       if: always() && github.event_name != 'pull_request'
       with:
         sarif_file: 'trivy-results.sarif'
@@ -167,7 +143,6 @@ jobs:
         echo "- ✅ Trivy 漏洞扫描执行完成" >> $GITHUB_STEP_SUMMARY
         if [ -f trivy-results.sarif ]; then
           echo "- 📊 扫描结果已生成" >> $GITHUB_STEP_SUMMARY
-          # 统计发现的问题数量（如果有的话）
           if command -v jq &> /dev/null; then
             ISSUES=$(cat trivy-results.sarif | jq '.runs[0].results | length' 2>/dev/null || echo "未知")
             echo "- 🔍 发现问题数量: $ISSUES" >> $GITHUB_STEP_SUMMARY

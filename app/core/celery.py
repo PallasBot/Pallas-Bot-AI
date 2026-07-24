@@ -3,28 +3,22 @@ from celery.signals import setup_logging, worker_ready
 from kombu import Queue
 
 from app.core.config import settings
-from app.core.llm_backend_runtime import get_llm_model, prepare_local_backend_for_worker_sync
 from app.core.logger import configure_stdlib_logging, logger
-from app.core.ollama_gpu_guard import ensure_ollama_gpu_ready_sync, start_ollama_gpu_guard_background
+from app.core.redis_client import ping_redis_sync
 from app.core.startup_report import emit_startup_summary, register_startup_fact, register_startup_warning
-from app.services.llm_task_metrics import start_background_flush
-from app.session import normalize_session_backend
-from app.session.redis_store import ping_redis_sync
 from app.utils.gpu_locker import sweep_gpu_lock_state_on_worker_startup
 
 celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_url)
 
 _TASK_PACKAGE_ALIASES = {
-    "llm": "app.tasks.llm",
     "chat": "app.tasks.chat",
     "sing": "app.tasks.sing",
     "tts": "app.tasks.tts",
 }
 
+_DEFAULT_TASK_PACKAGES = ["app.tasks.sing", "app.tasks.tts", "app.tasks.chat"]
+
 _TASK_QUEUE_ROUTES = {
-    "llm_chat": "default",
-    "llm_del_session": "default",
-    "unload_local_backend_model": "default",
     "chat": "media",
     "sing": "media",
     "play": "media",
@@ -34,9 +28,9 @@ _TASK_QUEUE_ROUTES = {
 
 
 def resolve_celery_task_packages(raw: str | None = None) -> list[str]:
-    text = str(raw if raw is not None else settings.celery_task_packages or "llm").strip().lower()
-    if not text or text in ("all", "*"):
-        return list(_TASK_PACKAGE_ALIASES.values())
+    text = str(raw if raw is not None else settings.celery_task_packages or "sing,tts,chat").strip().lower()
+    if not text or text in ("all", "*", "media"):
+        return list(_DEFAULT_TASK_PACKAGES)
     packages: list[str] = []
     for part in text.replace(";", ",").split(","):
         name = part.strip().lower()
@@ -45,7 +39,7 @@ def resolve_celery_task_packages(raw: str | None = None) -> list[str]:
         resolved = _TASK_PACKAGE_ALIASES.get(name, name if name.startswith("app.tasks.") else "")
         if resolved and resolved not in packages:
             packages.append(resolved)
-    return packages or [_TASK_PACKAGE_ALIASES["llm"]]
+    return packages or list(_DEFAULT_TASK_PACKAGES)
 
 
 def celery_task_package_enabled(alias: str) -> bool:
@@ -64,7 +58,7 @@ def require_celery_task_package(alias: str) -> None:
     )
 
 
-def resolve_celery_queue_for_task(task_name: str, default: str = "default") -> str:
+def resolve_celery_queue_for_task(task_name: str, default: str = "media") -> str:
     name = str(task_name or "").strip()
     return _TASK_QUEUE_ROUTES.get(name, default)
 
@@ -80,20 +74,12 @@ def on_celery_setup_logging(**kwargs):
 @worker_ready.connect
 def on_celery_worker_ready(**kwargs):
     sweep_gpu_lock_state_on_worker_startup()
-    session_backend = normalize_session_backend(settings.llm_session_backend)
     register_startup_fact("concurrency", str(settings.celery_worker_concurrency))
-    register_startup_fact("session", session_backend)
-    if session_backend == "redis" and not ping_redis_sync():
+    if not ping_redis_sync():
         register_startup_warning("redis", "unreachable")
-        logger.error("Redis 不可达：{}（任务队列与 LLM 会话依赖此项）", settings.redis_url)
-    if settings.llm_chat_enabled:
-        prepare_local_backend_for_worker_sync()
-        ensure_ollama_gpu_ready_sync()
-        start_ollama_gpu_guard_background()
-        register_startup_fact("llm_model", get_llm_model())
+        logger.error("Redis 不可达：{}（任务队列与媒体任务状态依赖此项）", settings.redis_url)
     register_startup_fact("packages", ",".join(resolve_celery_task_packages()))
     emit_startup_summary(api_version="4.0.0", role="celery")
-    start_background_flush()
 
 
 celery_app.conf.update(
@@ -111,7 +97,6 @@ celery_app.conf.update(
     worker_pool="threads",
     worker_concurrency=settings.celery_worker_concurrency,
     worker_prefetch_multiplier=1,
-    # soft 超时抛 SoftTimeLimitExceeded；threads 池下 hard 无法打断 GPU 阻塞，靠 gpu_locker 兜底
     task_soft_time_limit=settings.celery_task_soft_time_limit,
     task_time_limit=settings.celery_task_time_limit,
     worker_soft_shutdown_timeout=settings.celery_worker_soft_shutdown_timeout,
@@ -123,5 +108,5 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     worker_disable_rate_limits=True,
     worker_hijack_root_logger=False,
-    task_default_queue="default",
+    task_default_queue="media",
 )

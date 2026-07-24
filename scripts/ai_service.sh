@@ -9,11 +9,8 @@ RUN_API_CMD="${AI_SERVICE_RUN_API_CMD:-$ROOT/scripts/run_api.sh}"
 API_PID_FILE="${AI_SERVICE_API_PID_FILE:-$ROOT/logs/api.pid}"
 API_LOG_FILE="${AI_SERVICE_API_LOG_FILE:-$ROOT/logs/api.log}"
 API_STOP_WAIT_SEC="${AI_SERVICE_API_STOP_WAIT_SEC:-20}"
-DEFAULT_WORKER_PID_FILE="${AI_SERVICE_DEFAULT_WORKER_PID_FILE:-$ROOT/logs/celery.pid}"
-DEFAULT_WORKER_LOG_FILE="${AI_SERVICE_DEFAULT_WORKER_LOG_FILE:-$ROOT/logs/celery.log}"
 MEDIA_WORKER_PID_FILE="${AI_SERVICE_MEDIA_WORKER_PID_FILE:-$ROOT/logs/celery-media.pid}"
 MEDIA_WORKER_LOG_FILE="${AI_SERVICE_MEDIA_WORKER_LOG_FILE:-$ROOT/logs/celery-media.log}"
-DEFAULT_WORKER_PACKAGES="${AI_SERVICE_DEFAULT_WORKER_PACKAGES:-llm}"
 MEDIA_WORKER_PACKAGES="${AI_SERVICE_MEDIA_WORKER_PACKAGES:-sing,tts,chat}"
 
 run_worker() {
@@ -101,32 +98,18 @@ stop_api() {
 }
 
 start_service() {
-  local with_media="${AI_SERVICE_WITH_MEDIA:-0}"
-  if [[ "${1:-}" == "all" || "${1:-}" == "--with-media" ]]; then
-    with_media=1
-  fi
-  run_worker start "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
-  if [[ "$with_media" == "1" ]]; then
-    run_worker start "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
-  else
-    echo "跳过 media worker（LLM-only）。需要唱歌/TTS 时： $0 start --with-media"
-  fi
+  run_worker start "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
   start_api
   echo "AI service 已启动"
   echo "API PID file: $API_PID_FILE"
   echo "API log file: $API_LOG_FILE"
-  echo "default worker PID file: $DEFAULT_WORKER_PID_FILE"
-  echo "default worker log file: $DEFAULT_WORKER_LOG_FILE"
-  if [[ "$with_media" == "1" ]]; then
-    echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
-    echo "media worker log file: $MEDIA_WORKER_LOG_FILE"
-  fi
+  echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
+  echo "media worker log file: $MEDIA_WORKER_LOG_FILE"
 }
 
 stop_service() {
   stop_api
   run_worker stop "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
-  run_worker stop "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
   echo "AI service 已停止"
 }
 
@@ -138,42 +121,30 @@ status_service() {
     echo "API 未运行"
   fi
   echo "API PID file: $API_PID_FILE"
-  run_worker status "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
-  echo "default worker PID file: $DEFAULT_WORKER_PID_FILE"
   run_worker status "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
   echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
 }
 
 purge_stale_service() {
-  run_worker purge-stale "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
   run_worker purge-stale "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
 }
 
 restart_clean_service() {
-  local with_media="${AI_SERVICE_WITH_MEDIA:-0}"
-  if [[ "${1:-}" == "all" || "${1:-}" == "--with-media" ]]; then
-    with_media=1
-  fi
   stop_api
-  run_worker restart-clean "default" "$DEFAULT_WORKER_PID_FILE" "$DEFAULT_WORKER_LOG_FILE" "$DEFAULT_WORKER_PACKAGES"
-  if [[ "$with_media" == "1" ]]; then
-    run_worker restart-clean "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
-  fi
+  run_worker restart-clean "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
   start_api
   echo "AI service 已启动"
 }
 
 case "${1:-}" in
-  start) start_service "${2:-}" ;;
+  start) start_service ;;
   stop) stop_service ;;
-  restart) stop_service; start_service "${2:-}" ;;
+  restart) stop_service; start_service ;;
   purge-stale) purge_stale_service ;;
-  restart-clean) restart_clean_service "${2:-}" ;;
+  restart-clean) restart_clean_service ;;
   status) status_service ;;
   *)
-    echo "用法: $0 {start|stop|restart|restart-clean|purge-stale|status} [all|--with-media]"
-    echo "  start              — LLM worker + API（默认，不开 media）"
-    echo "  start --with-media — 额外启动唱歌/TTS media worker"
+    echo "用法: $0 {start|stop|restart|restart-clean|purge-stale|status}"
     exit 1
     ;;
 esac

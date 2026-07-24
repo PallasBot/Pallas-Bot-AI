@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# Pallas-Bot-AI 本地/半自动安装：依赖、.env、Redis、Ollama 模型、启停与健康检查。
-#
+# Pallas-Bot-AI 本地/半自动安装：媒体依赖、.env、Redis、启停与健康检查。
+
+# 聊天 / 画画默认由 Bot 内核或插件直连，本仓 bootstrap 面向唱歌 / TTS 等媒体服务。
+
 # 用法:
-#   ./scripts/ai_bootstrap.sh                 # LLM 栈：uv sync + Redis + Ollama + 启动 llm/api
+#   ./scripts/ai_bootstrap.sh                 # 装媒体依赖 + Redis + 启动 media/api
 #   ./scripts/ai_bootstrap.sh --check-only    # 仅体检，不改环境
 #   ./scripts/ai_bootstrap.sh --no-start      # 装依赖与配置，不启动服务
-#   ./scripts/ai_bootstrap.sh --with-media    # 额外安装 sing/tts/chat 并启动 media worker
-#   ./scripts/ai_bootstrap.sh --remote-only   # 跳过 Ollama，适合 LLM_PROVIDER_MODE=remote_only
 #   ./scripts/ai_bootstrap.sh --bot-host HOST --bot-port PORT
-#
+#   PALLAS_GPU=1 ./scripts/ai_bootstrap.sh    # uv sync 使用 --extra gpu
+
+# 兼容（已忽略，可去掉）:
+#   --with-media   历史 LLM-only 时代的媒体开关；现默认即媒体栈
+#   --remote-only  历史跳过 Ollama；聊天已不经本仓
+
 # 环境变量（非交互）:
 #   PALLAS_BOT_HOST / PALLAS_BOT_PORT — callback 目标（默认 localhost:8088）
 #   PALLAS_SKIP_REDIS=1               — 不尝试拉起 Redis 容器
-#   PALLAS_GPU=1                      — 仅配合 --with-media：uv sync 使用 --extra gpu（否则忽略）
+#   PALLAS_GPU=1                      — uv sync 使用 --extra gpu（否则 --extra cpu）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,14 +25,12 @@ cd "$ROOT"
 
 CHECK_ONLY=0
 NO_START=0
-WITH_MEDIA=0
-REMOTE_ONLY=0
 BOT_HOST="${PALLAS_BOT_HOST:-localhost}"
 BOT_PORT="${PALLAS_BOT_PORT:-8088}"
 USE_GPU="${PALLAS_GPU:-0}"
 
 usage() {
-  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -35,8 +38,12 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --check-only) CHECK_ONLY=1 ;;
     --no-start) NO_START=1 ;;
-    --with-media) WITH_MEDIA=1 ;;
-    --remote-only) REMOTE_ONLY=1 ;;
+    --with-media)
+      # 兼容旧调用：默认已是媒体栈
+      ;;
+    --remote-only)
+      printf '[bootstrap] 警告: --remote-only 已忽略（聊天/画画不经本仓 Ollama）\n' >&2
+      ;;
     --bot-host) BOT_HOST="${2:?}"; shift ;;
     --bot-port) BOT_PORT="${2:?}"; shift ;;
     -h|--help) usage 0 ;;
@@ -120,7 +127,6 @@ configure_callback() {
   else
     log "保留 CALLBACK_PORT=$cur_port"
   fi
-  set_env_key LLM_CHAT_ENABLED "true"
 }
 
 redis_ping() {
@@ -171,79 +177,18 @@ ensure_redis() {
 }
 
 sync_deps() {
-  # LLM-only：不装 torch。唱歌/TTS/RWKV 才需要 --extra cpu|gpu。
-  log "安装 Python 依赖（uv sync --group dev，LLM-only）..."
-  uv sync --group dev
-  if [[ "$WITH_MEDIA" == "1" ]]; then
-    if [[ "$USE_GPU" == "1" ]]; then
-      log "安装媒体任务依赖（sing/tts/chat + torch GPU）..."
-      uv sync --all-groups --extra gpu
-    else
-      log "安装媒体任务依赖（sing/tts/chat + torch CPU）..."
-      uv sync --all-groups --extra cpu
-    fi
-    set_env_key CELERY_TASK_PACKAGES "all"
-    if [[ -d "$ROOT/.git" ]]; then
-      log "更新 git 子模块（媒体模型路径）..."
-      git submodule update --init --recursive || warn "子模块更新失败，媒体功能可能不可用"
-    fi
-  elif [[ "$USE_GPU" == "1" ]]; then
-    warn "已设 PALLAS_GPU=1 但未加 --with-media：跳过 torch。本地 LLM 用 Ollama 自带 GPU，无需本仓 torch。"
-  fi
-}
-
-ollama_http_ok() {
-  local base="${1:-http://127.0.0.1:11434}"
-  curl -fsS --max-time 3 "${base%/}/api/tags" >/dev/null 2>&1
-}
-
-ensure_ollama_models() {
-  if [[ "$REMOTE_ONLY" == "1" ]]; then
-    set_env_key LLM_PROVIDER_MODE "remote_only"
-    set_env_key LLM_AUTO_START "false"
-    log "remote_only：跳过 Ollama 检测"
-    return 0
-  fi
-
-  local backend model categorizer auto_start
-  backend="$(read_env_key LLM_BACKEND_URL "http://127.0.0.1:11434")"
-  model="$(read_env_key LLM_MODEL "qwen2.5:7b")"
-  categorizer="$(read_env_key LLM_CATEGORIZER_MODEL "qwen2.5:0.5b")"
-  auto_start="$(read_env_key LLM_AUTO_START "true")"
-
-  if ollama_http_ok "$backend"; then
-    log "Ollama 已可达: $backend"
-  elif [[ "$auto_start" == "true" ]] && command -v ollama >/dev/null 2>&1; then
-    log "后台拉起 ollama serve..."
-    nohup ollama serve >>"$ROOT/logs/ollama-bootstrap.log" 2>&1 &
-    local i
-    for ((i = 0; i < 60; i++)); do
-      if ollama_http_ok "$backend"; then
-        log "Ollama 已就绪"
-        break
-      fi
-      sleep 1
-    done
+  # 媒体栈：sing/tts 等需要 torch（cpu|gpu）。聊天 / 画画不依赖本仓 LLM worker。
+  if [[ "$USE_GPU" == "1" ]]; then
+    log "安装媒体任务依赖（sing/tts + torch GPU）..."
+    uv sync --all-groups --extra gpu
   else
-    warn "Ollama 不可达 ($backend)。可设 LLM_AUTO_START=true 并安装 ollama，或用 --remote-only / Docker: docker compose -f docker-compose.llm.yml up -d"
-    return 1
+    log "安装媒体任务依赖（sing/tts + torch CPU）..."
+    uv sync --all-groups --extra cpu
   fi
-
-  if command -v ollama >/dev/null 2>&1; then
-    log "拉取主模型 $model ..."
-    ollama pull "$model" || warn "拉取 $model 失败"
-    if [[ -n "$categorizer" && "$categorizer" != "$model" ]]; then
-      log "拉取分类模型 $categorizer ..."
-      ollama pull "$categorizer" || warn "拉取 $categorizer 失败"
-    fi
-  else
-    local host="${backend#*://}"
-    host="${host%%/*}"
-    log "通过 HTTP 拉取模型（无 ollama CLI）..."
-    curl -fsS -X POST "${backend%/}/api/pull" -d "{\"name\":\"${model}\"}" >/dev/null || warn "HTTP pull $model 失败"
-    if [[ -n "$categorizer" && "$categorizer" != "$model" ]]; then
-      curl -fsS -X POST "${backend%/}/api/pull" -d "{\"name\":\"${categorizer}\"}" >/dev/null || warn "HTTP pull $categorizer 失败"
-    fi
+  set_env_key CELERY_TASK_PACKAGES "all"
+  if [[ -d "$ROOT/.git" ]]; then
+    log "更新 git 子模块（媒体模型路径）..."
+    git submodule update --init --recursive || warn "子模块更新失败，媒体功能可能不可用"
   fi
 }
 
@@ -253,13 +198,9 @@ start_services() {
     return 0
   fi
   mkdir -p "$ROOT/logs"
-  log "启动 AI 服务（ctl.sh）..."
-  if [[ "$WITH_MEDIA" == "1" ]]; then
-    "$ROOT/scripts/ctl.sh" start all
-  else
-    "$ROOT/scripts/ctl.sh" start llm
-    "$ROOT/scripts/ctl.sh" start api
-  fi
+  log "启动媒体服务（media worker + API）..."
+  "$ROOT/scripts/ctl.sh" start media
+  "$ROOT/scripts/ctl.sh" start api
 }
 
 health_check() {
@@ -268,7 +209,7 @@ health_check() {
   api_base="http://127.0.0.1:${port}"
   log "健康检查 $api_base/health ..."
   if ! curl -fsS --max-time 10 "${api_base}/health" | python3 -m json.tool; then
-    warn "健康检查失败；查看 logs/uvicorn.log 与 logs/celery.log"
+    warn "健康检查失败；查看 logs/uvicorn.log 与 logs/celery-media.log"
     return 1
   fi
   return 0
@@ -280,17 +221,16 @@ print_next_steps() {
   cat <<EOF
 
 ── 下一步（Bot 侧）──
-1. 在 Bot 的 config/pallas.toml 的 [env] 或 WebUI「智能对话与 AI 服务」配置：
-   LLM_CHAT_ENABLED=true
+1. 聊天 / 画画：Bot「接入」Provider 与画画插件直连，不必经本仓
+2. 媒体（唱歌 / TTS）：WebUI「媒体 → 媒体服务」保存基址并测通
    AI_SERVER_HOST=127.0.0.1
    AI_SERVER_PORT=${ai_port}
-2. 确认 AI 能回调 Bot：CALLBACK_HOST=$(read_env_key CALLBACK_HOST "$BOT_HOST") CALLBACK_PORT=$(read_env_key CALLBACK_PORT "$BOT_PORT")
-3. Docker 同网部署时 CALLBACK_HOST 填 Bot 服务名（如 pallasbot），见 docker-compose.full.yml
-4. 需要唱歌/TTS 时加：./scripts/ai_bootstrap.sh --with-media（可选 PALLAS_GPU=1）
+3. 确认回调：CALLBACK_HOST=$(read_env_key CALLBACK_HOST "$BOT_HOST") CALLBACK_PORT=$(read_env_key CALLBACK_PORT "$BOT_PORT")
+4. GPU torch：PALLAS_GPU=1 ./scripts/ai_bootstrap.sh
 
 常用命令:
   ./scripts/ctl.sh status
-  ./scripts/ctl.sh restart llm
+  ./scripts/ctl.sh restart media
   curl -s http://127.0.0.1:${ai_port}/health | python3 -m json.tool
 
 EOF
@@ -303,19 +243,12 @@ main() {
 
   if [[ "$CHECK_ONLY" == "1" ]]; then
     ensure_redis || true
-    if [[ "$REMOTE_ONLY" != "1" ]]; then
-      ollama_http_ok "$(read_env_key LLM_BACKEND_URL "http://127.0.0.1:11434")" && log "Ollama OK" || warn "Ollama 不可达"
-      if [[ "${OLLAMA_SKIP_GPU:-}" != "1" ]] && [[ "$REMOTE_ONLY" != "1" ]]; then
-        "$ROOT/scripts/ollama_gpu_watchdog.sh" --quiet || warn "Ollama GPU 探活失败，可执行: ./scripts/ollama_gpu_watchdog.sh --fix"
-      fi
-    fi
     health_check || true
     exit 0
   fi
 
   sync_deps
   ensure_redis || true
-  ensure_ollama_models || true
   start_services
   sleep 3
   health_check || true

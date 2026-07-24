@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -9,7 +11,7 @@ from app.app_factory import create_app
 from app.services.chat import chat
 
 
-def test_legacy_chat_endpoint_enqueues_unified_llm_task(monkeypatch) -> None:
+def test_legacy_chat_endpoint_enqueues_chat_task(monkeypatch) -> None:
     app = create_app(enabled_endpoints=[])
     app.include_router(chat_router, prefix="/api")
     client = TestClient(app)
@@ -42,24 +44,14 @@ def test_legacy_chat_endpoint_enqueues_unified_llm_task(monkeypatch) -> None:
     }
 
 
-def test_legacy_chat_service_enqueues_unified_llm_task(monkeypatch) -> None:
-    captured: dict[str, object] = {}
-
-    async def fake_submit(request_id: str, request) -> str:
-        captured["request_id"] = request_id
-        captured["session_id"] = request.session_id
-        captured["system"] = request.system
-        captured["messages"] = [(item.role, item.content) for item in request.messages]
-        captured["metadata"] = dict(request.metadata)
-        return "task-unified"
-
-    monkeypatch.setattr("app.services.chat.submit_llm_chat_completion", fake_submit)
+def test_legacy_chat_service_enqueues_celery_chat_task(monkeypatch) -> None:
+    apply_async = MagicMock(return_value=SimpleNamespace(id="task-chat-1"))
+    monkeypatch.setattr("app.services.chat.chat_task.apply_async", apply_async)
+    monkeypatch.setattr("app.services.chat.require_celery_task_package", lambda _alias: None)
 
     task_id = asyncio.run(chat("req-disabled", "s1", "hi", 50, False))
 
-    assert task_id == "task-unified"
-    assert captured["request_id"] == "req-disabled"
-    assert captured["session_id"] == "s1"
-    assert captured["system"] == "你是牛牛。"
-    assert captured["messages"] == [("user", "hi")]
-    assert captured["metadata"] == {"task": "drunk", "token_count": 50, "tts": False, "mode": "drunk"}
+    assert task_id == "task-chat-1"
+    _, kwargs = apply_async.call_args
+    assert kwargs["args"] == ["req-disabled", "s1", "hi", 50, False]
+    assert kwargs["queue"] == "media"

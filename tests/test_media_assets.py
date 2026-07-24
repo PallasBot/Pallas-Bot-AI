@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.routers import LLM_CORE_ENDPOINTS, resolve_enabled_endpoints
+from app.api.routers import MEDIA_CORE_ENDPOINTS, resolve_enabled_endpoints
 from app.app_factory import create_app
 from app.media_assets import (
     collect_asset_status,
@@ -165,7 +165,7 @@ def test_start_download_job_selective(tmp_path: Path, monkeypatch: pytest.Monkey
     assert "tts" in job.get("assets", [])
 
 
-def test_media_assets_in_llm_core() -> None:
-    assert "media_assets" in LLM_CORE_ENDPOINTS
-    assert "media_models" in LLM_CORE_ENDPOINTS
-    assert "media_assets" in resolve_enabled_endpoints({"media_assets", "llm_chat"})
+def test_media_assets_in_media_core() -> None:
+    assert "media_assets" in MEDIA_CORE_ENDPOINTS
+    assert "media_models" in MEDIA_CORE_ENDPOINTS
+    assert "media_assets" in resolve_enabled_endpoints({"media_assets", "media_tasks"})

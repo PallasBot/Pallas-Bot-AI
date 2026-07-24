@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────
 # 加新模型族(如 RVC、DDSP-4)只需在 `backends` 加一段,然后把名字加到
 # `fallback_order` 末尾。无需改 Python 代码,无需改 svc_inference.py。
-#
+
 # 字段说明:
 #   script:         子模块入口 .py(相对项目根)
 #   arg_style:      CLI 参数风格,当前支持 ddsp / sovits

@@ -7,8 +7,8 @@ from threading import Lock
 from typing import Any, Literal
 
 from app.core.config import settings
+from app.core.redis_client import ping_redis_sync, redis_client
 from app.schemas.image_api import RuntimeErrorBody
-from app.session.redis_store import ping_redis_sync, redis_client
 
 MediaCapabilityId = Literal["image.generate", "media.sing"]
 

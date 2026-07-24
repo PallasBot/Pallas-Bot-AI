@@ -494,18 +494,7 @@ def _safe_release(lock) -> None:
 
 
 def _unload_resident_llm() -> None:
-    from app.core.config import settings
-
-    if not settings.llm_chat_enabled:
-        return
-    try:
-        from app.core.llm_backend_runtime import unload_resident_backend_model_sync
-
-        status, _ = unload_resident_backend_model_sync()
-        logger.info("媒体任务上卡前卸载 LLM 常驻模型 status={}", status)
-    except Exception as exc:
-        # 卸载失败不阻断媒体任务，最坏情况退化为旧的共卡行为。
-        logger.warning("卸载 LLM 常驻模型失败：{}", exc)
+    return
 
 
 _shared_locks: dict[int, GPULockManager] = {}

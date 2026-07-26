@@ -1,13 +1,53 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+import types
+from pathlib import Path
 
 import pytest
 
-from app.tasks.sing import sing_tasks
+
+def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub optional sing-stack deps so sing_tasks can be imported under --group dev."""
+    asyncer = types.ModuleType("asyncer")
+    asyncer.asyncify = lambda fn: fn
+    monkeypatch.setitem(sys.modules, "asyncer", asyncer)
+
+    for name in (
+        "pydub",
+        "pyncm_async",
+        "pyncm_async.apis",
+        "pyncm_async.apis.login",
+        "librosa",
+        "soundfile",
+    ):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+
+    pkg = "app.tasks.sing"
+    stubs = {
+        "mixer": {"mix": lambda *args, **kwargs: None, "splice": lambda *args, **kwargs: None},
+        "ncm_loader": {"download": lambda *args, **kwargs: None},
+        "separater": {"separate": lambda *args, **kwargs: None},
+        "slicer": {"slice_audio": lambda *args, **kwargs: None},
+        "svc_inference": {"inference": lambda *args, **kwargs: None},
+    }
+    for sub, attrs in stubs.items():
+        full = f"{pkg}.{sub}"
+        stub = types.ModuleType(full)
+        for name, value in attrs.items():
+            setattr(stub, name, value)
+        monkeypatch.setitem(sys.modules, full, stub)
+
+    # Force a fresh import against the stubs above.
+    monkeypatch.delitem(sys.modules, "app.tasks.sing.sing_tasks", raising=False)
+    monkeypatch.delitem(sys.modules, "app.tasks.sing", raising=False)
 
 
-def test_request_task_callback_includes_song_id(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+def test_request_task_callback_includes_song_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _install_sing_import_stubs(monkeypatch)
+    from app.tasks.sing import sing_tasks
+
     audio_path = tmp_path / "12345.mp3"
     audio_path.write_bytes(b"fake-audio")
 

@@ -149,6 +149,7 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "tests/**" = ["TC002", "TC003"]
+"tests/test_request_task_callback.py" = ["PLC0415"]
 "app/services/sing.py" = ["PLC0415"]
 "app/tasks/chat/chat_tasks.py" = ["PLC0415"]
 "app/tasks/sing/svc_registry.py" = ["UP042", "UP045", "PLW0603", "PLW1510"]

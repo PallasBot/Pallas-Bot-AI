@@ -310,7 +310,13 @@ async def _request_task_async(request_id: str, song_id: int):
             origin,
             len(file),
         )
-        await callback(request_id, audio=file)
+        await callback(
+            request_id,
+            audio=file,
+            song_id=str(song_id),
+            chunk_index=0,
+            key=0,
+        )
 
     task_log("request task completed{} song_id={} path={}", log_id_suffix(request_id), song_id, origin)
     return True

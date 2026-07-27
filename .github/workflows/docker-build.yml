@@ -43,7 +43,7 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Extract CUDA metadata
+    - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
@@ -55,7 +55,7 @@ jobs:
           type=raw,value=cuda12.4-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
         labels: |
           org.opencontainers.image.title=Pallas Bot AI
-          org.opencontainers.image.description=AI-powered chatbot with TTS and singing capabilities
+          org.opencontainers.image.description=Media backend with TTS and singing capabilities
           org.opencontainers.image.vendor=Pallas Bot Team
 
     - name: Build and push CUDA image
@@ -73,32 +73,6 @@ jobs:
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
-    - name: Extract slim metadata
-      id: meta-slim
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.IMAGE_NAME }}
-        tags: |
-          type=raw,value=slim,enable=${{ github.ref_name == 'master' || github.ref_name == 'main' }}
-          type=raw,value=slim-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
-        labels: |
-          org.opencontainers.image.title=Pallas Bot AI (slim)
-          org.opencontainers.image.description=LLM-only AI Runtime without CUDA
-          org.opencontainers.image.vendor=Pallas Bot Team
-
-    - name: Build and push slim image
-      id: build-slim
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: Dockerfile.slim
-        platforms: linux/amd64
-        push: true
-        tags: ${{ steps.meta-slim.outputs.tags }}
-        labels: ${{ steps.meta-slim.outputs.labels }}
-        cache-from: type=gha,scope=slim
-        cache-to: type=gha,mode=max,scope=slim
-
     - name: Clean up build cache
       if: always()
       run: |
@@ -109,14 +83,9 @@ jobs:
       run: |
         echo "## Docker 镜像构建成功" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### CUDA / 全功能" >> $GITHUB_STEP_SUMMARY
+        echo "### CUDA / 媒体全功能" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "### slim（LLM-only，compose 默认）" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "${{ steps.meta-slim.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "全栈默认: \`docker pull ${{ env.IMAGE_NAME }}:slim\`" >> $GITHUB_STEP_SUMMARY
-        echo "GPU 媒体: \`docker pull ${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "拉取: \`docker pull ${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY

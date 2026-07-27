@@ -14,8 +14,11 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     asyncer.asyncify = lambda fn: fn
     monkeypatch.setitem(sys.modules, "asyncer", asyncer)
 
+    pydub = types.ModuleType("pydub")
+    pydub.AudioSegment = type("AudioSegment", (), {})
+    monkeypatch.setitem(sys.modules, "pydub", pydub)
+
     for name in (
-        "pydub",
         "pyncm_async",
         "pyncm_async.apis",
         "pyncm_async.apis.login",
@@ -30,7 +33,6 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
         "ncm_loader": {"download": lambda *args, **kwargs: None},
         "separater": {"separate": lambda *args, **kwargs: None},
         "slicer": {"slice_audio": lambda *args, **kwargs: None},
-        "svc_inference": {"inference": lambda *args, **kwargs: None},
     }
     for sub, attrs in stubs.items():
         full = f"{pkg}.{sub}"
@@ -38,6 +40,10 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
         for name, value in attrs.items():
             setattr(stub, name, value)
         monkeypatch.setitem(sys.modules, full, stub)
+
+    inference_mod = types.ModuleType("app.media.sing.inference")
+    inference_mod.inference = lambda *args, **kwargs: None
+    monkeypatch.setitem(sys.modules, "app.media.sing.inference", inference_mod)
 
     # Force a fresh import against the stubs above.
     monkeypatch.delitem(sys.modules, "app.workers.sing.sing_tasks", raising=False)

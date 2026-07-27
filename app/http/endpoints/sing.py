@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.media.facade import download, play, sing
+from app.media.services.sing import download, play, sing
 from app.schemas.sing import PlayRequest, RequestMusicRequest, SingRequest, SingResponse
 
 router = APIRouter()

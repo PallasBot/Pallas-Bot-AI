@@ -2,7 +2,7 @@ name: Docker Build and Push
 
 on:
   push:
-    branches: [master, main, dev, dev-v2]
+    branches: [main, dev, dev-v2]
 
 env:
   REGISTRY: docker.io
@@ -49,9 +49,9 @@ jobs:
       with:
         images: ${{ env.IMAGE_NAME }}
         tags: |
-          type=raw,value=latest,enable=${{ github.ref_name == 'master' || github.ref_name == 'main' }}
+          type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
           type=raw,value=dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
-          type=raw,value=cuda12.4-latest,enable=${{ github.ref_name == 'master' || github.ref_name == 'main' }}
+          type=raw,value=cuda12.4-latest,enable=${{ github.ref_name == 'main' }}
           type=raw,value=cuda12.4-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
         labels: |
           org.opencontainers.image.title=Pallas Bot AI

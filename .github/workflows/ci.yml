@@ -2,9 +2,9 @@ name: CI - Code Quality and Test Build
 
 on:
   push:
-    branches: [ master, main, dev, feat/4.0 ]
+    branches: [ main, dev, feat/4.0 ]
   pull_request:
-    branches: [ master, main, dev, feat/4.0 ]
+    branches: [ main, dev, feat/4.0 ]
 
 permissions:
   contents: read

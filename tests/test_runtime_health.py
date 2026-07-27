@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from app.media_task_runtime import media_task_runtime_status
-from app.media_task_store import MediaTaskRecord, clear_media_task_store, store_task_record
-from app.runtime_health import aggregate_media_task_runtime_health
+from app.media.health import aggregate_media_task_runtime_health
+from app.media.runtime import media_task_runtime_status
+from app.media.store import MediaTaskRecord, clear_media_task_store, store_task_record
 
 
 def test_aggregate_media_task_runtime_health_busy_queue() -> None:
@@ -21,10 +21,10 @@ def test_media_task_runtime_status_exposes_state_counts() -> None:
         MediaTaskRecord(
             task_id="task-q",
             request_id="req-q",
-            capability="image.generate",
+            capability="media.sing",
             state="queued",
-            provider_id="image",
-            backend_id="image-local",
+            provider_id="sing",
+            backend_id="sing-local",
             submitted_at=1.0,
         )
     )

@@ -18,7 +18,7 @@
 | 能力 | 典型 API | 说明 |
 | --- | --- | --- |
 | 唱歌 / TTS | `/api/sing/*`、`/api/tts/*` | 主路径媒体任务 |
-| 图像 / media | `/api/images`、`/api/media/*` | 按启用端点返回 |
+| 媒体任务 | `/api/media/*` | sing 等异步任务 |
 | 酒后 RWKV | `POST /api/chat/{id}` | 可选遗留路径；与 Bot 内核 Provider 聊天无关 |
 
 任务完成后经 `/callback` 回推 Bot。

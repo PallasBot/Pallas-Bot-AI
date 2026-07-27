@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.app_factory import create_app
-from app.services.service_logs import resolve_service_log_path, tail_log_lines
+from app.http.factory import create_app
+from app.media.services.service_logs import resolve_service_log_path, tail_log_lines
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def test_resolve_service_log_path_prefers_uvicorn(tmp_path: Path, monkeypatch: p
     logs.mkdir()
     (logs / "app.log").write_text("app\n", encoding="utf-8")
     (logs / "uvicorn.log").write_text("uvicorn\n", encoding="utf-8")
-    monkeypatch.setattr("app.services.service_logs.settings.log_path", str(logs))
+    monkeypatch.setattr("app.media.services.service_logs.settings.log_path", str(logs))
     picked = resolve_service_log_path("uvicorn")
     assert picked is not None
     assert picked.name == "uvicorn.log"
@@ -35,7 +35,7 @@ def test_ops_logs_endpoint_returns_tail(client: TestClient, tmp_path: Path, monk
     logs = tmp_path / "logs"
     logs.mkdir()
     (logs / "celery.log").write_text("a\nb\nc\n", encoding="utf-8")
-    monkeypatch.setattr("app.services.service_logs.settings.log_path", str(logs))
+    monkeypatch.setattr("app.media.services.service_logs.settings.log_path", str(logs))
 
     resp = client.get("/api/ops/logs", params={"kind": "celery", "n": 2})
     assert resp.status_code == 200
@@ -48,7 +48,7 @@ def test_ops_logs_endpoint_returns_tail(client: TestClient, tmp_path: Path, monk
 def test_ops_logs_endpoint_missing_file(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     logs = tmp_path / "logs"
     logs.mkdir()
-    monkeypatch.setattr("app.services.service_logs.settings.log_path", str(logs))
+    monkeypatch.setattr("app.media.services.service_logs.settings.log_path", str(logs))
 
     resp = client.get("/api/ops/logs", params={"kind": "uvicorn"})
     assert resp.status_code == 200
@@ -65,8 +65,8 @@ def test_ops_logs_requires_bearer_when_token_configured(
     logs = tmp_path / "logs"
     logs.mkdir()
     (logs / "uvicorn.log").write_text("ok\n", encoding="utf-8")
-    monkeypatch.setattr("app.services.service_logs.settings.log_path", str(logs))
-    monkeypatch.setattr("app.api.deps.api_auth.settings.api_bearer_token", "secret-token")
+    monkeypatch.setattr("app.media.services.service_logs.settings.log_path", str(logs))
+    monkeypatch.setattr("app.http.deps.api_auth.settings.api_bearer_token", "secret-token")
 
     denied = client.get("/api/ops/logs", params={"kind": "uvicorn"})
     assert denied.status_code == 401

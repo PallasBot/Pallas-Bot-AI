@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 from fastapi.testclient import TestClient
 
-from app.app_factory import create_app
-from app.core.config import settings
-from app.media_task_runtime import clear_media_task_runtime
-from app.media_task_store import MediaTaskRecord, get_record, store_task_record, update_task_record
+from app.http.factory import create_app
+from app.media.runtime import clear_media_task_runtime
+from app.media.store import MediaTaskRecord, get_record, store_task_record, update_task_record
 
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app(enabled_endpoints={"media_tasks", "images"}))
+    return TestClient(create_app(enabled_endpoints={"media_tasks"}))
 
 
 @pytest.fixture(autouse=True)
@@ -23,70 +20,20 @@ def reset_media_task_runtime() -> None:
     clear_media_task_runtime()
 
 
-def test_submit_image_task_accepted(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "image_enabled", True)
-    with patch(
-        "app.media_task_runtime.submit_image_generate",
-        new=AsyncMock(
-            return_value=MagicMock(
-                result_state="success",
-                data=MagicMock(mime_type="image/png", b64_data="aGVsbG8="),
-                latency_ms=42,
-                error=None,
-            ),
-        ),
-    ):
-        response = client.post(
-            "/api/media/tasks",
-            json={
-                "request_id": "req-media-image",
-                "capability": "image.generate",
-                "caller": {"source": "bot", "bot_id": 1, "plugin": "draw"},
-                "payload": {"prompt": "一只羊", "reference_urls": []},
-            },
-        )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["result_state"] == "accepted"
-    assert body["task_id"]
-    status = client.get(f"/api/media/tasks/{body['task_id']}")
-    assert status.status_code == 200
-    task = status.json()
-    assert task["capability"] == "image.generate"
-    assert task["state"] in {"queued", "running", "succeeded"}
-
-
 def test_get_media_task_not_found(client: TestClient) -> None:
     response = client.get("/api/media/tasks/missing-task")
     assert response.status_code == 404
 
 
-def test_submit_image_task_disabled_returns_failed(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "image_enabled", False)
-    response = client.post(
-        "/api/media/tasks",
-        json={
-            "request_id": "req-media-disabled",
-            "capability": "image.generate",
-            "caller": {"source": "bot", "bot_id": 1, "plugin": "draw"},
-            "payload": {"prompt": "一只羊", "reference_urls": []},
-        },
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["result_state"] == "failed"
-    assert body["error"]["failure_class"] == "provider_unavailable"
-
-
 def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.media_task_runtime.require_celery_task_package", lambda _alias: None)
+    monkeypatch.setattr("app.media.runtime.require_celery_task_package", lambda _alias: None)
     calls: list[tuple[str, str]] = []
 
     def fake_dispatch(record, body) -> None:
         calls.append((record.task_id, body.request_id))
         update_task_record(record.task_id, celery_task_id="celery-sing-1", state="queued")
 
-    monkeypatch.setattr("app.media_task_runtime.dispatch_sing_task", fake_dispatch)
+    monkeypatch.setattr("app.media.runtime.dispatch_sing_task", fake_dispatch)
     response = client.post(
         "/api/media/tasks",
         json={
@@ -105,39 +52,9 @@ def test_submit_sing_task_queues_celery(client: TestClient, monkeypatch: pytest.
     body = response.json()
     assert body["result_state"] == "accepted"
     assert calls == [(body["task_id"], "req-media-sing")]
-    # 勿走 get_media_task：会 refresh Celery/Redis，CI 无 Redis 会红
     task = get_record(body["task_id"])
     assert task is not None
     assert task.state == "queued"
-
-
-def test_media_task_runtime_status(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "image_enabled", True)
-    with patch(
-        "app.media_task_runtime.submit_image_generate",
-        new=AsyncMock(
-            return_value=MagicMock(
-                result_state="success",
-                data=MagicMock(mime_type="image/png", b64_data="aGVsbG8="),
-                latency_ms=10,
-                error=None,
-            ),
-        ),
-    ):
-        client.post(
-            "/api/media/tasks",
-            json={
-                "request_id": "req-media-runtime",
-                "capability": "image.generate",
-                "caller": {"source": "bot", "bot_id": 1, "plugin": "draw"},
-                "payload": {"prompt": "测试", "reference_urls": []},
-            },
-        )
-    runtime = client.get("/api/media/tasks/runtime")
-    assert runtime.status_code == 200
-    body = runtime.json()
-    assert body["total_tasks"] >= 1
-    assert any(item["capability"] == "image.generate" for item in body["capabilities"])
 
 
 def test_media_task_runtime_status_exposes_state_counts(client: TestClient) -> None:
@@ -145,10 +62,10 @@ def test_media_task_runtime_status_exposes_state_counts(client: TestClient) -> N
         MediaTaskRecord(
             task_id="task-runtime-q",
             request_id="req-runtime-q",
-            capability="image.generate",
+            capability="media.sing",
             state="queued",
-            provider_id="image",
-            backend_id="image-local",
+            provider_id="sing",
+            backend_id="sing-local",
             submitted_at=1.0,
         )
     )
@@ -181,38 +98,9 @@ def test_health_includes_media_tasks(client: TestClient) -> None:
 
 
 def test_health_includes_tts() -> None:
-    client = TestClient(create_app(enabled_endpoints={"media_tasks", "images", "tts"}))
+    client = TestClient(create_app(enabled_endpoints={"media_tasks", "tts"}))
     response = client.get("/health")
     assert response.status_code == 200
     body = response.json()
     assert "tts" in body
     assert body["tts"]["capability"] == "tts.synthesize"
-
-
-def test_image_generate_force_task_mode_returns_accepted(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "image_enabled", True)
-    with patch(
-        "app.media_task_runtime.submit_image_generate",
-        new=AsyncMock(
-            return_value=MagicMock(
-                result_state="success",
-                data=MagicMock(mime_type="image/png", b64_data="aGVsbG8="),
-                latency_ms=10,
-                error=None,
-            ),
-        ),
-    ):
-        response = client.post(
-            "/api/images/generate",
-            json={
-                "request_id": "req-image-task-mode",
-                "capability": "image.generate",
-                "caller": {"source": "bot", "bot_id": 1, "plugin": "draw"},
-                "policy": {"force_task_mode": True},
-                "payload": {"prompt": "一只羊", "reference_urls": []},
-            },
-        )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["result_state"] == "accepted"
-    assert body["task_id"]

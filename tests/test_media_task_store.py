@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from app.media_task_store import (
+from app.media.store import (
     MediaTaskRecord,
     clear_media_task_store,
     get_record,
@@ -19,18 +19,18 @@ def test_record_roundtrip_dict() -> None:
     record = MediaTaskRecord(
         task_id="task-1",
         request_id="req-1",
-        capability="image.generate",
+        capability="media.sing",
         state="queued",
-        provider_id="image-gateway",
-        backend_id="image-primary",
+        provider_id="sing-worker",
+        backend_id="sing-local",
         submitted_at=1.0,
-        payload={"prompt": "test"},
+        payload={"speaker": "pallas", "song_id": 1},
     )
     restored = record_from_dict(record_to_dict(record))
     assert restored is not None
     assert restored.task_id == "task-1"
-    assert restored.capability == "image.generate"
-    assert restored.payload == {"prompt": "test"}
+    assert restored.capability == "media.sing"
+    assert restored.payload == {"speaker": "pallas", "song_id": 1}
 
 
 def test_store_and_get_from_memory() -> None:
@@ -50,8 +50,8 @@ def test_store_and_get_from_memory() -> None:
     assert loaded.request_id == "req-2"
 
 
-@patch("app.media_task_store.redis_task_store_enabled", return_value=True)
-@patch("app.media_task_store.redis_client")
+@patch("app.media.store.redis_task_store_enabled", return_value=True)
+@patch("app.media.store.redis_client")
 def test_persist_and_load_from_redis(mock_redis_client: MagicMock, mock_enabled: MagicMock) -> None:
     assert mock_enabled.return_value is True
     clear_media_task_store()
@@ -68,12 +68,12 @@ def test_persist_and_load_from_redis(mock_redis_client: MagicMock, mock_enabled:
     record = MediaTaskRecord(
         task_id="task-3",
         request_id="req-3",
-        capability="image.generate",
+        capability="media.sing",
         state="succeeded",
-        provider_id="image-gateway",
-        backend_id="image-primary",
+        provider_id="sing-worker",
+        backend_id="sing-local",
         submitted_at=3.0,
-        data={"b64_data": "aGVsbG8="},
+        data={"celery_task_id": "celery-1"},
     )
     persist_task_record(record)
     assert client.setex.called
@@ -81,4 +81,4 @@ def test_persist_and_load_from_redis(mock_redis_client: MagicMock, mock_enabled:
     assert payload["state"] == "succeeded"
     loaded = load_task_record_from_redis("task-3")
     assert loaded is not None
-    assert loaded.data == {"b64_data": "aGVsbG8="}
+    assert loaded.data == {"celery_task_id": "celery-1"}

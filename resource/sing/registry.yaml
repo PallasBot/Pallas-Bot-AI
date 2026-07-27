@@ -15,7 +15,7 @@
 backends:
   # ── DDSP-SVC 系列(三个变体 CLI 一致,自动按 fallback 顺序尝试) ──
   ddsp_6.3:
-    script: app/tasks/sing/DDSP-SVC-6.3/main_reflow.py
+    script: app/workers/sing/DDSP-SVC-6.3/main_reflow.py
     arg_style: ddsp
     model_glob: "*.pt"
     required_files: []
@@ -25,7 +25,7 @@ backends:
     enabled: true
 
   ddsp_6.2:
-    script: app/tasks/sing/DDSP-SVC-6.2/main_reflow.py
+    script: app/workers/sing/DDSP-SVC-6.2/main_reflow.py
     arg_style: ddsp
     model_glob: "*.pt"
     required_files: []
@@ -35,7 +35,7 @@ backends:
     enabled: true
 
   ddsp_6.1:
-    script: app/tasks/sing/DDSP-SVC/main_reflow.py
+    script: app/workers/sing/DDSP-SVC/main_reflow.py
     arg_style: ddsp
     model_glob: "*.pt"
     required_files: []
@@ -46,7 +46,7 @@ backends:
 
   # ── SoVITS 系列(若 DDSP 全失败,降级到 SoVITS) ──
   sovits_4.1:
-    script: app/tasks/sing/so_vits_svc_41/inference_main.py
+    script: app/workers/sing/so_vits_svc_41/inference_main.py
     arg_style: sovits
     model_glob: "G_*.pth"
     required_files: ["config.json"]
@@ -56,7 +56,7 @@ backends:
     enabled: true
 
   sovits_4.0:
-    script: app/tasks/sing/so_vits_svc/inference_main.py
+    script: app/workers/sing/so_vits_svc/inference_main.py
     arg_style: sovits
     model_glob: "G_*.pth"
     required_files: ["config.json"]

@@ -72,14 +72,15 @@ Bot 侧媒体任务需配置 `AI_SERVER_HOST` / `AI_SERVER_PORT`（或 WebUI「�
 curl -s http://127.0.0.1:9099/health | python3 -m json.tool
 ```
 
-关注 `media_tasks`、`image` 等字段（按已启用端点返回）。
+关注 `media_tasks`、`tts` 等字段（按已启用端点返回）。对外 API 推荐使用 `/v1`（配置 `PALLAS_AI_API_TOKEN` 后需 Bearer）；`/api` 为兼容入口。
 
 ---
 
 ## 项目结构
 
-- `app/api` — HTTP 路由（媒体资源 / 唱歌 / TTS 等）
-- `app/tasks` — Celery 媒体任务（`sing` / `tts` / 酒后 `chat` RWKV）
+- `app/http` — FastAPI 路由（`/api` 兼容、`/v1` 推荐）
+- `app/media` — 媒体门面、运行时、SVC 注册表与本地服务
+- `app/workers` — Celery 媒体任务（`sing` / `tts` / 酒后 `chat` RWKV）
 - `docs` — 部署与架构文档
 - `tests` — 单测
 

@@ -47,10 +47,10 @@ _QUIET_LOGGER_NAMES = (
 )
 
 _MODULE_ALIASES = (
-    ("app.api.", "ai.api"),
+    ("app.http.", "ai.api"),
     ("app.providers.", "ai.providers"),
-    ("app.services.", "ai.service"),
-    ("app.tasks.", "ai.task"),
+    ("app.media.services.", "ai.service"),
+    ("app.workers.", "ai.task"),
     ("app.core.", "ai.core"),
     ("app.", "ai"),
     ("uvicorn.", "uvicorn"),

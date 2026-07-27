@@ -9,7 +9,7 @@ def test_post_play_endpoint_accepts_request_body(monkeypatch) -> None:
         assert speaker == "pallas"
         return "task-123"
 
-    monkeypatch.setattr("app.api.endpoints.sing.play", fake_play)
+    monkeypatch.setattr("app.http.endpoints.sing.play", fake_play)
     client = TestClient(create_app(enabled_endpoints={"sing"}))
 
     response = client.post("/api/play/req-123", json={"speaker": "pallas"})

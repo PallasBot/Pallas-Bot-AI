@@ -24,7 +24,7 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
 
-    pkg = "app.tasks.sing"
+    pkg = "app.workers.sing"
     stubs = {
         "mixer": {"mix": lambda *args, **kwargs: None, "splice": lambda *args, **kwargs: None},
         "ncm_loader": {"download": lambda *args, **kwargs: None},
@@ -40,13 +40,13 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setitem(sys.modules, full, stub)
 
     # Force a fresh import against the stubs above.
-    monkeypatch.delitem(sys.modules, "app.tasks.sing.sing_tasks", raising=False)
-    monkeypatch.delitem(sys.modules, "app.tasks.sing", raising=False)
+    monkeypatch.delitem(sys.modules, "app.workers.sing.sing_tasks", raising=False)
+    monkeypatch.delitem(sys.modules, "app.workers.sing", raising=False)
 
 
 def test_request_task_callback_includes_song_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _install_sing_import_stubs(monkeypatch)
-    from app.tasks.sing import sing_tasks
+    from app.workers.sing import sing_tasks
 
     audio_path = tmp_path / "12345.mp3"
     audio_path.write_bytes(b"fake-audio")

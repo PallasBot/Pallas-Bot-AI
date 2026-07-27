@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.media_task_runtime import refresh_sing_task_state
-from app.media_task_store import MediaTaskRecord, clear_media_task_store, get_record, store_task_record
+from app.media.runtime import refresh_sing_task_state
+from app.media.store import MediaTaskRecord, clear_media_task_store, get_record, store_task_record
 
 
 @pytest.fixture(autouse=True)
@@ -28,7 +28,7 @@ def test_refresh_sing_task_state_marks_failed_on_success_false(monkeypatch: pyte
     )
     store_task_record(record)
     async_result = MagicMock(state="SUCCESS", result=False)
-    monkeypatch.setattr("app.media_task_runtime.celery_app.AsyncResult", lambda _task_id: async_result)
+    monkeypatch.setattr("app.media.runtime.celery_app.AsyncResult", lambda _task_id: async_result)
     refresh_sing_task_state(record)
     refreshed = get_record("task-sing-false")
     assert refreshed is not None

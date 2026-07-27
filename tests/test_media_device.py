@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import app.tasks.media_device as md
+import app.workers.media_device as md
 
 
 def test_cuda_prefix_auto_uses_device(monkeypatch):

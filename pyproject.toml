@@ -110,10 +110,10 @@ line-length = 120
 target-version = "py312"
 preview = true
 exclude = [
-    "app/tasks/sing/DDSP-SVC",
-    "app/tasks/tts/GPT_SoVITS",
-    "app/tasks/chat/rwkv_tokenizer.py",
-    "app/tasks/chat/pipeline.py",
+    "app/workers/sing/DDSP-SVC",
+    "app/workers/tts/GPT_SoVITS",
+    "app/workers/chat/rwkv_tokenizer.py",
+    "app/workers/chat/pipeline.py",
 ]
 
 [tool.ruff.lint]
@@ -150,13 +150,13 @@ select = [
 "__init__.py" = ["F401"]
 "tests/**" = ["TC002", "TC003"]
 "tests/test_request_task_callback.py" = ["PLC0415"]
-"app/services/sing.py" = ["PLC0415"]
-"app/tasks/chat/chat_tasks.py" = ["PLC0415"]
-"app/tasks/sing/svc_registry.py" = ["UP042", "UP045", "PLW0603", "PLW1510"]
+"app/media/services/sing.py" = ["PLC0415"]
+"app/workers/chat/chat_tasks.py" = ["PLC0415"]
+"app/media/sing/registry.py" = ["UP042", "UP045", "PLW0603", "PLW1510"]
 "app/utils/gpu_locker.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-norecursedirs = ["app/tasks/tts", "app/tasks/sing", "app/tasks/chat"]
+norecursedirs = ["app/workers/tts", "app/workers/sing", "app/workers/chat"]
 addopts = "-p no:hydra_pytest"

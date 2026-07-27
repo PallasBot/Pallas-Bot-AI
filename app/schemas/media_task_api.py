@@ -4,8 +4,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.image_api import (
-    ImageGeneratePayload,
+from app.schemas.runtime_api import (
+    CircuitState,
+    DegradedState,
+    HealthState,
     ResultState,
     RuntimeCaller,
     RuntimeContext,
@@ -13,7 +15,7 @@ from app.schemas.image_api import (
     RuntimePolicy,
 )
 
-MediaCapabilityId = Literal["image.generate", "media.sing"]
+MediaCapabilityId = Literal["media.sing"]
 TaskState = Literal["pending", "queued", "running", "succeeded", "failed", "cancelled"]
 
 
@@ -66,7 +68,7 @@ class MediaTaskCapabilityRuntime(BaseModel):
     capability: MediaCapabilityId
     queue_depth: int = 0
     active_tasks: int = 0
-    health_state: Literal["healthy", "degraded", "unhealthy", "unknown"] = "unknown"
+    health_state: HealthState = "unknown"
 
 
 class MediaTaskRuntimeStatus(BaseModel):
@@ -74,9 +76,9 @@ class MediaTaskRuntimeStatus(BaseModel):
     active_tasks: int = 0
     total_tasks: int = 0
     state_counts: dict[str, int] = Field(default_factory=dict)
-    health_state: Literal["healthy", "degraded", "unhealthy", "unknown"] = "unknown"
-    degraded_state: Literal["normal", "degraded", "busy", "overloaded"] = "normal"
-    circuit_state: Literal["closed", "open", "half_open"] = "closed"
+    health_state: HealthState = "unknown"
+    degraded_state: DegradedState = "normal"
+    circuit_state: CircuitState = "closed"
     recent_failure_class: str | None = None
     capabilities: list[MediaTaskCapabilityRuntime] = Field(default_factory=list)
 
@@ -84,7 +86,8 @@ class MediaTaskRuntimeStatus(BaseModel):
 def parse_media_task_payload(
     capability: MediaCapabilityId,
     payload: dict[str, Any],
-) -> ImageGeneratePayload | SingTaskPayload:
-    if capability == "image.generate":
-        return ImageGeneratePayload.model_validate(payload)
+) -> SingTaskPayload:
+    if capability != "media.sing":
+        msg = f"unsupported capability: {capability}"
+        raise ValueError(msg)
     return SingTaskPayload.model_validate(payload)

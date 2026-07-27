@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from app.api.routers import MEDIA_CORE_ENDPOINTS, resolve_enabled_endpoints
+from app.http.routers import MEDIA_CORE_ENDPOINTS, resolve_enabled_endpoints
 
 
 def test_resolve_enabled_endpoints_media_only(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.api.routers.celery_task_package_enabled",
+        "app.http.routers.celery_task_package_enabled",
         lambda alias: False,
     )
     selected = resolve_enabled_endpoints()
@@ -18,7 +18,7 @@ def test_resolve_enabled_endpoints_media_only(monkeypatch) -> None:
 
 def test_resolve_enabled_endpoints_with_media(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.api.routers.celery_task_package_enabled",
+        "app.http.routers.celery_task_package_enabled",
         lambda alias: alias in {"sing", "tts"},
     )
     selected = resolve_enabled_endpoints()

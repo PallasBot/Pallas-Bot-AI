@@ -2,7 +2,7 @@
 
 ## 定位
 
-本仓是 Pallas-Bot 的**可选媒体后端**：唱歌、TTS、图像等异步任务，以及可选的遗留酒后 RWKV。  
+本仓是 Pallas-Bot 的**可选媒体后端**：唱歌、TTS 等异步任务，以及可选的遗留酒后 RWKV。  
 **通用 LLM 闲聊与工具循环在 Bot 内核**（`pallas/product/llm`），不经本仓 Chat API。
 
 ## 为何 uvicorn + Celery
@@ -17,11 +17,11 @@
 
 | 能力 | 典型 API | 说明 |
 | --- | --- | --- |
-| 唱歌 / TTS | `/api/sing/*`、`/api/tts/*` | 主路径媒体任务 |
-| 媒体任务 | `/api/media/*` | sing 等异步任务 |
-| 酒后 RWKV | `POST /api/chat/{id}` | 可选遗留路径；与 Bot 内核 Provider 聊天无关 |
+| 唱歌 / TTS | `/v1/sing/*`、`/v1/tts/*`（推荐）；`/api/*` 兼容 | 主路径媒体任务；`/v1` 在配置 Token 时强制 Bearer |
+| 媒体任务 / 模型 | `/v1/media/*` | voices、defaults、异步任务等 |
+| 酒后 RWKV | `POST /api/chat/{id}` 等 | 可选遗留路径；与 Bot 内核 Provider 聊天无关 |
 
-任务完成后经 `/callback` 回推 Bot。
+任务完成后经 `/callback` 回推 Bot。群口令侧见官方扩展 [Plugin-Ai-Media](https://github.com/PallasBot/Plugin-Ai-Media)。
 
 ## 与 Bot 的边界
 

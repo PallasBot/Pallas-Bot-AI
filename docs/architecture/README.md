@@ -4,9 +4,6 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [runtime.md](runtime.md) | uvicorn + Celery + LLM / media 运行时 |
-| [platform-roadmap.md](platform-roadmap.md) | **V4+** 定位、兼容策略与能力基线 |
-| [persona-affect-refine.md](persona-affect-refine.md) | 群风格 affect-refine API（已落地） |
-| [local-models.md](local-models.md) | 本地模型选型笔记（2026-06 快照，非产品默认） |
+| [runtime.md](runtime.md) | uvicorn + Celery 媒体运行时；与 Bot 的边界 |
 
-跨仓职责：Bot 管 persona / 业务路由与 `LLM_CHAT_ENABLED` 等开关；本仓管推理、provider、会话与媒体任务。Bot 只连本服务 `:9099`。
+跨仓职责：Bot 管普通 LLM 闲聊、业务路由与开关；本仓管媒体推理、队列、健康、callback，以及可选遗留 RWKV。Bot 通过 `AI_SERVER_*` 连接本服务 `:9099`。

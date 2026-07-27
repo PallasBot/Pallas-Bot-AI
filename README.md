@@ -20,7 +20,7 @@ Bot 侧请安装官方扩展 [`pallas-plugin-ai-media`](https://github.com/Palla
 
 - 文档索引：[docs/README.md](./docs/README.md)
 - 部署细节：[docs/Deployment.md](./docs/Deployment.md)
-- V4 平台路线：[docs/architecture/platform-roadmap.md](./docs/architecture/platform-roadmap.md)
+- 运行时边界：[docs/architecture/runtime.md](./docs/architecture/runtime.md)
 
 ## 快速开始（媒体服务）
 

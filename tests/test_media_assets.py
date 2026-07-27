@@ -9,12 +9,19 @@ from fastapi.testclient import TestClient
 from app.http.factory import create_app
 from app.http.routers import MEDIA_CORE_ENDPOINTS, resolve_enabled_endpoints
 from app.media.assets import (
+    REPO_ROOT,
     collect_asset_status,
     delete_assets,
     download_and_extract_missing,
     parse_models_txt,
     start_download_job,
 )
+
+
+def test_repo_root_is_ai_repository() -> None:
+    assert (REPO_ROOT / "pyproject.toml").is_file()
+    assert (REPO_ROOT / "resource").is_dir()
+    assert REPO_ROOT.name != "app"
 
 
 def test_parse_models_txt(tmp_path: Path) -> None:

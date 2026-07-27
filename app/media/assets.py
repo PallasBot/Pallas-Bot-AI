@@ -17,7 +17,8 @@ from urllib.request import urlretrieve
 from app.core.celery import celery_task_package_enabled
 from app.core.logger import logger
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+# app/media/assets.py → 仓库根（勿用 parents[1]，那会落到 app/）
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ASSET_SPECS: tuple[tuple[str, str, str], ...] = (
     ("chat", "resource/chat/models/.extracted", "resource/chat/models/models.zip"),

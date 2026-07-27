@@ -54,13 +54,13 @@ def test_short_log_id_omit_when_zero(monkeypatch) -> None:
 
 
 def test_patch_log_record_short_module() -> None:
-    record: dict = {"name": "app.tasks.sing.sing_tasks", "line": 144, "extra": {}}
+    record: dict = {"name": "app.workers.sing.sing_tasks", "line": 144, "extra": {}}
     patch_log_record(record)
     assert record["extra"]["loc"] == "ai.task:144"
 
 
 def test_module_display_name_uses_aliases() -> None:
-    assert module_display_name("app.services.sing") == "ai.service"
+    assert module_display_name("app.media.services.sing") == "ai.service"
     assert module_display_name("uvicorn.error") == "uvicorn"
 
 

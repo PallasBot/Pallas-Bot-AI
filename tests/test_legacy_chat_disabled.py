@@ -6,9 +6,9 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from app.api.endpoints.chat import router as chat_router
-from app.app_factory import create_app
-from app.services.chat import chat
+from app.http.endpoints.chat import router as chat_router
+from app.http.factory import create_app
+from app.media.services.chat import chat
 
 
 def test_legacy_chat_endpoint_enqueues_chat_task(monkeypatch) -> None:
@@ -26,7 +26,7 @@ def test_legacy_chat_endpoint_enqueues_chat_task(monkeypatch) -> None:
         captured["tts"] = tts
         return "task-123"
 
-    monkeypatch.setattr("app.api.endpoints.chat.chat", fake_chat)
+    monkeypatch.setattr("app.http.endpoints.chat.chat", fake_chat)
 
     response = client.post(
         "/api/chat/req-disabled",
@@ -46,8 +46,8 @@ def test_legacy_chat_endpoint_enqueues_chat_task(monkeypatch) -> None:
 
 def test_legacy_chat_service_enqueues_celery_chat_task(monkeypatch) -> None:
     apply_async = MagicMock(return_value=SimpleNamespace(id="task-chat-1"))
-    monkeypatch.setattr("app.services.chat.chat_task.apply_async", apply_async)
-    monkeypatch.setattr("app.services.chat.require_celery_task_package", lambda _alias: None)
+    monkeypatch.setattr("app.media.services.chat.chat_task.apply_async", apply_async)
+    monkeypatch.setattr("app.media.services.chat.require_celery_task_package", lambda _alias: None)
 
     task_id = asyncio.run(chat("req-disabled", "s1", "hi", 50, False))
 

@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("pyncm_async")
 
-from app.tasks.sing.svc_inference import _maybe_lock
+from app.media.sing.inference import _maybe_lock
 
 
 def test_svc_lock_unloads_llm_and_records_owner() -> None:

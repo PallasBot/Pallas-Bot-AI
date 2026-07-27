@@ -6,8 +6,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from app.app_factory import create_app
-from app.media_models import (
+from app.http.factory import create_app
+from app.media.models import (
     get_tts_defaults,
     list_sing_speakers,
     list_tts_voices,
@@ -32,7 +32,7 @@ def test_set_sing_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     speaker_dir = tmp_path / "resource/sing/models/foo"
     speaker_dir.mkdir(parents=True)
     (speaker_dir / "foo.pt").write_bytes(b"x")
-    monkeypatch.setattr("app.media_models.settings.svc_models_root", "resource/sing/models")
+    monkeypatch.setattr("app.media.models.settings.svc_models_root", "resource/sing/models")
     result = set_sing_defaults(default_speaker="foo", root=tmp_path)
     assert result["default_speaker"] == "foo"
     assert load_media_models(tmp_path)["sing"]["default_speaker"] == "foo"
@@ -68,7 +68,7 @@ def test_list_tts_voices_and_defaults(tmp_path: Path, monkeypatch: pytest.Monkey
 
 def test_list_sing_speakers_skips_pretrain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
-    monkeypatch.setattr("app.media_models.settings.svc_models_root", "resource/sing/models")
+    monkeypatch.setattr("app.media.models.settings.svc_models_root", "resource/sing/models")
     (tmp_path / "resource/sing/models/pallas").mkdir(parents=True)
     (tmp_path / "resource/sing/models/pallas/a.pt").write_bytes(b"x")
     (tmp_path / "resource/sing/models/pretrain").mkdir(parents=True)

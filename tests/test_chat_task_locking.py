@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-import app.tasks.chat.chat_tasks as chat_tasks
+import app.workers.chat.chat_tasks as chat_tasks
 
 
 def test_legacy_chat_cpu_strategy_skips_gpu_write_lock(monkeypatch) -> None:

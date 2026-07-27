@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.app_factory import create_app
+from app.http.factory import create_app
 
 
 def test_health_and_api_health_alias_match() -> None:

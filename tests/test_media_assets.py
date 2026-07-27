@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.routers import MEDIA_CORE_ENDPOINTS, resolve_enabled_endpoints
-from app.app_factory import create_app
-from app.media_assets import (
+from app.http.factory import create_app
+from app.http.routers import MEDIA_CORE_ENDPOINTS, resolve_enabled_endpoints
+from app.media.assets import (
     collect_asset_status,
     delete_assets,
     download_and_extract_missing,
@@ -30,7 +30,7 @@ def test_parse_models_txt(tmp_path: Path) -> None:
 def test_collect_asset_status_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
     monkeypatch.setattr(
-        "app.media_assets.celery_task_package_enabled",
+        "app.media.assets.celery_task_package_enabled",
         lambda alias: alias == "llm",
     )
     (tmp_path / "resource").mkdir()
@@ -44,7 +44,7 @@ def test_collect_asset_status_source(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 def test_collect_asset_status_ready_markers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
-    monkeypatch.setattr("app.media_assets.celery_task_package_enabled", lambda alias: True)
+    monkeypatch.setattr("app.media.assets.celery_task_package_enabled", lambda alias: True)
     for _aid, marker, _zip in (
         ("chat", "resource/chat/models/.extracted", ""),
         ("sing_pallas", "resource/sing/models/pallas/.extracted", ""),
@@ -61,7 +61,7 @@ def test_collect_asset_status_ready_markers(tmp_path: Path, monkeypatch: pytest.
 def test_heal_markers_from_legacy_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """老用户：权重已落地但无 .extracted 时，状态应就绪并自动补标记。"""
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
-    monkeypatch.setattr("app.media_assets.celery_task_package_enabled", lambda alias: True)
+    monkeypatch.setattr("app.media.assets.celery_task_package_enabled", lambda alias: True)
 
     chat = tmp_path / "resource/chat/models"
     chat.mkdir(parents=True)
@@ -102,7 +102,7 @@ def test_download_and_extract_missing(tmp_path: Path, monkeypatch: pytest.Monkey
             zf.writestr("dummy.txt", "ok")
         return str(path), None
 
-    monkeypatch.setattr("app.media_assets.urlretrieve", fake_retrieve)
+    monkeypatch.setattr("app.media.assets.urlretrieve", fake_retrieve)
     progress: list[str] = []
     download_and_extract_missing(root=tmp_path, progress=progress)
     assert (tmp_path / "resource/chat/models/.extracted").is_file()
@@ -136,7 +136,7 @@ def test_api_media_assets_download_docker(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_delete_assets_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
-    monkeypatch.setattr("app.media_assets.celery_task_package_enabled", lambda alias: True)
+    monkeypatch.setattr("app.media.assets.celery_task_package_enabled", lambda alias: True)
     marker = tmp_path / "resource/tts/.extracted"
     marker.parent.mkdir(parents=True)
     marker.touch()
@@ -149,7 +149,7 @@ def test_delete_assets_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
 def test_start_download_job_selective(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
-    monkeypatch.setattr("app.media_assets.celery_task_package_enabled", lambda alias: True)
+    monkeypatch.setattr("app.media.assets.celery_task_package_enabled", lambda alias: True)
 
     def fake_retrieve(url: str, filename: str | Path) -> tuple[str, None]:
         path = Path(filename)
@@ -158,7 +158,7 @@ def test_start_download_job_selective(tmp_path: Path, monkeypatch: pytest.Monkey
             zf.writestr("dummy.txt", "ok")
         return str(path), None
 
-    monkeypatch.setattr("app.media_assets.urlretrieve", fake_retrieve)
+    monkeypatch.setattr("app.media.assets.urlretrieve", fake_retrieve)
     (tmp_path / "resource").mkdir()
     job = start_download_job(root=tmp_path, assets=["tts"])
     assert job["state"] in {"running", "done"}

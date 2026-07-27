@@ -4,15 +4,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.services import sing as sing_mod
+from app.media.services import sing as sing_mod
 
 
 def test_sing_routes_to_media_queue(monkeypatch) -> None:
-    pytest.importorskip("app.tasks.sing.sing_tasks")
+    pytest.importorskip("app.workers.sing.sing_tasks")
 
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-sing-1"))
     monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.tasks.sing.sing_task.apply_async", apply_async)
+    monkeypatch.setattr("app.workers.sing.sing_task.apply_async", apply_async)
 
     task_id = asyncio.run(sing_mod.sing("req-1", "amiya", 123, 0, 0, 30))
 
@@ -22,11 +22,11 @@ def test_sing_routes_to_media_queue(monkeypatch) -> None:
 
 
 def test_play_routes_to_media_queue(monkeypatch) -> None:
-    pytest.importorskip("app.tasks.sing.sing_tasks")
+    pytest.importorskip("app.workers.sing.sing_tasks")
 
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-play-1"))
     monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.tasks.sing.play_task.apply_async", apply_async)
+    monkeypatch.setattr("app.workers.sing.play_task.apply_async", apply_async)
 
     request_id = asyncio.run(sing_mod.play("req-play-1", "amiya"))
 
@@ -36,11 +36,11 @@ def test_play_routes_to_media_queue(monkeypatch) -> None:
 
 
 def test_download_routes_to_media_queue(monkeypatch) -> None:
-    pytest.importorskip("app.tasks.sing.sing_tasks")
+    pytest.importorskip("app.workers.sing.sing_tasks")
 
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-request-1"))
     monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.tasks.sing.request_task.apply_async", apply_async)
+    monkeypatch.setattr("app.workers.sing.request_task.apply_async", apply_async)
 
     task_id = asyncio.run(sing_mod.download("req-2", 456))
 

@@ -7,20 +7,20 @@ from app.core.celery import (
 
 def test_resolve_celery_task_packages_default_media() -> None:
     assert resolve_celery_task_packages("sing,tts,chat") == [
-        "app.tasks.sing",
-        "app.tasks.tts",
-        "app.tasks.chat",
+        "app.workers.sing",
+        "app.workers.tts",
+        "app.workers.chat",
     ]
 
 
 def test_resolve_celery_task_packages_all() -> None:
     packages = resolve_celery_task_packages("all")
-    assert "app.tasks.chat" in packages
-    assert "app.tasks.sing" in packages
+    assert "app.workers.chat" in packages
+    assert "app.workers.sing" in packages
 
 
 def test_resolve_celery_task_packages_multi() -> None:
-    assert resolve_celery_task_packages("sing,chat") == ["app.tasks.sing", "app.tasks.chat"]
+    assert resolve_celery_task_packages("sing,chat") == ["app.workers.sing", "app.workers.chat"]
 
 
 def test_celery_task_package_enabled(monkeypatch) -> None:

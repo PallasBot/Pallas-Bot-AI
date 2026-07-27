@@ -1,8 +1,8 @@
 [submodule "app/tasks/sing/DDSP-SVC"]
-	path = app/tasks/sing/DDSP-SVC
+	path = app/workers/sing/DDSP-SVC
 	url = https://github.com/PallasBot/DDSP-SVC.git
 	branch = 6.2
 [submodule "app/tasks/tts/GPT_SoVITS"]
-	path = app/tasks/tts/GPT_SoVITS
+	path = app/workers/tts/GPT_SoVITS
 	url = https://github.com/PallasBot/GPT-SoVITS.git
 	branch = interface

@@ -11,12 +11,12 @@ from app.utils.gpu_locker import sweep_gpu_lock_state_on_worker_startup
 celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_url)
 
 _TASK_PACKAGE_ALIASES = {
-    "chat": "app.tasks.chat",
-    "sing": "app.tasks.sing",
-    "tts": "app.tasks.tts",
+    "chat": "app.workers.chat",
+    "sing": "app.workers.sing",
+    "tts": "app.workers.tts",
 }
 
-_DEFAULT_TASK_PACKAGES = ["app.tasks.sing", "app.tasks.tts", "app.tasks.chat"]
+_DEFAULT_TASK_PACKAGES = ["app.workers.sing", "app.workers.tts", "app.workers.chat"]
 
 _TASK_QUEUE_ROUTES = {
     "chat": "media",
@@ -36,7 +36,7 @@ def resolve_celery_task_packages(raw: str | None = None) -> list[str]:
         name = part.strip().lower()
         if not name:
             continue
-        resolved = _TASK_PACKAGE_ALIASES.get(name, name if name.startswith("app.tasks.") else "")
+        resolved = _TASK_PACKAGE_ALIASES.get(name, name if name.startswith("app.workers.") else "")
         if resolved and resolved not in packages:
             packages.append(resolved)
     return packages or list(_DEFAULT_TASK_PACKAGES)

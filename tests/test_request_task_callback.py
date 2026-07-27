@@ -14,8 +14,11 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     asyncer.asyncify = lambda fn: fn
     monkeypatch.setitem(sys.modules, "asyncer", asyncer)
 
+    pydub = types.ModuleType("pydub")
+    pydub.AudioSegment = type("AudioSegment", (), {})
+    monkeypatch.setitem(sys.modules, "pydub", pydub)
+
     for name in (
-        "pydub",
         "pyncm_async",
         "pyncm_async.apis",
         "pyncm_async.apis.login",
@@ -24,13 +27,12 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
 
-    pkg = "app.tasks.sing"
+    pkg = "app.workers.sing"
     stubs = {
         "mixer": {"mix": lambda *args, **kwargs: None, "splice": lambda *args, **kwargs: None},
         "ncm_loader": {"download": lambda *args, **kwargs: None},
         "separater": {"separate": lambda *args, **kwargs: None},
         "slicer": {"slice_audio": lambda *args, **kwargs: None},
-        "svc_inference": {"inference": lambda *args, **kwargs: None},
     }
     for sub, attrs in stubs.items():
         full = f"{pkg}.{sub}"
@@ -39,14 +41,18 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
             setattr(stub, name, value)
         monkeypatch.setitem(sys.modules, full, stub)
 
+    inference_mod = types.ModuleType("app.media.sing.inference")
+    inference_mod.inference = lambda *args, **kwargs: None
+    monkeypatch.setitem(sys.modules, "app.media.sing.inference", inference_mod)
+
     # Force a fresh import against the stubs above.
-    monkeypatch.delitem(sys.modules, "app.tasks.sing.sing_tasks", raising=False)
-    monkeypatch.delitem(sys.modules, "app.tasks.sing", raising=False)
+    monkeypatch.delitem(sys.modules, "app.workers.sing.sing_tasks", raising=False)
+    monkeypatch.delitem(sys.modules, "app.workers.sing", raising=False)
 
 
 def test_request_task_callback_includes_song_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _install_sing_import_stubs(monkeypatch)
-    from app.tasks.sing import sing_tasks
+    from app.workers.sing import sing_tasks
 
     audio_path = tmp_path / "12345.mp3"
     audio_path.write_bytes(b"fake-audio")

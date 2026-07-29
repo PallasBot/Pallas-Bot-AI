@@ -102,11 +102,13 @@ def test_heal_markers_from_legacy_content(tmp_path: Path, monkeypatch: pytest.Mo
 def test_download_and_extract_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
 
-    def fake_retrieve(url: str, filename: str | Path) -> tuple[str, None]:
+    def fake_retrieve(url: str, filename: str | Path, reporthook=None) -> tuple[str, None]:
         path = Path(filename)
         path.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(path, "w") as zf:
             zf.writestr("dummy.txt", "ok")
+        if reporthook is not None:
+            reporthook(1, 4, 4)
         return str(path), None
 
     monkeypatch.setattr("app.media.assets.urlretrieve", fake_retrieve)
@@ -158,11 +160,13 @@ def test_start_download_job_selective(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
     monkeypatch.setattr("app.media.assets.celery_task_package_enabled", lambda alias: True)
 
-    def fake_retrieve(url: str, filename: str | Path) -> tuple[str, None]:
+    def fake_retrieve(url: str, filename: str | Path, reporthook=None) -> tuple[str, None]:
         path = Path(filename)
         path.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(path, "w") as zf:
             zf.writestr("dummy.txt", "ok")
+        if reporthook is not None:
+            reporthook(1, 4, 4)
         return str(path), None
 
     monkeypatch.setattr("app.media.assets.urlretrieve", fake_retrieve)
@@ -170,6 +174,40 @@ def test_start_download_job_selective(tmp_path: Path, monkeypatch: pytest.Monkey
     job = start_download_job(root=tmp_path, assets=["tts"])
     assert job["state"] in {"running", "done"}
     assert "tts" in job.get("assets", [])
+    assert int(job.get("progress_percent") or 0) >= 0
+
+
+def test_start_download_job_progress_reaches_100(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    from app.media.assets import get_download_job
+
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    monkeypatch.setattr("app.media.assets.celery_task_package_enabled", lambda alias: True)
+
+    def fake_retrieve(url: str, filename: str | Path, reporthook=None) -> tuple[str, None]:
+        path = Path(filename)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "w") as zf:
+            zf.writestr("dummy.txt", "ok")
+        if reporthook is not None:
+            reporthook(1, 8, 8)
+        return str(path), None
+
+    monkeypatch.setattr("app.media.assets.urlretrieve", fake_retrieve)
+    (tmp_path / "resource").mkdir()
+    job = start_download_job(root=tmp_path, assets=["tts"])
+    job_id = str(job["job_id"])
+    final = None
+    for _ in range(80):
+        time.sleep(0.05)
+        final = get_download_job(job_id)
+        if final and final.get("state") in {"done", "failed"}:
+            break
+    assert final is not None
+    assert final["state"] == "done"
+    assert int(final.get("progress_percent") or 0) == 100
+    assert any("ready tts" in line for line in (final.get("lines") or []))
 
 
 def test_media_assets_in_media_core() -> None:

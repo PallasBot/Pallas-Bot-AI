@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import threading
 import time
 import uuid
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -278,39 +278,86 @@ def _extract_zip(zip_path: Path, target_dir: Path, marker: Path) -> None:
     marker.touch()
 
 
+def _asset_progress_percent(index: int, total: int, within: float) -> int:
+    """单项下载进度映射到全局 5–95。``within`` 为该项 0..1。"""
+    if total <= 0:
+        return 100
+    frac = max(0.0, min(1.0, float(within)))
+    return max(5, min(95, int(5 + 90 * (index + frac) / total)))
+
+
 def download_and_extract_missing(
     *,
     root: Path | None = None,
     progress: list[str] | None = None,
     asset_ids: list[str] | None = None,
+    on_progress: Callable[[str, int, str], None] | None = None,
 ) -> None:
-    """同步下载并解压缺失资产（供脚本/job 调用）。"""
+    """同步下载并解压缺失资产（供脚本/job 调用）。
+
+    ``on_progress(line, progress_percent, message)`` 可选；``line`` 空串表示仅刷新百分比。
+    """
     base = repo_root(root)
     log = progress if progress is not None else []
+
+    def emit(line: str, percent: int, message: str) -> None:
+        if line:
+            log.append(line)
+        if on_progress is not None:
+            on_progress(line, int(percent), message)
+
     wanted = set(normalize_asset_ids(asset_ids) if asset_ids is not None else [aid for aid, _, _ in ASSET_SPECS])
+    pending = [
+        (asset_id, marker_rel, zip_rel)
+        for asset_id, marker_rel, zip_rel in ASSET_SPECS
+        if asset_id in wanted and not asset_is_ready(asset_id, marker_rel, base)
+    ]
+    # heal 可能补齐标记，先跑再重算 pending
     for asset_id in heal_extracted_markers(root=base):
         if asset_id in wanted:
-            log.append(f"heal {asset_id}: content present, marker restored")
+            emit(f"heal {asset_id}: content present, marker restored", 5, f"已补齐标记 {asset_id}")
+    pending = [
+        (asset_id, marker_rel, zip_rel)
+        for asset_id, marker_rel, zip_rel in ASSET_SPECS
+        if asset_id in wanted and not asset_is_ready(asset_id, marker_rel, base)
+    ]
+    total = len(pending)
+    if total == 0:
+        for asset_id, marker_rel, _zip_rel in ASSET_SPECS:
+            if asset_id in wanted:
+                emit(f"skip {asset_id}: already extracted", 100, "所选媒体权重已就绪")
+        return
+
     urls = parse_models_txt(base / "Docker" / "models.txt")
-    for asset_id, marker_rel, zip_rel in ASSET_SPECS:
-        if asset_id not in wanted:
-            continue
+    for index, (asset_id, marker_rel, zip_rel) in enumerate(pending):
         marker = base / marker_rel
-        if asset_is_ready(asset_id, marker_rel, base):
-            log.append(f"skip {asset_id}: already extracted")
-            continue
         url = urls.get(zip_rel) or _DEFAULT_URLS.get(zip_rel)
         if not url:
             raise RuntimeError(f"无下载地址: {zip_rel}")
         zip_path = base / zip_rel
         zip_path.parent.mkdir(parents=True, exist_ok=True)
-        log.append(f"download {asset_id}: {url}")
+        start_pct = _asset_progress_percent(index, total, 0.0)
+        emit(f"download {asset_id}: {url}", start_pct, f"正在下载 {asset_id}…")
         logger.info("media assets download {} from {}", asset_id, url)
-        urlretrieve(url, zip_path)  # noqa: S310 — 官方镜像列表，运维可控
-        log.append(f"extract {asset_id}")
-        _extract_zip(zip_path, zip_path.parent, marker)
-        log.append(f"ready {asset_id}")
+        last_pct = start_pct
 
+        def reporthook(blocknum: int, blocksize: int, totalsize: int, *, _i=index, _aid=asset_id) -> None:
+            nonlocal last_pct
+            if totalsize <= 0:
+                return
+            within = min(1.0, (blocknum * blocksize) / float(totalsize)) * 0.85
+            pct = _asset_progress_percent(_i, total, within)
+            if pct <= last_pct:
+                return
+            last_pct = pct
+            emit("", pct, f"正在下载 {_aid}…")
+
+        urlretrieve(url, zip_path, reporthook=reporthook)  # noqa: S310 — 官方镜像列表，运维可控
+        extract_pct = _asset_progress_percent(index, total, 0.9)
+        emit(f"extract {asset_id}", extract_pct, f"正在解压 {asset_id}…")
+        _extract_zip(zip_path, zip_path.parent, marker)
+        done_pct = _asset_progress_percent(index, total, 1.0)
+        emit(f"ready {asset_id}", done_pct, f"已完成 {asset_id}")
 
 def _safe_rmtree(path: Path) -> None:
     if path.is_dir():
@@ -368,6 +415,15 @@ def get_download_job(job_id: str) -> dict[str, Any] | None:
         return dict(job) if job else None
 
 
+def _patch_download_job(job_id: str, **fields: Any) -> None:
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        job.update(fields)
+        job["updated_at"] = time.time()
+
+
 def start_download_job(*, root: Path | None = None, assets: list[str] | None = None) -> dict[str, Any]:
     status = collect_asset_status(root)
     if not status.download_allowed:
@@ -385,6 +441,7 @@ def start_download_job(*, root: Path | None = None, assets: list[str] | None = N
             "assets": selected,
             "lines": [],
             "error": "",
+            "progress_percent": 100,
             "created_at": time.time(),
             "updated_at": time.time(),
         }
@@ -400,6 +457,7 @@ def start_download_job(*, root: Path | None = None, assets: list[str] | None = N
         "assets": missing,
         "lines": [],
         "error": "",
+        "progress_percent": 2,
         "created_at": time.time(),
         "updated_at": time.time(),
     }
@@ -407,47 +465,51 @@ def start_download_job(*, root: Path | None = None, assets: list[str] | None = N
         _jobs[job_id] = payload
 
     base = repo_root(root)
-    # 全量且无显式过滤时优先脚本；分项下载走 Python
-    use_script = assets is None and set(missing) == {
-        aid for aid, info in status.assets.items() if not info.get("ready")
-    }
 
     def worker() -> None:
         lines: list[str] = []
-        try:
-            script = base / "scripts" / "download_media_assets.sh"
-            if use_script and script.is_file() and shutil.which("bash"):
-                lines.append(f"run {script}")
-                completed = subprocess.run(
-                    ["bash", str(script)],
-                    cwd=str(base),
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    env={**os.environ, "PALLAS_AI_ROOT": str(base)},
-                )
-                out = ((completed.stdout or "") + (completed.stderr or "")).strip()
-                if out:
-                    lines.extend(out.splitlines()[-80:])
-                if completed.returncode != 0:
-                    raise RuntimeError(out or f"download script exit {completed.returncode}")
-            else:
-                download_and_extract_missing(root=base, progress=lines, asset_ids=missing)
+
+        def on_progress(line: str, percent: int, message: str) -> None:
+            del line  # 行已写入共享 lines；此处只同步 job 快照
             with _jobs_lock:
-                job = _jobs[job_id]
-                job["state"] = "done"
-                job["message"] = "媒体权重下载完成"
-                job["lines"] = lines[-120:]
+                job = _jobs.get(job_id)
+                if not job:
+                    return
+                job["lines"] = list(lines)[-120:]
+                job["progress_percent"] = max(0, min(100, int(percent)))
+                if message:
+                    job["message"] = message
                 job["updated_at"] = time.time()
+
+        try:
+            # API job 走 Python 路径以便实时百分比；CLI 仍可用 scripts/download_media_assets.sh
+            download_and_extract_missing(
+                root=base,
+                progress=lines,
+                asset_ids=missing,
+                on_progress=on_progress,
+            )
+            _patch_download_job(
+                job_id,
+                state="done",
+                message="媒体权重下载完成",
+                lines=lines[-120:],
+                progress_percent=100,
+                error="",
+            )
         except Exception as exc:
             logger.exception("media assets download failed: {}", exc)
             with _jobs_lock:
-                job = _jobs[job_id]
-                job["state"] = "failed"
-                job["message"] = "媒体权重下载失败"
-                job["error"] = str(exc)
-                job["lines"] = lines[-120:]
-                job["updated_at"] = time.time()
+                job = _jobs.get(job_id)
+                last_pct = int(job.get("progress_percent") or 0) if job else 0
+            _patch_download_job(
+                job_id,
+                state="failed",
+                message="媒体权重下载失败",
+                error=str(exc),
+                lines=lines[-120:],
+                progress_percent=last_pct,
+            )
 
     threading.Thread(target=worker, name=f"media-assets-{job_id[:8]}", daemon=True).start()
     return dict(payload)

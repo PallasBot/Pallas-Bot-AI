@@ -42,7 +42,7 @@ svc_logfile() {
   esac
 }
 
-ALL_SERVICES=(media api)
+ALL_SERVICES=(api media)
 
 detect_cuda_home() {
   if [[ -n "${CUDA_HOME:-}" && -d "${CUDA_HOME:-}" ]]; then
@@ -143,9 +143,8 @@ start_one() {
       echo "[$svc] 已启动 (PID $(read_pid "$pidfile"))"
       return 0
     fi
-    # Celery 冷启动慢：日志已出现启动摘要且 pidfile 已写出 → 视为成功
-    #（避免 Git Bash kill -0 认不出 Windows PID 时误报失败）
-    if [[ "$(svc_kind "$svc")" == "celery" && -f "$pidfile" && -f "$logfile" ]]; then
+    # 冷启动慢 / Git Bash PID 认不出：日志已出现启动摘要且 pidfile 已写出 → 视为成功
+    if [[ -f "$pidfile" && -f "$logfile" ]]; then
       if tail -n 80 "$logfile" 2>/dev/null | grep -q '启动摘要'; then
         echo "[$svc] 已启动 (PID $(read_pid "$pidfile"); 日志已确认)"
         return 0
@@ -168,6 +167,8 @@ PY
     else
       echo "[$svc] 提示: Redis 可达，但 ${wait_sec}s 内未检测到进程；可看日志末尾，或加大 PALLAS_START_WAIT_SEC"
     fi
+  elif [[ "$(svc_kind "$svc")" == "api" ]]; then
+    echo "[$svc] 提示: 查看 logs/uvicorn.log；Bot 连 9099 失败多半是 API 未起来"
   fi
   return 1
 }
@@ -282,6 +283,7 @@ main() {
   local target="${2:-all}"
   local targets=()
   local line
+  local rc=0
   # 不用 mapfile：部分精简 bash / 旧 Git Bash 更稳妥
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] && targets+=("$line")
@@ -289,19 +291,20 @@ main() {
 
   case "$cmd" in
     start)
-      for s in "${targets[@]}"; do start_one "$s"; done
+      # 单个失败不中断：否则 media 误报会导致 api 根本不启动
+      for s in "${targets[@]}"; do start_one "$s" || rc=1; done
       ;;
     stop)
-      for ((i = ${#targets[@]} - 1; i >= 0; i--)); do stop_one "${targets[$i]}"; done
+      for ((i = ${#targets[@]} - 1; i >= 0; i--)); do stop_one "${targets[$i]}" || true; done
       ;;
     restart)
-      for ((i = ${#targets[@]} - 1; i >= 0; i--)); do stop_one "${targets[$i]}"; done
-      for s in "${targets[@]}"; do start_one "$s"; done
+      for ((i = ${#targets[@]} - 1; i >= 0; i--)); do stop_one "${targets[$i]}" || true; done
+      for s in "${targets[@]}"; do start_one "$s" || rc=1; done
       ;;
     restart-clean)
-      for ((i = ${#targets[@]} - 1; i >= 0; i--)); do stop_one "${targets[$i]}"; done
-      for s in "${targets[@]}"; do [[ "$(svc_kind "$s")" == "celery" ]] && { purge_stale; break; }; done
-      for s in "${targets[@]}"; do start_one "$s"; done
+      for ((i = ${#targets[@]} - 1; i >= 0; i--)); do stop_one "${targets[$i]}" || true; done
+      for s in "${targets[@]}"; do [[ "$(svc_kind "$s")" == "celery" ]] && { purge_stale || rc=1; break; }; done
+      for s in "${targets[@]}"; do start_one "$s" || rc=1; done
       ;;
     purge-stale)
       purge_stale
@@ -314,6 +317,8 @@ main() {
       exit 1
       ;;
   esac
+  return "$rc"
 }
 
 main "$@"
+exit $?

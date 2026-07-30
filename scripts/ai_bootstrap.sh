@@ -284,9 +284,18 @@ start_services() {
   if ! redis_ping "$url"; then
     warn "Redis 仍不可达（${url}）；media worker 依赖 Redis，启动可能失败"
   fi
-  log "启动媒体服务（media worker + API）..."
-  "$ROOT/scripts/ctl.sh" start media
-  "$ROOT/scripts/ctl.sh" start api
+  log "启动媒体服务（先 API，再 media worker）..."
+  # 分开启：media 失败时也不要挡住 API（Bot 连 9099 需要 API）
+  local start_rc=0
+  if ! "$ROOT/scripts/ctl.sh" start api; then
+    warn "API 启动失败，见 logs/uvicorn.log"
+    start_rc=1
+  fi
+  if ! "$ROOT/scripts/ctl.sh" start media; then
+    warn "media worker 启动失败，见 logs/celery-media.log（唱歌/TTS 会不可用；API 仍可单独排查）"
+    start_rc=1
+  fi
+  return "$start_rc"
 }
 
 health_check() {
@@ -354,7 +363,7 @@ main() {
   sync_deps
   check_ffmpeg || true
   ensure_redis || true
-  start_services
+  start_services || warn "部分服务启动失败；继续健康检查与后续提示"
   sleep 3
   health_check || true
   print_next_steps

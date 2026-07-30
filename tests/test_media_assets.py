@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import zipfile
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from app.media.assets import (
     collect_asset_status,
     delete_assets,
     download_and_extract_missing,
+    get_download_job,
     parse_models_txt,
     start_download_job,
 )
@@ -178,10 +180,6 @@ def test_start_download_job_selective(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def test_start_download_job_progress_reaches_100(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import time
-
-    from app.media.assets import get_download_job
-
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
     monkeypatch.setattr("app.media.assets.celery_task_package_enabled", lambda alias: True)
 

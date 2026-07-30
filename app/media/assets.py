@@ -8,11 +8,13 @@ import threading
 import time
 import uuid
 import zipfile
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.request import urlretrieve
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from app.core.celery import celery_task_package_enabled
 from app.core.logger import logger
@@ -323,7 +325,7 @@ def download_and_extract_missing(
     ]
     total = len(pending)
     if total == 0:
-        for asset_id, marker_rel, _zip_rel in ASSET_SPECS:
+        for asset_id, _marker_rel, _zip_rel in ASSET_SPECS:
             if asset_id in wanted:
                 emit(f"skip {asset_id}: already extracted", 100, "所选媒体权重已就绪")
         return
@@ -358,6 +360,7 @@ def download_and_extract_missing(
         _extract_zip(zip_path, zip_path.parent, marker)
         done_pct = _asset_progress_percent(index, total, 1.0)
         emit(f"ready {asset_id}", done_pct, f"已完成 {asset_id}")
+
 
 def _safe_rmtree(path: Path) -> None:
     if path.is_dir():

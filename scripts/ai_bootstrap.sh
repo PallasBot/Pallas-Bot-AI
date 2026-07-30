@@ -23,6 +23,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# 从 Bot 控制台拉起时可能继承 Bot 的 VIRTUAL_ENV，导致 uv 警告
+unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT UV_PROJECT UV_PROJECT_ENVIRONMENT PYTHONHOME || true
+
 CHECK_ONLY=0
 NO_START=0
 BOT_HOST="${PALLAS_BOT_HOST:-localhost}"
@@ -255,6 +258,21 @@ sync_deps() {
   fi
 }
 
+check_ffmpeg() {
+  if command -v ffmpeg >/dev/null 2>&1; then
+    log "已检测到 ffmpeg: $(command -v ffmpeg)"
+    return 0
+  fi
+  warn "未在 PATH 中找到 ffmpeg。唱歌 / TTS 音频处理可能失败（pydub 会告警 Couldn't find ffmpeg）。"
+  if [[ "${OS:-}" == "Windows_NT" ]] || uname -s 2>/dev/null | grep -qiE 'mingw|msys|cygwin'; then
+    warn "Windows：请安装 ffmpeg 并加入 PATH，或把 ffmpeg.exe / ffprobe.exe 放到本仓可用路径后重开终端。"
+    warn "可用 winget：winget install --id Gyan.FFmpeg -e  （装完新开终端再启动媒体服务）"
+  else
+    warn "Linux：sudo apt install ffmpeg ；macOS：brew install ffmpeg"
+  fi
+  return 1
+}
+
 start_services() {
   if [[ "$NO_START" == "1" ]]; then
     log "--no-start：跳过启停"
@@ -328,11 +346,13 @@ main() {
 
   if [[ "$CHECK_ONLY" == "1" ]]; then
     ensure_redis || true
+    check_ffmpeg || true
     health_check || true
     exit 0
   fi
 
   sync_deps
+  check_ffmpeg || true
   ensure_redis || true
   start_services
   sleep 3

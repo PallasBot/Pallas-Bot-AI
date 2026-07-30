@@ -19,6 +19,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Bot 进程可能带着 VIRTUAL_ENV=…/Pallas-Bot/.venv；本仓应使用自己的 .venv
+unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT UV_PROJECT UV_PROJECT_ENVIRONMENT PYTHONHOME || true
+
 LOG_DIR="${PALLAS_LOG_DIR:-$ROOT/logs}"
 WAIT_SEC="${PALLAS_STOP_WAIT_SEC:-20}"
 REDIS_URL_OVERRIDE="${PALLAS_REDIS_URL:-${REDIS_URL:-}}"

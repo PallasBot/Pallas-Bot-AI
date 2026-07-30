@@ -50,7 +50,11 @@ start_api() {
   fi
 
   echo "启动 API → $API_LOG_FILE"
-  nohup "$RUN_API_CMD" >>"$API_LOG_FILE" 2>&1 &
+  if command -v nohup >/dev/null 2>&1; then
+    nohup "$RUN_API_CMD" >>"$API_LOG_FILE" 2>&1 &
+  else
+    "$RUN_API_CMD" >>"$API_LOG_FILE" 2>&1 &
+  fi
   echo $! >"$API_PID_FILE"
   sleep 3
 

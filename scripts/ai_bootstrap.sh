@@ -276,11 +276,28 @@ health_check() {
   port="$(read_env_key UVICORN_PORT "9099")"
   api_base="http://127.0.0.1:${port}"
   log "健康检查 $api_base/health ..."
-  if ! curl -fsS --max-time 10 "${api_base}/health" | python3 -m json.tool; then
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "未找到 curl，跳过健康检查"
+    return 1
+  fi
+  # Windows 常只有 python，没有 python3
+  if ! curl -fsS --max-time 10 "${api_base}/health" | json_pretty; then
     warn "健康检查失败；查看 logs/uvicorn.log 与 logs/celery-media.log"
     return 1
   fi
   return 0
+}
+
+json_pretty() {
+  if command -v python >/dev/null 2>&1; then
+    python -m json.tool
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -m json.tool
+  elif command -v uv >/dev/null 2>&1; then
+    uv run --no-sync python -m json.tool
+  else
+    cat
+  fi
 }
 
 print_next_steps() {
@@ -299,7 +316,7 @@ print_next_steps() {
 常用命令:
   ./scripts/ctl.sh status
   ./scripts/ctl.sh restart media
-  curl -s http://127.0.0.1:${ai_port}/health | python3 -m json.tool
+  curl -s http://127.0.0.1:${ai_port}/health | python -m json.tool
 
 EOF
 }

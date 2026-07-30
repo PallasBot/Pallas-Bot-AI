@@ -62,6 +62,13 @@ is_running() {
   [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
 }
 
+is_windows_host() {
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+  [[ -n "${WINDIR:-}" || -n "${SystemRoot:-}" ]]
+}
+
 # Linux 有 setsid；Git Bash / 部分环境没有。有则用，否则回退 nohup / 纯后台。
 background_cmd() {
   local logfile="$1"
@@ -160,10 +167,13 @@ stop_one() {
 
   echo "[$svc] 超时，SIGKILL"
   kill -KILL "$pid" 2>/dev/null || true
-  local pgid
-  pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
-  if [[ -n "$pgid" ]]; then
-    kill -KILL -- "-$pgid" 2>/dev/null || true
+  # 进程组强杀依赖 Linux ps/pgid；Git Bash / Windows 跳过
+  if ! is_windows_host; then
+    local pgid
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
+    if [[ -n "$pgid" && "$pgid" =~ ^[0-9]+$ ]]; then
+      kill -KILL -- "-$pgid" 2>/dev/null || true
+    fi
   fi
   sleep 1
   rm -f "$pidfile"
@@ -232,8 +242,12 @@ resolve_targets() {
 main() {
   local cmd="${1:-}"
   local target="${2:-all}"
-  local targets
-  mapfile -t targets < <(resolve_targets "$target")
+  local targets=()
+  local line
+  # 不用 mapfile：部分精简 bash / 旧 Git Bash 更稳妥
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] && targets+=("$line")
+  done < <(resolve_targets "$target")
 
   case "$cmd" in
     start)

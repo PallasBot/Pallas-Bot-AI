@@ -50,7 +50,11 @@ start_worker() {
     queue_args=( -Q "$WORKER_QUEUE" )
   fi
   echo "启动 celery worker${WORKER_QUEUE:+ queue=$WORKER_QUEUE} → $LOG_FILE"
-  nohup uv run --no-sync celery -A app.core.celery worker --loglevel=warning "${queue_args[@]}" >>"$LOG_FILE" 2>&1 &
+  if command -v nohup >/dev/null 2>&1; then
+    nohup uv run --no-sync celery -A app.core.celery worker --loglevel=warning "${queue_args[@]}" >>"$LOG_FILE" 2>&1 &
+  else
+    uv run --no-sync celery -A app.core.celery worker --loglevel=warning "${queue_args[@]}" >>"$LOG_FILE" 2>&1 &
+  fi
   echo $! >"$PID_FILE"
   sleep 3
   if is_running; then

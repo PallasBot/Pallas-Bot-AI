@@ -50,12 +50,23 @@ start_api() {
   fi
 
   echo "启动 API → $API_LOG_FILE"
-  if command -v nohup >/dev/null 2>&1; then
-    nohup "$RUN_API_CMD" >>"$API_LOG_FILE" 2>&1 &
+  # 测试可注入 AI_SERVICE_RUN_API_CMD；默认用 run_api_with_pid 写原生 PID
+  local api_launcher=()
+  local write_bash_pid=0
+  if [[ "$RUN_API_CMD" != "$ROOT/scripts/run_api.sh" ]]; then
+    api_launcher=("$RUN_API_CMD")
+    write_bash_pid=1
   else
-    "$RUN_API_CMD" >>"$API_LOG_FILE" 2>&1 &
+    api_launcher=(uv run --no-sync python -m app.run_api_with_pid "$API_PID_FILE")
   fi
-  echo $! >"$API_PID_FILE"
+  if command -v nohup >/dev/null 2>&1; then
+    nohup "${api_launcher[@]}" >>"$API_LOG_FILE" 2>&1 &
+  else
+    "${api_launcher[@]}" >>"$API_LOG_FILE" 2>&1 &
+  fi
+  if [[ "$write_bash_pid" -eq 1 ]]; then
+    echo $! >"$API_PID_FILE"
+  fi
   sleep 3
 
   if api_is_running; then

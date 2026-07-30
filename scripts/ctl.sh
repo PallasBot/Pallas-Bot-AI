@@ -132,8 +132,8 @@ start_one() {
       --loglevel=warning -Q "$queue" -n "${svc}@%h" --pidfile="$pidfile"
   else
     echo "[$svc] 启动 API → $logfile（最多等 ${wait_sec}s）"
-    background_cmd "$logfile" uv run --no-sync python -m app.run_api
-    echo $! >"$pidfile"
+    # 由 Python 写原生 PID；勿用 echo $!（Git Bash / MSYS 伪 PID，Bot 侧 OpenProcess 认不出）
+    background_cmd "$logfile" uv run --no-sync python -m app.run_api_with_pid "$pidfile"
   fi
 
   local i

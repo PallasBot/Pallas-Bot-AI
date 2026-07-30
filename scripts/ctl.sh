@@ -62,6 +62,23 @@ is_running() {
   [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
 }
 
+# Linux 有 setsid；Git Bash / 部分环境没有。有则用，否则回退 nohup / 纯后台。
+background_cmd() {
+  local logfile="$1"
+  shift
+  if command -v setsid >/dev/null 2>&1; then
+    if command -v nohup >/dev/null 2>&1; then
+      setsid nohup "$@" >>"$logfile" 2>&1 &
+    else
+      setsid "$@" >>"$logfile" 2>&1 &
+    fi
+  elif command -v nohup >/dev/null 2>&1; then
+    nohup "$@" >>"$logfile" 2>&1 &
+  else
+    "$@" >>"$logfile" 2>&1 &
+  fi
+}
+
 start_one() {
   local svc="$1"
   local pidfile logfile
@@ -81,12 +98,12 @@ start_one() {
     queue="$(svc_queue "$svc")"
     packages="$(svc_packages "$svc")"
     echo "[$svc] 启动 celery worker queue=$queue → $logfile"
-    CELERY_TASK_PACKAGES="$packages" setsid nohup uv run --no-sync celery -A app.core.celery worker \
-      --loglevel=warning -Q "$queue" -n "${svc}@%h" --pidfile="$pidfile" \
-      >>"$logfile" 2>&1 &
+    CELERY_TASK_PACKAGES="$packages" background_cmd "$logfile" \
+      uv run --no-sync celery -A app.core.celery worker \
+      --loglevel=warning -Q "$queue" -n "${svc}@%h" --pidfile="$pidfile"
   else
     echo "[$svc] 启动 API → $logfile"
-    setsid nohup uv run --no-sync python -m app.run_api >>"$logfile" 2>&1 &
+    background_cmd "$logfile" uv run --no-sync python -m app.run_api
     echo $! >"$pidfile"
   fi
 

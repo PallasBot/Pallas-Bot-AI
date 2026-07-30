@@ -35,6 +35,8 @@ cp .env.example .env
 
 默认安装 **媒体栈**（`uv sync --all-groups --extra cpu`，含 torch），并启动 media worker + API。
 
+**Windows**：bootstrap 会用 `docker compose` 拉 Redis。请先安装并**启动** [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)（托盘就绪），或本机/WSL 自备 Redis 后在 `.env` 设置 `REDIS_URL`。普通聊天不需要本 Runtime。
+
 | 场景 | 命令 |
 | --- | --- |
 | 仅体检 | `./scripts/ai_bootstrap.sh --check-only` |

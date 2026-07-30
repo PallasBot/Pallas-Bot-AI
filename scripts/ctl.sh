@@ -99,6 +99,20 @@ start_one() {
     fi
   done
   echo "[$svc] 启动失败，见 $logfile"
+  if [[ "$(svc_kind "$svc")" == "celery" ]]; then
+    local redis_url
+    redis_url="$(resolve_redis_url)"
+    if ! REDIS_URL="$redis_url" uv run --no-sync python - <<'PY' 2>/dev/null
+import os
+import redis
+url = os.environ["REDIS_URL"]
+redis.Redis.from_url(url, socket_connect_timeout=1.0, socket_timeout=1.0).ping()
+PY
+    then
+      echo "[$svc] 提示: media worker 依赖 Redis（当前不可达: ${redis_url}）"
+      echo "[$svc] Windows 请先打开 Docker Desktop 再跑 bootstrap，或本机/WSL 自备 Redis 并设置 REDIS_URL"
+    fi
+  fi
   return 1
 }
 

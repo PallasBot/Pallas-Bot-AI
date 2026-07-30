@@ -147,8 +147,31 @@ PY
   return 1
 }
 
+is_windows_host() {
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+  [[ -n "${WINDIR:-}" || -n "${SystemRoot:-}" ]]
+}
+
+docker_engine_error_looks_desktop() {
+  local err="${1:-}"
+  printf '%s' "$err" | grep -qiE \
+    'dockerDesktopLinuxEngine|npipe:|Is the docker daemon running|failed to connect to the docker API|cannot find the file specified|The system cannot find the file specified'
+}
+
+warn_redis_manual_fallback() {
+  local url="${1:-redis://127.0.0.1:6379/0}"
+  warn "也可不用 Docker：本机或 WSL 自备 Redis，在 .env 设置 REDIS_URL=${url}"
+}
+
+warn_docker_desktop_hint() {
+  warn "Windows：请安装并启动 Docker Desktop，托盘图标就绪后再重试"
+  warn "安装说明: https://docs.docker.com/desktop/setup/install/windows-install/"
+}
+
 ensure_redis() {
-  local url
+  local url compose_out compose_rc info_err info_rc i
   url="$(read_env_key REDIS_URL "redis://127.0.0.1:6379/0")"
   if redis_ping "$url"; then
     log "Redis 可达: $url"
@@ -159,12 +182,50 @@ ensure_redis() {
     return 1
   fi
   if ! command -v docker >/dev/null 2>&1; then
-    warn "Redis 不可达且无 docker，请手动启动 Redis 并设置 REDIS_URL"
+    warn "Redis 不可达且未找到 docker"
+    if is_windows_host; then
+      warn_docker_desktop_hint
+    else
+      warn "请安装 Docker，或手动启动 Redis"
+    fi
+    warn_redis_manual_fallback "$url"
     return 1
   fi
+
+  set +e
+  info_err="$(docker info 2>&1)"
+  info_rc=$?
+  set -e
+  if [[ "$info_rc" -ne 0 ]]; then
+    warn "检测到 Docker CLI，但引擎未运行（docker info 失败）"
+    if is_windows_host || docker_engine_error_looks_desktop "$info_err"; then
+      warn_docker_desktop_hint
+    else
+      warn "请启动 Docker 守护进程后再重试"
+    fi
+    warn_redis_manual_fallback "$url"
+    return 1
+  fi
+
   log "尝试用 docker compose 拉起 Redis（docker-compose.4.0-ci.yml）..."
-  docker compose -f "$ROOT/docker-compose.4.0-ci.yml" up -d
-  local i
+  set +e
+  compose_out="$(docker compose -f "$ROOT/docker-compose.4.0-ci.yml" up -d 2>&1)"
+  compose_rc=$?
+  set -e
+  if [[ "$compose_rc" -ne 0 ]]; then
+    warn "docker compose 拉起 Redis 失败（exit ${compose_rc}）"
+    if [[ -n "$compose_out" ]]; then
+      printf '%s\n' "$compose_out" | tail -n 12 | while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -n "$line" ]] && warn "  $line"
+      done
+    fi
+    if is_windows_host || docker_engine_error_looks_desktop "$compose_out"; then
+      warn_docker_desktop_hint
+    fi
+    warn_redis_manual_fallback "$url"
+    return 1
+  fi
+
   for ((i = 0; i < 30; i++)); do
     if redis_ping "$url"; then
       log "Redis 已就绪"
@@ -172,7 +233,9 @@ ensure_redis() {
     fi
     sleep 1
   done
-  warn "Redis 容器已启动但 ping 仍失败，请检查 REDIS_URL=$url"
+  warn "Redis 容器已拉起但暂不可达，请检查 REDIS_URL=${url}"
+  warn "可执行: docker compose -f docker-compose.4.0-ci.yml ps"
+  warn_redis_manual_fallback "$url"
   return 1
 }
 
@@ -198,6 +261,11 @@ start_services() {
     return 0
   fi
   mkdir -p "$ROOT/logs"
+  local url
+  url="$(read_env_key REDIS_URL "redis://127.0.0.1:6379/0")"
+  if ! redis_ping "$url"; then
+    warn "Redis 仍不可达（${url}）；media worker 依赖 Redis，启动可能失败"
+  fi
   log "启动媒体服务（media worker + API）..."
   "$ROOT/scripts/ctl.sh" start media
   "$ROOT/scripts/ctl.sh" start api

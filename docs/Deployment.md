@@ -14,11 +14,13 @@
 
 本机一键：`./scripts/ai_bootstrap.sh`（默认装媒体栈并启动 media worker + API）。
 
+**Windows 本机**：需 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) 已安装且引擎在跑（bootstrap 用其拉 Redis）；也可用 WSL/本机 Redis，在 `.env` 写 `REDIS_URL`。引擎未开时日志会提示，勿依赖 WSL Containers 公测替代 Compose。
+
 ## 方式一：Docker
 
 ### 前置
 
-- [Docker Compose](https://github.com/PallasBot/Pallas-Bot/blob/main/docs/deploy/docker.md)
+- [Docker Compose](https://github.com/PallasBot/Pallas-Bot/blob/main/docs/deploy/docker.md)；Windows 用 Docker Desktop
 - GPU 镜像需宿主机 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 
 ### 快速部署

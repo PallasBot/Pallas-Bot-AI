@@ -26,6 +26,17 @@ _DEFAULT_SING = {
     "preferred_backend": "",
 }
 
+_DEFAULT_TRANSLATOR = {
+    "enable": False,
+    "provider": "baidu",
+    "baidu_app_id": "",
+    "baidu_secret_key": "",
+    "youdao_app_key": "",
+    "youdao_app_secret": "",
+}
+
+_TRANSLATOR_MASK = "****"
+
 
 def media_models_path(root: Path | None = None) -> Path:
     base = repo_root(root)
@@ -39,17 +50,65 @@ def _default_payload() -> dict[str, Any]:
     }
 
 
-def load_media_models(root: Path | None = None) -> dict[str, Any]:
+def _read_raw_media_models(root: Path | None = None) -> dict[str, Any]:
     path = media_models_path(root)
-    payload = _default_payload()
     if not path.is_file():
-        return payload
+        return {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("media_models.json 读取失败: {}", exc)
-        return payload
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _normalize_translator_dict(raw: dict[str, Any] | None) -> dict[str, Any]:
+    out = dict(_DEFAULT_TRANSLATOR)
     if not isinstance(raw, dict):
+        return out
+    if "enable" in raw:
+        out["enable"] = bool(raw.get("enable"))
+    provider = str(raw.get("provider") or "").strip().lower()
+    if provider in {"baidu", "youdao"}:
+        out["provider"] = provider
+    for key in ("baidu_app_id", "baidu_secret_key", "youdao_app_key", "youdao_app_secret"):
+        val = raw.get(key)
+        if isinstance(val, str):
+            out[key] = val.strip()
+    return out
+
+
+def _translator_from_settings() -> dict[str, Any]:
+    provider = str(settings.default_translator or "baidu").strip().lower()
+    if provider not in {"baidu", "youdao"}:
+        provider = "baidu"
+    return {
+        "enable": bool(settings.translator_enable),
+        "provider": provider,
+        "baidu_app_id": str(settings.baidu_app_id or "").strip(),
+        "baidu_secret_key": str(settings.baidu_secret_key or "").strip(),
+        "youdao_app_key": str(settings.youdao_app_key or "").strip(),
+        "youdao_app_secret": str(settings.youdao_app_secret or "").strip(),
+    }
+
+
+def _public_translator_view(cfg: dict[str, Any], *, source: str, writable: bool) -> dict[str, Any]:
+    return {
+        "enable": bool(cfg.get("enable")),
+        "provider": str(cfg.get("provider") or "baidu"),
+        "baidu_app_id": str(cfg.get("baidu_app_id") or ""),
+        "baidu_secret_configured": bool(str(cfg.get("baidu_secret_key") or "").strip()),
+        "youdao_app_key": str(cfg.get("youdao_app_key") or ""),
+        "youdao_secret_configured": bool(str(cfg.get("youdao_app_secret") or "").strip()),
+        "source": source,
+        "writable": writable,
+    }
+
+
+def load_media_models(root: Path | None = None) -> dict[str, Any]:
+    payload = _default_payload()
+    raw = _read_raw_media_models(root)
+    if not raw:
         return payload
     sing = raw.get("sing") if isinstance(raw.get("sing"), dict) else {}
     tts = raw.get("tts") if isinstance(raw.get("tts"), dict) else {}
@@ -61,12 +120,15 @@ def load_media_models(root: Path | None = None) -> dict[str, Any]:
         val = tts.get(key)
         if isinstance(val, str) and val.strip():
             payload["tts"][key] = val.strip()
+    if isinstance(raw.get("translator"), dict):
+        payload["translator"] = _normalize_translator_dict(raw.get("translator"))
     return payload
 
 
 def save_media_models(payload: dict[str, Any], *, root: Path | None = None) -> dict[str, Any]:
     path = media_models_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    existing = _read_raw_media_models(root)
     merged = _default_payload()
     sing = payload.get("sing") if isinstance(payload.get("sing"), dict) else {}
     tts = payload.get("tts") if isinstance(payload.get("tts"), dict) else {}
@@ -78,6 +140,11 @@ def save_media_models(payload: dict[str, Any], *, root: Path | None = None) -> d
         val = tts.get(key)
         if isinstance(val, str) and val.strip():
             merged["tts"][key] = val.strip()
+    # 保存音色/唱歌默认时保留已有翻译配置
+    if isinstance(payload.get("translator"), dict):
+        merged["translator"] = _normalize_translator_dict(payload.get("translator"))
+    elif isinstance(existing.get("translator"), dict):
+        merged["translator"] = _normalize_translator_dict(existing.get("translator"))
     with _LOCK:
         path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return merged
@@ -358,6 +425,70 @@ def set_tts_defaults(
     return get_tts_defaults(base)
 
 
+def resolve_tts_translator_config(root: Path | None = None) -> dict[str, Any]:
+    """运行时翻译配置：落盘优先，否则回退 AI .env / settings。"""
+    base = repo_root(root)
+    raw = _read_raw_media_models(base)
+    if isinstance(raw.get("translator"), dict):
+        return _normalize_translator_dict(raw.get("translator"))
+    return _translator_from_settings()
+
+
+def get_tts_translator(root: Path | None = None) -> dict[str, Any]:
+    base = repo_root(root)
+    raw = _read_raw_media_models(base)
+    if isinstance(raw.get("translator"), dict):
+        cfg = _normalize_translator_dict(raw.get("translator"))
+        source = "disk"
+    else:
+        cfg = _translator_from_settings()
+        source = "env"
+    return _public_translator_view(cfg, source=source, writable=defaults_writable(base))
+
+
+def set_tts_translator(
+    *,
+    enable: bool | None = None,
+    provider: str | None = None,
+    baidu_app_id: str | None = None,
+    baidu_secret_key: str | None = None,
+    youdao_app_key: str | None = None,
+    youdao_app_secret: str | None = None,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    base = repo_root(root)
+    if not defaults_writable(base):
+        raise PermissionError("当前部署不可写入 TTS 翻译配置")
+    current = resolve_tts_translator_config(base)
+    if enable is not None:
+        current["enable"] = bool(enable)
+    if provider is not None:
+        p = str(provider).strip().lower()
+        if p not in {"baidu", "youdao"}:
+            raise ValueError("provider 仅支持 baidu / youdao")
+        current["provider"] = p
+    if baidu_app_id is not None:
+        current["baidu_app_id"] = str(baidu_app_id).strip()
+    if youdao_app_key is not None:
+        current["youdao_app_key"] = str(youdao_app_key).strip()
+
+    def apply_secret(key: str, value: str | None) -> None:
+        if value is None:
+            return
+        text = str(value).strip()
+        if not text or text == _TRANSLATOR_MASK:
+            return
+        current[key] = text
+
+    apply_secret("baidu_secret_key", baidu_secret_key)
+    apply_secret("youdao_app_secret", youdao_app_secret)
+
+    payload = load_media_models(base)
+    payload["translator"] = current
+    save_media_models(payload, root=base)
+    return get_tts_translator(base)
+
+
 def resolve_tts_request(
     *,
     text: str,
@@ -370,8 +501,7 @@ def resolve_tts_request(
     ref = str(cfg.get("ref_audio_path") or _DEFAULT_TTS["ref_audio_path"])
     abs_ref = base / ref
     text_lang = str(cfg.get("text_lang") or "zh")
-    if settings.translator_enable:
-        text_lang = "ja"
+    # 翻译开启时仍保留配置的 text_lang；仅在真正译出日文后由 tts_tasks 改成 ja
     return {
         "text": text,
         "text_lang": text_lang,

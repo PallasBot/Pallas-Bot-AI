@@ -9,14 +9,17 @@ from fastapi.testclient import TestClient
 from app.http.factory import create_app
 from app.media.models import (
     get_tts_defaults,
+    get_tts_translator,
     list_sing_speakers,
     list_tts_voices,
     load_media_models,
     order_backends_by_preference,
     resolve_sing_speaker,
     resolve_tts_request,
+    resolve_tts_translator_config,
     set_sing_defaults,
     set_tts_defaults,
+    set_tts_translator,
 )
 
 
@@ -76,6 +79,67 @@ def test_list_sing_speakers_skips_pretrain(tmp_path: Path, monkeypatch: pytest.M
     ids = {s["id"] for s in rows["speakers"]}
     assert "pallas" in ids
     assert "pretrain" not in ids
+
+
+def test_tts_translator_disk_overrides_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    (tmp_path / "data").mkdir()
+    monkeypatch.setattr("app.media.models.settings.translator_enable", True)
+    monkeypatch.setattr("app.media.models.settings.default_translator", "baidu")
+    monkeypatch.setattr("app.media.models.settings.baidu_app_id", "env-id")
+    monkeypatch.setattr("app.media.models.settings.baidu_secret_key", "env-secret")
+
+    public = get_tts_translator(tmp_path)
+    assert public["source"] == "env"
+    assert public["enable"] is True
+    assert public["baidu_app_id"] == "env-id"
+    assert public["baidu_secret_configured"] is True
+    assert "baidu_secret_key" not in public
+
+    saved = set_tts_translator(
+        enable=False,
+        provider="youdao",
+        youdao_app_key="yd-key",
+        youdao_app_secret="yd-secret",
+        root=tmp_path,
+    )
+    assert saved["source"] == "disk"
+    assert saved["enable"] is False
+    assert saved["provider"] == "youdao"
+    assert saved["youdao_secret_configured"] is True
+
+    # 空 secret / **** 不覆盖
+    set_tts_translator(youdao_app_secret="", root=tmp_path)
+    set_tts_translator(youdao_app_secret="****", root=tmp_path)
+    cfg = resolve_tts_translator_config(tmp_path)
+    assert cfg["youdao_app_secret"] == "yd-secret"
+    assert cfg["enable"] is False
+
+    # 保存音色默认不丢翻译
+    ref = tmp_path / "resource/tts/ref_audio"
+    ref.mkdir(parents=True)
+    (ref / "demo.wav").write_bytes(b"RIFF")
+    set_tts_defaults(ref_audio_path="resource/tts/ref_audio/demo.wav", root=tmp_path)
+    assert load_media_models(tmp_path)["translator"]["provider"] == "youdao"
+
+
+def test_api_tts_translator_endpoints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir()
+    client = TestClient(create_app(enabled_endpoints={"media_models"}))
+    got = client.get("/api/media/models/tts/translator")
+    assert got.status_code == 200
+    body = got.json()
+    assert "enable" in body
+    assert "baidu_secret_configured" in body
+    put = client.put(
+        "/api/media/models/tts/translator",
+        json={"enable": True, "provider": "baidu", "baidu_app_id": "x", "baidu_secret_key": "y"},
+    )
+    assert put.status_code == 200
+    assert put.json()["enable"] is True
+    assert put.json()["baidu_secret_configured"] is True
 
 
 def test_api_media_models_endpoints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

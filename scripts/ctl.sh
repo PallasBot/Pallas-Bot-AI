@@ -24,6 +24,9 @@ unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT UV_PROJECT UV_PROJECT_ENVIRONMENT PYTHONHOM
 
 LOG_DIR="${PALLAS_LOG_DIR:-$ROOT/logs}"
 WAIT_SEC="${PALLAS_STOP_WAIT_SEC:-20}"
+# media worker 冷启动（导入 TTS/唱歌）在 Windows 上常需数十秒；过短会误报「启动失败」
+START_WAIT_SEC="${PALLAS_START_WAIT_SEC:-90}"
+START_WAIT_API_SEC="${PALLAS_START_WAIT_API_SEC:-20}"
 REDIS_URL_OVERRIDE="${PALLAS_REDIS_URL:-${REDIS_URL:-}}"
 
 mkdir -p "$LOG_DIR"
@@ -59,17 +62,31 @@ read_pid() {
   [[ -f "$pidfile" ]] && tr -d '[:space:]' <"$pidfile" || true
 }
 
-is_running() {
-  local pid
-  pid="$(read_pid "$(svc_pidfile "$1")")"
-  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
-}
-
 is_windows_host() {
   case "$(uname -s 2>/dev/null || true)" in
     MINGW*|MSYS*|CYGWIN*) return 0 ;;
   esac
   [[ -n "${WINDIR:-}" || -n "${SystemRoot:-}" ]]
+}
+
+# Celery 写入的是原生 Windows PID；Git Bash 的 kill -0 偶发认不出，再退到 tasklist。
+pid_alive() {
+  local pid="$1"
+  [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]] || return 1
+  if kill -0 "$pid" 2>/dev/null; then
+    return 0
+  fi
+  if is_windows_host && command -v tasklist >/dev/null 2>&1; then
+    tasklist //FI "PID eq ${pid}" 2>/dev/null | grep -qE "[^0-9]${pid}[^0-9]|^${pid}[^0-9]"
+    return $?
+  fi
+  return 1
+}
+
+is_running() {
+  local pid
+  pid="$(read_pid "$(svc_pidfile "$1")")"
+  pid_alive "$pid"
 }
 
 # Linux 有 setsid；Git Bash / 部分环境没有。有则用，否则回退 nohup / 纯后台。
@@ -103,26 +120,36 @@ start_one() {
 
   detect_cuda_home
 
+  local wait_sec="$START_WAIT_API_SEC"
   if [[ "$(svc_kind "$svc")" == "celery" ]]; then
     local queue packages
     queue="$(svc_queue "$svc")"
     packages="$(svc_packages "$svc")"
-    echo "[$svc] 启动 celery worker queue=$queue → $logfile"
+    wait_sec="$START_WAIT_SEC"
+    echo "[$svc] 启动 celery worker queue=$queue → $logfile（最多等 ${wait_sec}s）"
     CELERY_TASK_PACKAGES="$packages" background_cmd "$logfile" \
       uv run --no-sync celery -A app.core.celery worker \
       --loglevel=warning -Q "$queue" -n "${svc}@%h" --pidfile="$pidfile"
   else
-    echo "[$svc] 启动 API → $logfile"
+    echo "[$svc] 启动 API → $logfile（最多等 ${wait_sec}s）"
     background_cmd "$logfile" uv run --no-sync python -m app.run_api
     echo $! >"$pidfile"
   fi
 
   local i
-  for ((i = 0; i < 10; i++)); do
+  for ((i = 0; i < wait_sec; i++)); do
     sleep 1
     if is_running "$svc"; then
       echo "[$svc] 已启动 (PID $(read_pid "$pidfile"))"
       return 0
+    fi
+    # Celery 冷启动慢：日志已出现启动摘要且 pidfile 已写出 → 视为成功
+    #（避免 Git Bash kill -0 认不出 Windows PID 时误报失败）
+    if [[ "$(svc_kind "$svc")" == "celery" && -f "$pidfile" && -f "$logfile" ]]; then
+      if tail -n 80 "$logfile" 2>/dev/null | grep -q '启动摘要'; then
+        echo "[$svc] 已启动 (PID $(read_pid "$pidfile"); 日志已确认)"
+        return 0
+      fi
     fi
   done
   echo "[$svc] 启动失败，见 $logfile"
@@ -138,6 +165,8 @@ PY
     then
       echo "[$svc] 提示: media worker 依赖 Redis（当前不可达: ${redis_url}）"
       echo "[$svc] Windows 请先打开 Docker Desktop 再跑 bootstrap，或本机/WSL 自备 Redis 并设置 REDIS_URL"
+    else
+      echo "[$svc] 提示: Redis 可达，但 ${wait_sec}s 内未检测到进程；可看日志末尾，或加大 PALLAS_START_WAIT_SEC"
     fi
   fi
   return 1
@@ -149,7 +178,7 @@ stop_one() {
   pidfile="$(svc_pidfile "$svc")"
   pid="$(read_pid "$pidfile")"
 
-  if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
+  if [[ -z "$pid" ]] || ! pid_alive "$pid"; then
     echo "[$svc] 未在运行"
     rm -f "$pidfile"
     return 0
@@ -157,10 +186,13 @@ stop_one() {
 
   echo "[$svc] 停止 (PID $pid; SIGTERM → 等 ${WAIT_SEC}s → SIGKILL)..."
   kill -TERM "$pid" 2>/dev/null || true
+  if is_windows_host && command -v taskkill >/dev/null 2>&1; then
+    taskkill //PID "$pid" //T 2>/dev/null || true
+  fi
 
   local i
   for ((i = 0; i < WAIT_SEC; i++)); do
-    if ! kill -0 "$pid" 2>/dev/null; then
+    if ! pid_alive "$pid"; then
       echo "[$svc] 已退出"
       rm -f "$pidfile"
       return 0
@@ -170,6 +202,9 @@ stop_one() {
 
   echo "[$svc] 超时，SIGKILL"
   kill -KILL "$pid" 2>/dev/null || true
+  if is_windows_host && command -v taskkill >/dev/null 2>&1; then
+    taskkill //F //PID "$pid" //T 2>/dev/null || true
+  fi
   # 进程组强杀依赖 Linux ps/pgid；Git Bash / Windows 跳过
   if ! is_windows_host; then
     local pgid

@@ -118,18 +118,21 @@ configure_callback() {
   local cur_host cur_port
   cur_host="$(read_env_key CALLBACK_HOST "")"
   cur_port="$(read_env_key CALLBACK_PORT "")"
+  # 模板默认（空 / localhost）对齐 Bot；容器名等自定义 host 保留。
   if [[ -z "$cur_host" || "$cur_host" == "localhost" ]]; then
     set_env_key CALLBACK_HOST "$BOT_HOST"
     log "CALLBACK_HOST=$BOT_HOST"
   else
     log "保留 CALLBACK_HOST=$cur_host"
   fi
-  if [[ -z "$cur_port" ]]; then
-    set_env_key CALLBACK_PORT "$BOT_PORT"
-    log "CALLBACK_PORT=$BOT_PORT"
+  # 端口以 --bot-port 为准（控制台/CLI 传入的 Bot 实际监听端口）。
+  # 旧 .env.example 默认 8080 曾被「有值就保留」卡住，唱歌回调会连错端口。
+  if [[ -n "$cur_port" && "$cur_port" != "$BOT_PORT" ]]; then
+    log "CALLBACK_PORT $cur_port → $BOT_PORT（与 --bot-port 对齐）"
   else
-    log "保留 CALLBACK_PORT=$cur_port"
+    log "CALLBACK_PORT=$BOT_PORT"
   fi
+  set_env_key CALLBACK_PORT "$BOT_PORT"
 }
 
 redis_ping() {

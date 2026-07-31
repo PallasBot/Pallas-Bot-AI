@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     callback_host: str = "localhost"
-    callback_port: int = 8080
+    callback_port: int = 8088
     callback_timeout: int = 10
     callback_max_retries: int = 3
     api_bearer_token: str = Field(

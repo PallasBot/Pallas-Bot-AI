@@ -29,9 +29,7 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
         cmd = cuda_env_prefix()
         # 与 SVC 一致：必须用当前 venv 解释器，避免 Windows 落到系统 python
         py = f'"{sys.executable}"' if " " in sys.executable else sys.executable
-        cmd += (
-            f"{py} -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
-        )
+        cmd += f"{py} -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
         try:
             with locker.acquire(
                 unload_llm=True,

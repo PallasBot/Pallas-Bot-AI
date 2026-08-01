@@ -10,6 +10,14 @@ from app.media.services.callback import callback
 
 SONG_PATH = "resource/sing/splices/"
 MUSIC_PATH = "resource/music/"
+_AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus"}
+
+
+def is_audio_file(path: Path) -> bool:
+    name = path.name
+    if not path.is_file() or name.startswith(".") or name == ".gitignore":
+        return False
+    return path.suffix.lower() in _AUDIO_SUFFIXES
 
 
 def get_random_song(speaker: str = ""):
@@ -17,14 +25,18 @@ def get_random_song(speaker: str = ""):
     source = None
     song_dir = Path(SONG_PATH)
     if song_dir.exists():
-        all_song = [str(s) for s in song_dir.iterdir() if speaker in s.name and "_spliced0" not in s.name]
+        all_song = [
+            str(s)
+            for s in song_dir.iterdir()
+            if is_audio_file(s) and speaker in s.name and "_spliced0" not in s.name
+        ]
         if all_song:
             source = "splices"
 
     if not all_song:
         music_dir = Path(MUSIC_PATH)
         if music_dir.exists():
-            all_song = [str(s) for s in music_dir.iterdir()]
+            all_song = [str(s) for s in music_dir.iterdir() if is_audio_file(s)]
             if all_song:
                 source = "music"
 

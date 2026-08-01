@@ -56,6 +56,30 @@ def test_ensure_clones_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert (tmp_path / "app/workers/sing/DDSP-SVC-6.3/main_reflow.py").is_file()
 
 
+def test_ensure_clone_falls_back_to_mirror(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(eb, "repo_root", lambda root=None: tmp_path)
+    urls: list[str] = []
+
+    def fake_git(args: list[str], *, cwd=None, timeout: float = 600.0):  # noqa: ANN001
+        if args[:1] != ["clone"]:
+            return 1, "skip"
+        url = args[args.index("--branch") + 2]
+        urls.append(url)
+        dest = Path(args[-1])
+        if "ghproxy.net" in url:
+            dest.mkdir(parents=True, exist_ok=True)
+            (dest / "main_reflow.py").write_text("# ok\n", encoding="utf-8")
+            return 0, "cloned via mirror"
+        return 1, "Failed to connect to github.com:443"
+
+    monkeypatch.setattr(eb, "_run_git", fake_git)
+    out = eb.ensure_svc_backend("ddsp_6.3", root=tmp_path)
+    assert out["ok"] is True
+    assert urls[0] == eb.DDSP_REPO_URL
+    assert any("ghproxy.net" in u for u in urls)
+    assert (tmp_path / "app/workers/sing/DDSP-SVC-6.3/main_reflow.py").is_file()
+
+
 def test_ensure_if_needed_noop_for_sovits() -> None:
     assert eb.ensure_svc_backend_if_needed("sovits_4.1") is None
 

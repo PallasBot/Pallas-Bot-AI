@@ -168,16 +168,19 @@ def inference(
 
     registry: SvcRegistry = get_registry()
     preferred = resolve_preferred_backend()
+    # 推理热路径不阻塞拉仓（国内直连 GitHub 常卡 20s+）；缺脚本则后台拉，本次用已有 backend
     if preferred:
-        from app.media.sing.ensure_backend import ensure_svc_backend_if_needed  # noqa: PLC0415
+        from app.media.sing.ensure_backend import (  # noqa: PLC0415
+            backend_script_present,
+            schedule_ensure_svc_backend,
+        )
 
-        ensured = ensure_svc_backend_if_needed(preferred)
-        if ensured and not ensured.get("ok"):
-            logger.warning(
-                "svc preferred backend 自动拉取失败: id={} status={} error={}",
+        if preferred.startswith("ddsp_") and not backend_script_present(preferred):
+            started = schedule_ensure_svc_backend(preferred)
+            logger.info(
+                "svc preferred backend 本地缺失，已安排后台拉取: id={} status={}（本次先用已有 backend）",
                 preferred,
-                ensured.get("status"),
-                ensured.get("error"),
+                started.get("status"),
             )
 
     candidates = registry.compatible_backends(speaker_dir)

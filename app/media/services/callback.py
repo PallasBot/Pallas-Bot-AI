@@ -8,6 +8,9 @@ CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callba
 
 
 def should_retry_callback(exc: BaseException) -> bool:
+    # ReadTimeout：请求体多半已送达，Bot 可能仍在发语音；再重试会重复投递。
+    if isinstance(exc, httpx.ReadTimeout):
+        return False
     return not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code >= 500
 
 
@@ -17,8 +20,9 @@ def should_retry_callback(exc: BaseException) -> bool:
     retry_filter=should_retry_callback,
 )
 async def send_callback(url: str, data: dict, files: dict = None):
+    timeout = settings.callback_file_timeout if files else settings.callback_timeout
     async with httpx.AsyncClient() as client:
-        resp = await client.post(url, data=data, files=files, timeout=settings.callback_timeout)
+        resp = await client.post(url, data=data, files=files, timeout=timeout)
         resp.raise_for_status()
         return resp.json()
 

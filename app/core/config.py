@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     callback_host: str = "localhost"
     callback_port: int = 8088
     callback_timeout: int = 10
+    callback_file_timeout: int = Field(
+        default=180,
+        ge=10,
+        le=3600,
+        description="带文件（语音/图片）回调超时；点歌/TTS 上传+Bot 投递常超过 10s",
+        validation_alias=AliasChoices("callback_file_timeout", "CALLBACK_FILE_TIMEOUT"),
+    )
     callback_max_retries: int = 3
     api_bearer_token: str = Field(
         default="",

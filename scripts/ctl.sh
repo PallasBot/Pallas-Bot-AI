@@ -22,6 +22,9 @@ cd "$ROOT"
 # Bot 进程可能带着 VIRTUAL_ENV=…/Pallas-Bot/.venv；本仓应使用自己的 .venv
 unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT UV_PROJECT UV_PROJECT_ENVIRONMENT PYTHONHOME || true
 
+# shellcheck disable=SC1091
+source "$ROOT/scripts/cuda_env.sh"
+
 LOG_DIR="${PALLAS_LOG_DIR:-$ROOT/logs}"
 WAIT_SEC="${PALLAS_STOP_WAIT_SEC:-20}"
 # media worker 冷启动（导入 TTS/唱歌）在 Windows 上常需数十秒；过短会误报「启动失败」
@@ -43,19 +46,6 @@ svc_logfile() {
 }
 
 ALL_SERVICES=(api media)
-
-detect_cuda_home() {
-  if [[ -n "${CUDA_HOME:-}" && -d "${CUDA_HOME:-}" ]]; then
-    return 0
-  fi
-  local candidate=""
-  for candidate in /usr/local/cuda /usr/local/cuda-12.8 /usr/local/cuda-12.4 /usr/local/cuda-12; do
-    if [[ -d "$candidate" ]]; then
-      export CUDA_HOME="$candidate"
-      return 0
-    fi
-  done
-}
 
 read_pid() {
   local pidfile="$1"

@@ -27,6 +27,7 @@ from app.media.sing.ddsp_compat import (
     filter_backends_by_ddsp_checkpoint,
     resolve_ddsp_model_for_probe,
 )
+from app.media.sing.pretrain_link import ensure_sing_pretrain_cwd_link
 from app.media.sing.registry import (
     ModelBackend,
     SvcRegistry,
@@ -231,6 +232,10 @@ def inference(
             candidates[0].name if candidates else None,
             speaker,
         )
+
+    if any(b.name.startswith("ddsp_") for b in candidates):
+        # 用户权重 / DDSP 6.3 仍可能写相对路径 pretrain/...
+        ensure_sing_pretrain_cwd_link()
 
     stem = song_path.stem
     for backend in candidates:

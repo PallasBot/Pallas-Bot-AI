@@ -24,6 +24,8 @@ _DEFAULT_SING = {
     "default_speaker": "pallas",
     # 空字符串 = 按 registry.yaml fallback_order；非空则优先尝试该 backend，失败仍回退
     "preferred_backend": "",
+    # 按音色覆盖全局 preferred：{ "pallas": "ddsp_6.2", ... }；缺省或空串 = 用全局
+    "speaker_backends": {},
 }
 
 _DEFAULT_TRANSLATOR = {
@@ -105,6 +107,19 @@ def _public_translator_view(cfg: dict[str, Any], *, source: str, writable: bool)
     }
 
 
+def _normalize_speaker_backends(raw: Any) -> dict[str, str]:
+    """speaker_id → backend_id；空值丢弃。"""
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, val in raw.items():
+        sid = str(key or "").strip()
+        backend = str(val or "").strip()
+        if sid and backend:
+            out[sid] = backend
+    return out
+
+
 def load_media_models(root: Path | None = None) -> dict[str, Any]:
     payload = _default_payload()
     raw = _read_raw_media_models(root)
@@ -116,6 +131,7 @@ def load_media_models(root: Path | None = None) -> dict[str, Any]:
         payload["sing"]["default_speaker"] = sing["default_speaker"].strip()
     if isinstance(sing.get("preferred_backend"), str):
         payload["sing"]["preferred_backend"] = sing["preferred_backend"].strip()
+    payload["sing"]["speaker_backends"] = _normalize_speaker_backends(sing.get("speaker_backends"))
     for key in _DEFAULT_TTS:
         val = tts.get(key)
         if isinstance(val, str) and val.strip():
@@ -136,6 +152,7 @@ def save_media_models(payload: dict[str, Any], *, root: Path | None = None) -> d
         merged["sing"]["default_speaker"] = sing["default_speaker"].strip()
     if isinstance(sing.get("preferred_backend"), str):
         merged["sing"]["preferred_backend"] = sing["preferred_backend"].strip()
+    merged["sing"]["speaker_backends"] = _normalize_speaker_backends(sing.get("speaker_backends"))
     for key in _DEFAULT_TTS:
         val = tts.get(key)
         if isinstance(val, str) and val.strip():
@@ -224,13 +241,18 @@ def list_sing_speakers(root: Path | None = None) -> dict[str, Any]:
                 "backends": backends,
                 "model_files": model_files,
                 "ready": ready,
+                "preferred_backend": "",
             })
 
     cfg = load_media_models(base)
+    per = _normalize_speaker_backends(cfg["sing"].get("speaker_backends"))
+    for row in speakers:
+        row["preferred_backend"] = per.get(row["id"], "")
     return {
         "speakers": speakers,
         "default_speaker": str(cfg["sing"]["default_speaker"]),
         "preferred_backend": str(cfg["sing"].get("preferred_backend") or ""),
+        "speaker_backends": per,
         "sing_speakers_map": dict(settings.sing_speakers or {}),
         "writable": defaults_writable(base),
         "deploy_mode": detect_deploy_mode(base),
@@ -298,6 +320,7 @@ def get_sing_defaults(root: Path | None = None) -> dict[str, Any]:
     return {
         "default_speaker": cfg["sing"]["default_speaker"],
         "preferred_backend": str(cfg["sing"].get("preferred_backend") or ""),
+        "speaker_backends": _normalize_speaker_backends(cfg["sing"].get("speaker_backends")),
         "writable": defaults_writable(base),
     }
 
@@ -306,13 +329,14 @@ def set_sing_defaults(
     *,
     default_speaker: str | None = None,
     preferred_backend: str | None = None,
+    speaker_backends: dict[str, str] | None = None,
     root: Path | None = None,
 ) -> dict[str, Any]:
     base = repo_root(root)
     if not defaults_writable(base):
         raise PermissionError("当前部署不可写入唱歌默认配置")
-    if default_speaker is None and preferred_backend is None:
-        raise ValueError("至少提供 default_speaker 或 preferred_backend")
+    if default_speaker is None and preferred_backend is None and speaker_backends is None:
+        raise ValueError("至少提供 default_speaker、preferred_backend 或 speaker_backends")
 
     cfg = load_media_models(base)
 
@@ -326,28 +350,54 @@ def set_sing_defaults(
             raise ValueError(f"未知说话人: {speaker}")
         cfg["sing"]["default_speaker"] = speaker
 
+    catalog = list_svc_backends(base)
+    known_backends = {row["id"] for row in catalog["backends"]}
+
+    def _validate_backend(backend: str) -> str:
+        name = backend.strip()
+        if not name:
+            return ""
+        if known_backends and name not in known_backends:
+            raise ValueError(f"未知 SVC backend: {name}")
+        enabled = next((row for row in catalog["backends"] if row["id"] == name), None)
+        if enabled is not None and not enabled.get("enabled", True):
+            raise ValueError(f"backend 已禁用: {name}")
+        return name
+
     if preferred_backend is not None:
-        backend = preferred_backend.strip()
-        if backend:
-            catalog = list_svc_backends(base)
-            known_backends = {row["id"] for row in catalog["backends"]}
-            if known_backends and backend not in known_backends:
-                raise ValueError(f"未知 SVC backend: {backend}")
-            enabled = next(
-                (row for row in catalog["backends"] if row["id"] == backend),
-                None,
-            )
-            if enabled is not None and not enabled.get("enabled", True):
-                raise ValueError(f"backend 已禁用: {backend}")
-        cfg["sing"]["preferred_backend"] = backend
+        cfg["sing"]["preferred_backend"] = _validate_backend(preferred_backend)
+
+    ensure_ids: list[str] = []
+    if speaker_backends is not None:
+        if not isinstance(speaker_backends, dict):
+            raise ValueError("speaker_backends 须为对象")
+        # 整表替换：控制台保存当前映射；空串/缺省键表示该音色改回用全局
+        inventory_ids = {row["id"] for row in list_sing_speakers(base)["speakers"]}
+        current: dict[str, str] = {}
+        for raw_id, raw_backend in speaker_backends.items():
+            sid = str(raw_id or "").strip()
+            if not sid:
+                continue
+            if inventory_ids and sid not in inventory_ids:
+                raise ValueError(f"未知说话人: {sid}")
+            backend = _validate_backend(str(raw_backend or ""))
+            if not backend:
+                continue
+            current[sid] = backend
+            ensure_ids.append(backend)
+        cfg["sing"]["speaker_backends"] = current
 
     save_media_models(cfg, root=base)
     out = get_sing_defaults(base)
     # 选了 DDSP 6.x 且本地没有脚本时后台自动拉取，避免卡住控制台请求
-    if preferred_backend is not None and preferred_backend.strip():
-        from app.media.sing.ensure_backend import schedule_ensure_svc_backend  # noqa: PLC0415
+    from app.media.sing.ensure_backend import schedule_ensure_svc_backend  # noqa: PLC0415
 
-        out["ensure_backend"] = schedule_ensure_svc_backend(preferred_backend.strip(), root=base)
+    ensure_jobs: list[dict[str, Any]] = []
+    if preferred_backend is not None and preferred_backend.strip():
+        ensure_jobs.append(schedule_ensure_svc_backend(preferred_backend.strip(), root=base))
+    ensure_jobs.extend(schedule_ensure_svc_backend(bid, root=base) for bid in dict.fromkeys(ensure_ids))
+    if ensure_jobs:
+        out["ensure_backend"] = ensure_jobs[0] if len(ensure_jobs) == 1 else ensure_jobs
     return out
 
 
@@ -358,8 +408,16 @@ def resolve_sing_speaker(speaker: str | None = None, *, root: Path | None = None
     return str(load_media_models(root)["sing"]["default_speaker"] or "pallas")
 
 
-def resolve_preferred_backend(*, root: Path | None = None) -> str:
-    return str(load_media_models(root)["sing"].get("preferred_backend") or "").strip()
+def resolve_preferred_backend(speaker: str | None = None, *, root: Path | None = None) -> str:
+    """音色级覆盖优先于全局 preferred_backend。"""
+    cfg = load_media_models(root)["sing"]
+    sid = (speaker or "").strip()
+    if sid:
+        per = _normalize_speaker_backends(cfg.get("speaker_backends"))
+        local = per.get(sid, "")
+        if local:
+            return local
+    return str(cfg.get("preferred_backend") or "").strip()
 
 
 def order_backends_by_preference(candidates: list[Any], preferred: str) -> list[Any]:

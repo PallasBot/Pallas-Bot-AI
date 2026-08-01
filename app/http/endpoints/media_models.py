@@ -19,7 +19,11 @@ class SingDefaultsBody(BaseModel):
     preferred_backend: str | None = Field(
         default=None,
         max_length=64,
-        description="优先 SVC backend；空字符串恢复 registry fallback_order",
+        description="全局优先 SVC backend；空字符串恢复 registry fallback_order",
+    )
+    speaker_backends: dict[str, str] | None = Field(
+        default=None,
+        description="按音色覆盖（整表替换）：{ speaker_id: backend_id }；空对象清空；空串键忽略",
     )
 
 
@@ -60,6 +64,7 @@ async def sing_defaults_put(body: SingDefaultsBody) -> dict:
         return media_models.set_sing_defaults(
             default_speaker=body.default_speaker,
             preferred_backend=body.preferred_backend,
+            speaker_backends=body.speaker_backends,
         )
     except PermissionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

@@ -167,7 +167,7 @@ def inference(
         return None
 
     registry: SvcRegistry = get_registry()
-    preferred = resolve_preferred_backend()
+    preferred = resolve_preferred_backend(speaker)
     # 推理热路径不阻塞拉仓（国内直连 GitHub 常卡 20s+）；缺脚本则后台拉，本次用已有 backend
     if preferred:
         from app.media.sing.ensure_backend import (  # noqa: PLC0415

@@ -67,6 +67,26 @@ git submodule update --init --recursive
 
 按需收窄 group：`sing` / `tts` / `chat`（遗留 RWKV）。
 
+#### 手动补充 DDSP-SVC 6.3 / 6.1（可选）
+
+默认子模块只有 `app/workers/sing/DDSP-SVC`（分支 **6.2**）。若控制台优先后端选 `ddsp_6.3` / `ddsp_6.1`，需另检出对应目录（约 1.6G/份）。`git clone` 的 URL 与目标路径须在**同一条命令**。
+
+PowerShell（代理；改端口）：
+
+```powershell
+$env:HTTPS_PROXY="http://127.0.0.1:7890"; $env:HTTP_PROXY="http://127.0.0.1:7890"
+Remove-Item -Recurse -Force app\workers\sing\DDSP-SVC-6.3 -ErrorAction SilentlyContinue
+git clone --depth 1 --branch 6.3 https://github.com/PallasBot/DDSP-SVC.git app/workers/sing/DDSP-SVC-6.3
+```
+
+终端无代理时可用镜像，例如：
+
+```powershell
+git clone --depth 1 --branch 6.3 https://ghproxy.net/https://github.com/PallasBot/DDSP-SVC.git app/workers/sing/DDSP-SVC-6.3
+```
+
+6.1：`--branch 6.1` → `app/workers/sing/DDSP-SVC-6.1`。权重与版本须匹配（6.2+ 不兼容旧 checkpoint）。可为每个音色单独指定优先后端（`speaker_backends` / 控制台音色行下拉）；官方 `pallas`（RectifiedFlow）用 **`ddsp_6.2`**，**不是** 6.1。完整步骤见 Bot 仓 [`docs/maintainer/install/ai-runtime.md`](https://github.com/PallasBot/Pallas-Bot/blob/dev/docs/maintainer/install/ai-runtime.md)（文档站同步页：维护者 → AI Runtime 安装）。
+
 2. 模型放到 `resource/` 下对应目录（`sing` / `tts` / `chat`），可从 [Hugging Face pallasbot](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 获取。
 
 3. 配置 `.env`：至少 `CALLBACK_HOST` / `CALLBACK_PORT` 指向 Bot；建议设置 `PALLAS_AI_API_TOKEN`（与 Bot / 插件 Bearer 一致）。

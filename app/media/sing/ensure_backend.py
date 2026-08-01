@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import threading
 from pathlib import Path  # noqa: TC003
@@ -15,6 +16,18 @@ from app.core.logger import logger
 from app.media.assets import repo_root
 
 DDSP_REPO_URL = "https://github.com/PallasBot/DDSP-SVC.git"
+
+# 国内直连 github.com 常失败；按序尝试（与 Bot git_mirror 常用代理一致）
+DDSP_CLONE_URLS: tuple[str, ...] = (
+    DDSP_REPO_URL,
+    "https://ghproxy.net/https://github.com/PallasBot/DDSP-SVC.git",
+    "https://ghproxy.vip/https://github.com/PallasBot/DDSP-SVC.git",
+    "https://gh-proxy.com/https://github.com/PallasBot/DDSP-SVC.git",
+    "https://github.akams.cn/https://github.com/PallasBot/DDSP-SVC.git",
+)
+
+# 单源超时：避免直连 GitHub 卡死整次唱歌任务
+_CLONE_TIMEOUT_SEC = 45.0
 
 # backend_id → 相对仓根目录 + 分支。与 resource/sing/registry.yaml 对齐。
 DDSP_BACKEND_SPECS: dict[str, dict[str, str]] = {
@@ -98,6 +111,15 @@ def _try_submodule_init(root: Path, rel: str) -> tuple[bool, str]:
     return True, out or "submodule ok"
 
 
+def _cleanup_failed_dest(dest: Path) -> None:
+    if not dest.exists():
+        return
+    try:
+        shutil.rmtree(dest)
+    except OSError as exc:
+        logger.warning("清理失败的 clone 目录失败: {} ({})", dest, exc)
+
+
 def _clone_branch(root: Path, rel: str, branch: str) -> tuple[bool, str]:
     dest = root / rel
     if dest.exists() and any(dest.iterdir()):
@@ -108,14 +130,22 @@ def _clone_branch(root: Path, rel: str, branch: str) -> tuple[bool, str]:
             dest.rmdir()
         except OSError:
             return False, f"无法清理空目录: {rel}"
-    code, out = _run_git(
-        ["clone", "--depth", "1", "--branch", branch, DDSP_REPO_URL, str(dest)],
-        cwd=root,
-        timeout=900.0,
-    )
-    if code != 0:
-        return False, out or f"git clone 退出码 {code}"
-    return True, out or "clone ok"
+
+    errors: list[str] = []
+    for url in DDSP_CLONE_URLS:
+        _cleanup_failed_dest(dest)
+        logger.info("svc backend clone try: branch={} url={}", branch, url)
+        code, out = _run_git(
+            ["clone", "--depth", "1", "--branch", branch, url, str(dest)],
+            cwd=root,
+            timeout=_CLONE_TIMEOUT_SEC,
+        )
+        if code == 0 and (dest / "main_reflow.py").is_file():
+            return True, out or f"clone ok via {url}"
+        _cleanup_failed_dest(dest)
+        errors.append(f"{url} → {(out or f'exit {code}')[-400:]}")
+
+    return False, "；".join(errors) if errors else "git clone 失败"
 
 
 def ensure_svc_backend(

@@ -10,6 +10,10 @@ from typing import Any
 from app.core.config import settings
 from app.core.logger import logger
 from app.media.assets import detect_deploy_mode, repo_root
+from app.media.sing.ddsp_compat import (
+    filter_backends_by_ddsp_checkpoint,
+    resolve_ddsp_model_for_probe,
+)
 
 _LOCK = threading.Lock()
 
@@ -216,6 +220,8 @@ def list_sing_speakers(root: Path | None = None) -> dict[str, Any]:
             if registry is not None:
                 try:
                     compatible = registry.compatible_backends(child)
+                    probe_model = resolve_ddsp_model_for_probe(child, compatible)
+                    compatible = filter_backends_by_ddsp_checkpoint(compatible, probe_model)
                     backends = [b.name for b in compatible]
                     model_files.extend(
                         match.name

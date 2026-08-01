@@ -7,6 +7,7 @@
 # 仓内默认只挂一份子模块 → app/workers/sing/DDSP-SVC（branch=6.2）。
 # 要启用 6.3 / 6.1 时另挂子模块（见 docs 或下方注释）；脚本不存在会自动跳过。
 # 注意：6.2+ 与旧 checkpoint 不兼容，同名 pallas.pt 不能指望跨版本通吃。
+# 推理前会按权重里 input_projection 维度跳过不兼容版本（Conv1d→6.1/6.2，Linear→6.3）。
 
 # 字段说明:
 #   script:         子模块入口 .py(相对项目根)

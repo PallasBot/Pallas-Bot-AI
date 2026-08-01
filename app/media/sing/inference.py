@@ -23,6 +23,10 @@ from pydub import AudioSegment
 from app.core.config import settings
 from app.core.logger import logger
 from app.media.models import order_backends_by_preference, resolve_preferred_backend, resolve_sing_speaker
+from app.media.sing.ddsp_compat import (
+    filter_backends_by_ddsp_checkpoint,
+    resolve_ddsp_model_for_probe,
+)
 from app.media.sing.registry import (
     ModelBackend,
     SvcRegistry,
@@ -193,8 +197,34 @@ def inference(
         )
         return None
 
+    # 按 checkpoint 架构去掉不兼容的 DDSP 版本（避免 preferred=6.3 + 官方 6.2 权重白跑占锁）
+    probe_model = resolve_ddsp_model_for_probe(speaker_dir, candidates)
+    before = [b.name for b in candidates]
+    candidates = filter_backends_by_ddsp_checkpoint(candidates, probe_model)
+    if before != [b.name for b in candidates]:
+        logger.info(
+            "svc ddsp arch filter: speaker={} model={} before={} after={}",
+            speaker,
+            probe_model.name if probe_model else None,
+            before,
+            [b.name for b in candidates],
+        )
+    if not candidates:
+        logger.error(
+            "speaker={} 的 checkpoint 与本地 DDSP backend 均不兼容（检查权重版本与 preferred_backend）",
+            speaker,
+        )
+        return None
+
     candidates = order_backends_by_preference(candidates, preferred)
-    if preferred:
+    if preferred and preferred not in {b.name for b in candidates}:
+        logger.warning(
+            "svc preferred backend 与 checkpoint 不兼容已忽略: preferred={} speaker={} first={}",
+            preferred,
+            speaker,
+            candidates[0].name if candidates else None,
+        )
+    elif preferred:
         logger.info(
             "svc inference order: preferred={} first={} speaker={}",
             preferred,

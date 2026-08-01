@@ -2,6 +2,11 @@
 # ─────────────────────────────────────────────────────────────
 # 加新模型族(如 RVC、DDSP-4)只需在 `backends` 加一段,然后把名字加到
 # `fallback_order` 末尾。无需改 Python 代码,无需改 svc_inference.py。
+#
+# DDSP 多版本：PallasBot/DDSP-SVC 用分支区分（6.1 / 6.2 / 6.3）。
+# 仓内默认只挂一份子模块 → app/workers/sing/DDSP-SVC（branch=6.2）。
+# 要启用 6.3 / 6.1 时另挂子模块（见 docs 或下方注释）；脚本不存在会自动跳过。
+# 注意：6.2+ 与旧 checkpoint 不兼容，同名 pallas.pt 不能指望跨版本通吃。
 
 # 字段说明:
 #   script:         子模块入口 .py(相对项目根)
@@ -13,7 +18,9 @@
 #   enabled:        false 可临时下线某个 backend
 
 backends:
-  # ── DDSP-SVC 系列(三个变体 CLI 一致,自动按 fallback 顺序尝试) ──
+  # ── DDSP-SVC 系列（CLI 一致；按目录/分支区分版本）──
+  # 补充 6.3：
+  #   git submodule add -b 6.3 https://github.com/PallasBot/DDSP-SVC.git app/workers/sing/DDSP-SVC-6.3
   ddsp_6.3:
     script: app/workers/sing/DDSP-SVC-6.3/main_reflow.py
     arg_style: ddsp
@@ -24,17 +31,8 @@ backends:
     output_format: "flac"
     enabled: true
 
+  # 默认子模块：.gitmodules → app/workers/sing/DDSP-SVC（branch=6.2）
   ddsp_6.2:
-    script: app/workers/sing/DDSP-SVC-6.2/main_reflow.py
-    arg_style: ddsp
-    model_glob: "*.pt"
-    required_files: []
-    extra_args: []
-    output_suffix: "_ddsp"
-    output_format: "flac"
-    enabled: true
-
-  ddsp_6.1:
     script: app/workers/sing/DDSP-SVC/main_reflow.py
     arg_style: ddsp
     model_glob: "*.pt"
@@ -44,7 +42,19 @@ backends:
     output_format: "flac"
     enabled: true
 
-  # ── SoVITS 系列(若 DDSP 全失败,降级到 SoVITS) ──
+  # 补充 6.1：
+  #   git submodule add -b 6.1 https://github.com/PallasBot/DDSP-SVC.git app/workers/sing/DDSP-SVC-6.1
+  ddsp_6.1:
+    script: app/workers/sing/DDSP-SVC-6.1/main_reflow.py
+    arg_style: ddsp
+    model_glob: "*.pt"
+    required_files: []
+    extra_args: []
+    output_suffix: "_ddsp"
+    output_format: "flac"
+    enabled: true
+
+  # ── SoVITS 系列(若 DDSP 全失败,降级到 SoVITS；需对应子模块与 G_*.pth) ──
   sovits_4.1:
     script: app/workers/sing/so_vits_svc_41/inference_main.py
     arg_style: sovits
@@ -64,7 +74,9 @@ backends:
     output_suffix: "_sovits"
     output_format: "flac"
     enabled: true
+
 # 回退顺序:前面的优先尝试,失败自动切到下一个
+# 未克隆的目录会被 compatible_backends 跳过，不会报「文件不存在」刷屏
 fallback_order:
   - ddsp_6.3
   - ddsp_6.2

@@ -239,6 +239,8 @@ def list_sing_speakers(root: Path | None = None) -> dict[str, Any]:
 
 def list_svc_backends(root: Path | None = None) -> dict[str, Any]:
     """列出 registry 中的 SVC backend，以及当前 preferred。"""
+    from app.media.sing.ensure_backend import describe_backend_install  # noqa: PLC0415
+
     base = repo_root(root)
     cfg = load_media_models(base)
     preferred = str(cfg["sing"].get("preferred_backend") or "")
@@ -252,22 +254,32 @@ def list_svc_backends(root: Path | None = None) -> dict[str, Any]:
                 backend = registry.backends.get(name)
                 if backend is None:
                     continue
+                install = describe_backend_install(name, root=base)
                 backends.append({
                     "id": name,
                     "arg_style": getattr(backend.arg_style, "value", str(backend.arg_style)),
                     "model_glob": backend.model_glob,
                     "enabled": bool(backend.enabled),
                     "output_suffix": backend.output_suffix,
+                    "script_present": install["script_present"],
+                    "auto_installable": install["auto_installable"],
+                    "checkout_path": install["path"],
+                    "checkout_branch": install["branch"],
                 })
             for name, backend in registry.backends.items():
                 if name in {b["id"] for b in backends}:
                     continue
+                install = describe_backend_install(name, root=base)
                 backends.append({
                     "id": name,
                     "arg_style": getattr(backend.arg_style, "value", str(backend.arg_style)),
                     "model_glob": backend.model_glob,
                     "enabled": bool(backend.enabled),
                     "output_suffix": backend.output_suffix,
+                    "script_present": install["script_present"],
+                    "auto_installable": install["auto_installable"],
+                    "checkout_path": install["path"],
+                    "checkout_branch": install["branch"],
                 })
         except Exception as exc:
             logger.debug("list_svc_backends: registry unavailable: {}", exc)
@@ -330,7 +342,13 @@ def set_sing_defaults(
         cfg["sing"]["preferred_backend"] = backend
 
     save_media_models(cfg, root=base)
-    return get_sing_defaults(base)
+    out = get_sing_defaults(base)
+    # 选了 DDSP 6.x 且本地没有脚本时后台自动拉取，避免卡住控制台请求
+    if preferred_backend is not None and preferred_backend.strip():
+        from app.media.sing.ensure_backend import schedule_ensure_svc_backend  # noqa: PLC0415
+
+        out["ensure_backend"] = schedule_ensure_svc_backend(preferred_backend.strip(), root=base)
+    return out
 
 
 def resolve_sing_speaker(speaker: str | None = None, *, root: Path | None = None) -> str:

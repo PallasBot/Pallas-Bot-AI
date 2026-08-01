@@ -4,6 +4,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.media import models as media_models
+from app.media.sing.ensure_backend import (
+    describe_backend_install,
+    ensure_job_status,
+    ensure_svc_backend,
+    schedule_ensure_svc_backend,
+)
 
 router = APIRouter(prefix="/media/models", tags=["media-models"])
 
@@ -59,6 +65,28 @@ async def sing_defaults_put(body: SingDefaultsBody) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/sing/backends/{backend_id}/ensure")
+async def sing_backend_ensure(backend_id: str) -> dict:
+    """按需拉取 DDSP-SVC 对应分支（约 1.6G）；已存在则直接返回。"""
+    backend_id = (backend_id or "").strip()
+    if not backend_id:
+        raise HTTPException(status_code=400, detail="backend_id 不能为空")
+    # 控制台点一次：后台拉，避免网关超时
+    started = schedule_ensure_svc_backend(backend_id)
+    if started.get("status") == "unsupported":
+        # 非 DDSP 自动源：仍尝试同步探测（会明确报错）
+        return ensure_svc_backend(backend_id)
+    return started
+
+
+@router.get("/sing/backends/{backend_id}/ensure")
+async def sing_backend_ensure_status(backend_id: str) -> dict:
+    backend_id = (backend_id or "").strip()
+    job = ensure_job_status(backend_id)
+    info = describe_backend_install(backend_id)
+    return {"install": info, "job": job}
 
 
 @router.get("/tts/voices")

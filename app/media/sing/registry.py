@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+import sys
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -117,12 +118,19 @@ class SvcRegistry(BaseModel):
     def compatible_backends(self, speaker_dir: Path) -> list[ModelBackend]:
         """按 fallback_order 顺序,返回在给定 speaker 目录下资源齐备的 backend 列表。
 
-        判定"齐备":该 backend 的 `model_glob` 至少命中 1 个文件 + `required_files` 全在。
+        判定"齐备":脚本文件存在 + `model_glob` 至少命中 1 个文件 + `required_files` 全在。
         """
         result: list[ModelBackend] = []
         for name in self.fallback_order:
             backend = self.backends[name]
             if not backend.enabled:
+                continue
+            if not backend.script.is_file():
+                logger.debug(
+                    "backend {} 跳过: 脚本不存在 {}",
+                    name,
+                    backend.script,
+                )
                 continue
             if not next(speaker_dir.glob(backend.model_glob), None):
                 continue
@@ -207,11 +215,13 @@ def build_command(
     """根据 backend 风格构造 subprocess 命令(list[str],绝不 shell=True)。
 
     返回的命令形如:
-      ddsp:   ["python", "<script>", "-i", song, "-m", model, "-o", out, "-k", str(key), ...extra]
-      sovits: ["python", "<script>", "-f", song, "-m", model, "-c", config, "-t", str(key),
+      ddsp:   [<venv python>, "<script>", "-i", song, "-m", model, "-o", out, "-k", str(key), ...extra]
+      sovits: [<venv python>, "<script>", "-f", song, "-m", model, "-c", config, "-t", str(key),
               "-o", out_dir, "-s", speaker, ...extra]
+
+    必须用 ``sys.executable``:Windows 上裸 ``python`` 常落到系统解释器(无 torch)。
     """
-    cmd: list[str] = ["python", str(backend.script)]
+    cmd: list[str] = [sys.executable, str(backend.script)]
 
     if backend.arg_style is ArgStyle.DDSP:
         cmd += [

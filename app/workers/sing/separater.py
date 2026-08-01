@@ -1,4 +1,5 @@
 import platform
+import sys
 from pathlib import Path
 
 import librosa
@@ -26,9 +27,9 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
     if (not vocals_with_stem.exists() and not vocals_with_stem.exists()) or not no_vocals_0key.exists():
         # 这个库没提供 APIs，暂时简单粗暴用命令行了
         cmd = cuda_env_prefix()
-        cmd += (
-            f"python -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
-        )
+        # 与 SVC 一致：必须用当前 venv 解释器，避免 Windows 落到系统 python
+        py = f'"{sys.executable}"' if " " in sys.executable else sys.executable
+        cmd += f"{py} -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
         try:
             with locker.acquire(
                 unload_llm=True,

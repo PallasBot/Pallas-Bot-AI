@@ -167,16 +167,29 @@ def inference(
         return None
 
     registry: SvcRegistry = get_registry()
+    preferred = resolve_preferred_backend()
+    if preferred:
+        from app.media.sing.ensure_backend import ensure_svc_backend_if_needed  # noqa: PLC0415
+
+        ensured = ensure_svc_backend_if_needed(preferred)
+        if ensured and not ensured.get("ok"):
+            logger.warning(
+                "svc preferred backend 自动拉取失败: id={} status={} error={}",
+                preferred,
+                ensured.get("status"),
+                ensured.get("error"),
+            )
+
     candidates = registry.compatible_backends(speaker_dir)
     if not candidates:
         logger.error(
-            "speaker={} 在 {} 下没有可用的 backend(检查 .pt/.pth/config.json 是否齐备)",
+            "speaker={} 在 {} 下没有可用的 backend(检查 .pt/.pth/config.json 是否齐备，"
+            "或 preferred DDSP 版本是否已拉取)",
             speaker,
             speaker_dir,
         )
         return None
 
-    preferred = resolve_preferred_backend()
     candidates = order_backends_by_preference(candidates, preferred)
     if preferred:
         logger.info(

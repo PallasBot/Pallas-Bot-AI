@@ -10,8 +10,19 @@ CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callba
 def should_retry_callback(exc: BaseException) -> bool:
     # ReadTimeout：请求体多半已送达，Bot 可能仍在发语音；再重试会重复投递。
     if isinstance(exc, httpx.ReadTimeout):
+        logger.warning(
+            "回调 ReadTimeout，跳过重试以免重复投递: {}",
+            exc,
+        )
         return False
     return not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code >= 500
+
+
+def resolve_callback_timeout(*, use_file_timeout: bool) -> int:
+    """显式选择回调超时：带文件投递用 callback_file_timeout，否则用 callback_timeout。"""
+    if use_file_timeout:
+        return settings.callback_file_timeout
+    return settings.callback_timeout
 
 
 @async_retry(
@@ -19,8 +30,14 @@ def should_retry_callback(exc: BaseException) -> bool:
     delay=3,
     retry_filter=should_retry_callback,
 )
-async def send_callback(url: str, data: dict, files: dict = None):
-    timeout = settings.callback_file_timeout if files else settings.callback_timeout
+async def send_callback(
+    url: str,
+    data: dict,
+    files: dict = None,
+    *,
+    use_file_timeout: bool = False,
+):
+    timeout = resolve_callback_timeout(use_file_timeout=use_file_timeout)
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=data, files=files, timeout=timeout)
         resp.raise_for_status()
@@ -61,7 +78,7 @@ async def callback(
 
     if status == "failed":
         try:
-            result = await send_callback(callback_url, data)
+            result = await send_callback(callback_url, data, use_file_timeout=False)
             task_log("回调 Bot 完成{} status=failed result={}", log_id_suffix(request_id), result)
         except httpx.HTTPStatusError as err:
             logger.warning(
@@ -96,9 +113,14 @@ async def callback(
 
     try:
         if audio:
-            result = await send_callback(callback_url, data, files={"file": audio})
+            result = await send_callback(
+                callback_url,
+                data,
+                files={"file": audio},
+                use_file_timeout=True,
+            )
         else:
-            result = await send_callback(callback_url, data)
+            result = await send_callback(callback_url, data, use_file_timeout=False)
         task_log("回调 Bot 完成{} status={} result={}", log_id_suffix(request_id), status, result)
     except httpx.HTTPStatusError as err:
         logger.warning(

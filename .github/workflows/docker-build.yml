@@ -34,6 +34,18 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Load CUDA version
+      id: cuda
+      run: |
+        set -a
+        # shellcheck disable=SC1091
+        source scripts/cuda.env
+        set +a
+        echo "version=${CUDA_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "image_tag=${CUDA_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+        echo "CUDA_VERSION=${CUDA_VERSION}" >> "$GITHUB_ENV"
+        echo "CUDA_IMAGE_TAG=${CUDA_IMAGE_TAG}" >> "$GITHUB_ENV"
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -51,8 +63,8 @@ jobs:
         tags: |
           type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
           type=raw,value=dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
-          type=raw,value=cuda12.4-latest,enable=${{ github.ref_name == 'main' }}
-          type=raw,value=cuda12.4-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
+          type=raw,value=cuda${{ steps.cuda.outputs.version }}-latest,enable=${{ github.ref_name == 'main' }}
+          type=raw,value=cuda${{ steps.cuda.outputs.version }}-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
         labels: |
           org.opencontainers.image.title=Pallas Bot AI
           org.opencontainers.image.description=Media backend with TTS and singing capabilities
@@ -72,6 +84,8 @@ jobs:
         cache-to: type=gha,mode=max,scope=cuda
         build-args: |
           BUILDKIT_INLINE_CACHE=1
+          CUDA_VERSION=${{ steps.cuda.outputs.version }}
+          CUDA_IMAGE_TAG=${{ steps.cuda.outputs.image_tag }}
 
     - name: Clean up build cache
       if: always()

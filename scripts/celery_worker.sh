@@ -4,24 +4,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/cuda_env.sh"
 PID_FILE="${CELERY_PID_FILE:-$ROOT/logs/celery.pid}"
 LOG_FILE="${CELERY_LOG_FILE:-$ROOT/logs/celery.log}"
 WAIT_SEC="${CELERY_STOP_WAIT_SEC:-20}"
 WORKER_QUEUE="${CELERY_WORKER_QUEUE:-}"
 REDIS_URL_OVERRIDE="${CELERY_REDIS_URL:-${REDIS_URL:-}}"
-
-detect_cuda_home() {
-  if [[ -n "${CUDA_HOME:-}" && -d "${CUDA_HOME:-}" ]]; then
-    return 0
-  fi
-  local candidate=""
-  for candidate in /usr/local/cuda /usr/local/cuda-12.4 /usr/local/cuda-12; do
-    if [[ -d "$candidate" ]]; then
-      export CUDA_HOME="$candidate"
-      return 0
-    fi
-  done
-}
 
 read_pids() {
   if [[ -f "$PID_FILE" ]]; then

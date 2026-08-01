@@ -63,6 +63,8 @@ uv sync --all-groups --extra cpu   # 或 --extra gpu
 git submodule update --init --recursive
 ```
 
+`--extra gpu` 使用 **torch 2.7.1 + cu128**（含 RTX 50 / `sm_120`）；需宿主机 NVIDIA 驱动支持 CUDA 12.8。CPU 线仍为 torch 2.5.1。从旧 cu124 安装升级后须重新 `uv sync --extra gpu`（或 `PALLAS_GPU=1 ./scripts/ai_bootstrap.sh`）。
+
 按需收窄 group：`sing` / `tts` / `chat`（遗留 RWKV）。
 
 2. 模型放到 `resource/` 下对应目录（`sing` / `tts` / `chat`），可从 [Hugging Face pallasbot](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 获取。

@@ -22,8 +22,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cpu = ["torch (==2.5.1)"]
-gpu = ["torch (==2.5.1)"]
+# CPU 线保持 2.5.1；GPU 线 2.7.1+cu128 以支持 Blackwell（RTX 50 / sm_120）
+cpu = ["torch (==2.5.1)", "torchaudio (==2.5.1)"]
+gpu = ["torch (==2.7.1)", "torchaudio (==2.7.1)"]
 
 [dependency-groups]
 chat = ["rwkv>=0.8.29"]
@@ -64,7 +65,8 @@ tts = [
     "scipy>=1.13.1",
     "tensorboard>=2.19.0",
     "librosa==0.10.2",
-    "torchaudio==2.5.1",
+    # torchaudio 版本由 cpu/gpu extra 对齐，勿在此硬钉
+    "torchaudio",
     "pytorch-lightning>=2.5.2",
     "onnxruntime-gpu>=1.22.0",
     "tqdm>=4.67.1",
@@ -94,6 +96,10 @@ torch = [
     { index = "torch-cpu", extra = "cpu" },
     { index = "torch-gpu", extra = "gpu" },
 ]
+torchaudio = [
+    { index = "torch-cpu", extra = "cpu" },
+    { index = "torch-gpu", extra = "gpu" },
+]
 
 [[tool.uv.index]]
 name = "torch-cpu"
@@ -102,7 +108,7 @@ explicit = true
 
 [[tool.uv.index]]
 name = "torch-gpu"
-url = "https://download.pytorch.org/whl/cu124"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.ruff]

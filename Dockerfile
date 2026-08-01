@@ -1,7 +1,12 @@
-# 多阶段构建 - 构建阶段
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS builder
+# CUDA 镜像标签默认与 scripts/lib/cuda.env 一致；构建时可 --build-arg 覆盖。
+ARG CUDA_IMAGE_TAG=12.8.1
+ARG CUDA_VERSION=12.8
 
-ARG CUDA_VERSION=12.4
+# 多阶段构建 - 构建阶段
+FROM nvidia/cuda:${CUDA_IMAGE_TAG}-devel-ubuntu22.04 AS builder
+
+ARG CUDA_IMAGE_TAG
+ARG CUDA_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PIP_NO_CACHE_DIR=1
@@ -41,10 +46,11 @@ RUN uv venv --python 3.12 \
     && rm -rf /root/.cache
 
 # 运行时阶段
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime
+FROM nvidia/cuda:${CUDA_IMAGE_TAG}-runtime-ubuntu22.04 AS runtime
 
+ARG CUDA_IMAGE_TAG
+ARG CUDA_VERSION
 ARG BUILDKIT_INLINE_CACHE=1
-ARG CUDA_VERSION=12.4
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
@@ -88,6 +94,7 @@ RUN mkdir -p logs resource/chat/models resource/sing/models resource/tts
 # 复制应用代码
 COPY app/ ./app/
 COPY Docker/ ./Docker/
+COPY scripts/cuda.env scripts/cuda_env.sh ./scripts/
 COPY .env* ./
 
 # Git相关操作

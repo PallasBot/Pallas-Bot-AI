@@ -11,20 +11,16 @@ mkdir -p logs
 
 echo "=== Pallas-Bot AI 启动脚本 ==="
 
-detect_cuda_home() {
-    if [ -n "${CUDA_HOME:-}" ] && [ -d "${CUDA_HOME:-}" ]; then
-        return 0
-    fi
-    for candidate in /usr/local/cuda /usr/local/cuda-12.4 /usr/local/cuda-12; do
-        if [ -d "$candidate" ]; then
-            export CUDA_HOME="$candidate"
-            echo "✅ CUDA_HOME=$CUDA_HOME"
-            return 0
-        fi
-    done
-}
+# shellcheck disable=SC1091
+if [ -f /server/scripts/cuda_env.sh ]; then
+    . /server/scripts/cuda_env.sh
+elif [ -f "$(dirname "$0")/../scripts/cuda_env.sh" ]; then
+    . "$(dirname "$0")/../scripts/cuda_env.sh"
+fi
 
-detect_cuda_home
+if type detect_cuda_home >/dev/null 2>&1 && detect_cuda_home; then
+    echo "✅ CUDA_HOME=$CUDA_HOME"
+fi
 
 # 检查 GPU 可用性
 echo "检查 GPU 可用性..."

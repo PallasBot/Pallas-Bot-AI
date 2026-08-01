@@ -23,6 +23,7 @@ from pydub import AudioSegment
 from app.core.config import settings
 from app.core.logger import logger
 from app.media.models import order_backends_by_preference, resolve_preferred_backend, resolve_sing_speaker
+from app.media.sing.contentvec_hf import adapt_speaker_config_for_ddsp63
 from app.media.sing.ddsp_compat import (
     filter_backends_by_ddsp_checkpoint,
     resolve_ddsp_model_for_probe,
@@ -236,6 +237,17 @@ def inference(
     if any(b.name.startswith("ddsp_") for b in candidates):
         # 用户权重 / DDSP 6.3 仍可能写相对路径 pretrain/...
         ensure_sing_pretrain_cwd_link()
+
+    if any(b.name == "ddsp_6.3" for b in candidates):
+        # 6.3 需要 HF ContentVec；社区 config 常仍写 fairseq legacy 文件名
+        if not adapt_speaker_config_for_ddsp63(speaker_dir):
+            logger.error(
+                "speaker={} 无法准备 DDSP 6.3 ContentVec（需 contentvec/pytorch_model.bin）",
+                speaker,
+            )
+            candidates = [b for b in candidates if b.name != "ddsp_6.3"]
+            if not candidates:
+                return None
 
     stem = song_path.stem
     for backend in candidates:

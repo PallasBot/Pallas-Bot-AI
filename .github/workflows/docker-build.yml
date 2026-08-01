@@ -51,8 +51,8 @@ jobs:
         tags: |
           type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
           type=raw,value=dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
-          type=raw,value=cuda12.4-latest,enable=${{ github.ref_name == 'main' }}
-          type=raw,value=cuda12.4-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
+          type=raw,value=cuda12.8-latest,enable=${{ github.ref_name == 'main' }}
+          type=raw,value=cuda12.8-dev,enable=${{ github.ref_name == 'dev' || github.ref_name == 'dev-v2' }}
         labels: |
           org.opencontainers.image.title=Pallas Bot AI
           org.opencontainers.image.description=Media backend with TTS and singing capabilities

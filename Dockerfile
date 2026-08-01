@@ -1,7 +1,7 @@
 # 多阶段构建 - 构建阶段
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.8.1-devel-ubuntu22.04 AS builder
 
-ARG CUDA_VERSION=12.4
+ARG CUDA_VERSION=12.8
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PIP_NO_CACHE_DIR=1
@@ -41,10 +41,10 @@ RUN uv venv --python 3.12 \
     && rm -rf /root/.cache
 
 # 运行时阶段
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime
+FROM nvidia/cuda:12.8.1-runtime-ubuntu22.04 AS runtime
 
 ARG BUILDKIT_INLINE_CACHE=1
-ARG CUDA_VERSION=12.4
+ARG CUDA_VERSION=12.8
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1

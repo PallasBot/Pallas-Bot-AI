@@ -43,6 +43,8 @@ cp .env.example .env
 | 只装不启动 | `./scripts/ai_bootstrap.sh --no-start` |
 | 媒体 + NVIDIA GPU torch | `PALLAS_GPU=1 ./scripts/ai_bootstrap.sh` |
 
+GPU 线为 **torch 2.7.1 + CUDA 12.8（cu128）**，支持 RTX 50 系（Blackwell / `sm_120`）。驱动需足够新；从旧 cu124 环境升级后请用上表 GPU 命令或控制台「仅重装依赖」重装。
+
 ### 方式 B：Docker
 
 ```bash

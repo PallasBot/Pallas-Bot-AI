@@ -49,7 +49,7 @@ detect_cuda_home() {
     return 0
   fi
   local candidate=""
-  for candidate in /usr/local/cuda /usr/local/cuda-12.4 /usr/local/cuda-12; do
+  for candidate in /usr/local/cuda /usr/local/cuda-12.8 /usr/local/cuda-12.4 /usr/local/cuda-12; do
     if [[ -d "$candidate" ]]; then
       export CUDA_HOME="$candidate"
       return 0

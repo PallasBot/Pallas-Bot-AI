@@ -10,8 +10,15 @@ from app.media.sing.registry import (
     ModelBackend,
     SvcRegistry,
     build_command,
+    build_env,
     reset_registry_cache,
 )
+
+
+def test_build_env_allows_fairseq_checkpoint_load(monkeypatch) -> None:
+    monkeypatch.delenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", raising=False)
+    env = build_env()
+    assert env.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD") == "1"
 
 
 def test_build_command_uses_sys_executable(tmp_path: Path) -> None:

@@ -271,8 +271,13 @@ def build_env() -> dict[str, str]:
     注意:`cuda_device = 0` 是合法的 GPU 0 设备,**不是**"未配置"。
     只有 `None` 才视作未配置,跳过设置,以避免在默认部署下静默关闭 CUDA。
     (settings.sing_cuda_device 类型是 int,默认 0,这里 `is None` 等价于"未设置"。)
+
+    PyTorch ≥2.6 默认 ``weights_only=True``，DDSP 加载 contentvec（fairseq
+    ``Dictionary``）会直接失败。推理子进程信任本地权重，强制关闭该限制。
     """
     env = os.environ.copy()
+    # 仅当调用方未显式设 weights_only 时生效；与 fairseq ContentVec 加载兼容
+    env.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
     cuda_device = settings.sing_cuda_device
     if cuda_device is None:
         return env

@@ -41,8 +41,21 @@ def _pretrain_rvc_dir() -> Path:
 
 
 def _ensure_link(src: Path, dest: Path) -> None:
-    if dest.exists() or dest.is_symlink():
-        return
+    if dest.is_symlink():
+        try:
+            if dest.resolve() == src.resolve():
+                return
+        except OSError:
+            pass
+        dest.unlink()
+    elif dest.exists():
+        # 旧布局：assets/hubert_base 实目录仅有 fairseq .pt，无法满足 Transformers 加载
+        if dest.is_dir() and not (dest / "config.json").is_file() and src.is_dir():
+            import shutil  # noqa: PLC0415
+
+            shutil.rmtree(dest)
+        else:
+            return
     if not src.exists():
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -55,11 +68,17 @@ def _ensure_link(src: Path, dest: Path) -> None:
 
 def prepare_rvc_assets(rvc_root: Path) -> None:
     """把 pretrain/rvc 接到 RVC/assets，并设置 rmvpe_root。"""
+    root = _repo_root()
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+
     pretrain = _pretrain_rvc_dir()
     assets = rvc_root / "assets"
     assets.mkdir(parents=True, exist_ok=True)
 
-    hubert_src = pretrain / "hubert_base"
+    from app.workers.sing.rvc.hubert_assets import ensure_hubert_transformers  # noqa: PLC0415
+
+    hubert_src = ensure_hubert_transformers(pretrain)
     hubert_dst = assets / "hubert_base"
     _ensure_link(hubert_src, hubert_dst)
 

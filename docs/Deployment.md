@@ -93,11 +93,12 @@ registry 后端 ID：`rvc`（薄入口 `app/workers/sing/rvc/infer_rvc.py` → �
 
 ```bash
 git submodule update --init app/workers/sing/RVC
-# 资产（推理前必备）：
-#   resource/sing/models/pretrain/rvc/hubert_base/
+# 资产（推理前必备，来自 https://huggingface.co/lj1995/VoiceConversionWebUI）：
+#   resource/sing/models/pretrain/rvc/hubert_base/   # Transformers：config.json + pytorch_model.bin
 #   resource/sing/models/pretrain/rvc/rmvpe.pt
-# 来自 https://huggingface.co/lj1995/VoiceConversionWebUI
-uv sync --group sing
+# 若只有旧版 fairseq hubert_base.pt：
+#   uv run python tools/convert_rvc_hubert.py
+uv sync --group sing   # 含 av、faiss-cpu、ffmpeg-python（RVC 推理依赖）
 ```
 
 自备音色目录示例：

@@ -1,0 +1,5 @@
+# 本地音色权重不入库；仅保留官方占位目录 pallas/、pretrain/（其内再由各自 .gitignore 忽略权重）
+/*
+!/.gitignore
+!/pallas/
+!/pretrain/

@@ -182,6 +182,10 @@ data
 # 本地 Provider 配置（含 API Key）；示例见 config/providers.example.toml
 config/providers.toml
 # resource
+/resource/.pallas_write_probe
+
+# 可选本地克隆的 DDSP 6.1 上游（6.2 走 submodule DDSP-SVC）
+/app/workers/sing/DDSP-SVC-6.1/
 
 # DDSP 上游路径兼容（指向 resource/sing/models/pretrain，运行时创建）
 /pretrain

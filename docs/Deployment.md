@@ -87,8 +87,30 @@ git clone --depth 1 --branch 6.3 https://ghproxy.net/https://github.com/PallasBo
 
 6.1：`--branch 6.1` → `app/workers/sing/DDSP-SVC-6.1`。权重与版本须匹配（6.2+ 不兼容旧 checkpoint）。可为每个音色单独指定优先后端（`speaker_backends` / 控制台音色行下拉）；官方 `pallas`（RectifiedFlow）用 **`ddsp_6.2`**，**不是** 6.1。完整步骤见 Bot 仓 [`docs/maintainer/install/ai-runtime.md`](https://github.com/PallasBot/Pallas-Bot/blob/dev/docs/maintainer/install/ai-runtime.md)（文档站同步页：维护者 → AI Runtime 安装）。
 
-2. 模型放到 `resource/` 下对应目录（`sing` / `tts` / `chat`），可从 [Hugging Face pallasbot](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 获取。
+#### 社区 RVC 音色（可选）
 
+registry 后端 ID：`rvc`（薄入口 `app/workers/sing/rvc/infer_rvc.py` → 子模块 `app/workers/sing/RVC`）。
+
+```bash
+git submodule update --init app/workers/sing/RVC
+# 资产（推理前必备）：
+#   resource/sing/models/pretrain/rvc/hubert_base/
+#   resource/sing/models/pretrain/rvc/rmvpe.pt
+# 来自 https://huggingface.co/lj1995/VoiceConversionWebUI
+uv sync --group sing
+```
+
+自备音色目录示例：
+
+```text
+resource/sing/models/<音色id>/
+  xxx.pth          # 必需（社区 RVC；扩展名 .pth，与 DDSP 的 .pt 分流）
+  xxx.index        # 可选；优先同 stem，否则目录内唯一 .index
+```
+
+控制台「优先后端」可选 `rvc`。默认回退：`ddsp_*` → `rvc` → `sovits_*`。Bot 侧说明见 [ai-runtime.md · 社区 RVC](https://github.com/PallasBot/Pallas-Bot/blob/dev/docs/maintainer/install/ai-runtime.md#社区-rvc-音色可选第三后端)。
+
+2. 模型放到 `resource/` 下对应目录（`sing` / `tts` / `chat`），可从 [Hugging Face pallasbot](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 获取。
 3. 配置 `.env`：至少 `CALLBACK_HOST` / `CALLBACK_PORT` 指向 Bot；建议设置 `PALLAS_AI_API_TOKEN`（与 Bot / 插件 Bearer 一致）。
 
 4. 启动：

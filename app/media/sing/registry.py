@@ -7,8 +7,9 @@ Python 核心代码里剥离到 YAML 配置(见 `resource/sing/registry.yaml`)�
 CLI 参数风格分类:
   - ddsp:   -i input -m model -o output -k key      (DDSP-SVC 6.1/6.2/6.3 共用)
   - sovits: -f input -m model -c config -t key -o output  (SoVITS 4.0/4.1 共用)
+  - rvc:    -i input -m model.pth -o output -k key [--index …]  (社区 RVC)
 
-新加风格(如 rvc)只需在 `build_command` 里加一个 elif 分支。
+新加风格只需在 `build_command` 里加一个 elif 分支。
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from app.core.logger import logger
 class ArgStyle(str, Enum):
     DDSP = "ddsp"
     SOVITS = "sovits"
+    RVC = "rvc"
 
 
 class ModelBackend(BaseModel):
@@ -69,17 +71,17 @@ class ModelBackend(BaseModel):
         """根据后端约定,定位本次推理产生的实际产物文件路径;没找到返回 None。
 
         不同 arg_style 写出策略不同:
-          - DDSP:`-o <file>`,脚本直接写文件,output_path 就是产物。
+          - DDSP / RVC:`-o <file>`,脚本直接写文件,output_path 就是产物。
           - SoVITS:`-o <dir>`,文件名由脚本内部决定,我们只能 glob 同目录
             找 mtime > since_mtime 的最新目标格式文件。
 
         since_mtime:调用方传入的"调用前 output_dir 中目标格式文件的最大 mtime",
                      用于过滤掉上次推理的残留文件(避免误认)。
         """
-        if self.arg_style is ArgStyle.DDSP:
+        if self.arg_style in (ArgStyle.DDSP, ArgStyle.RVC):
             if not output_path.exists():
                 return None
-            # DDSP 缓存命中路径在 inference() 里已处理,这里再核一次 mtime 防 TOCTOU
+            # DDSP/RVC 缓存命中路径在 inference() 里已处理,这里再核一次 mtime 防 TOCTOU
             if since_mtime and output_path.stat().st_mtime <= since_mtime:
                 return None
             return output_path
@@ -89,6 +91,38 @@ class ModelBackend(BaseModel):
         if not candidates:
             return None
         return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+def resolve_rvc_index(model_path: Path, speaker_dir: Path | None = None) -> Path | None:
+    """社区习惯：与 .pth 同 stem 的 .index；否则 speaker 目录内唯一一个 .index。"""
+    model_path = Path(model_path)
+    search_dirs: list[Path] = []
+    if speaker_dir is not None:
+        search_dirs.append(Path(speaker_dir))
+    search_dirs.append(model_path.parent)
+    seen: set[Path] = set()
+    for raw in search_dirs:
+        directory = raw.resolve()
+        if directory in seen or not directory.is_dir():
+            continue
+        seen.add(directory)
+        same = directory / f"{model_path.stem}.index"
+        if same.is_file():
+            return same
+        # added_*.index / xxx_v2.index 等同目录模糊匹配
+        fuzzy = [
+            p
+            for p in directory.glob("*.index")
+            if "trained" not in p.name.lower() and model_path.stem.lower() in p.stem.lower()
+        ]
+        if len(fuzzy) == 1:
+            return fuzzy[0]
+        if len(fuzzy) > 1:
+            return max(fuzzy, key=lambda p: p.stat().st_mtime)
+        indexes = [p for p in directory.glob("*.index") if "trained" not in p.name.lower()]
+        if len(indexes) == 1:
+            return indexes[0]
+    return None
 
 
 class SvcRegistry(BaseModel):
@@ -218,6 +252,8 @@ def build_command(
       ddsp:   [<venv python>, "<script>", "-i", song, "-m", model, "-o", out, "-k", str(key), ...extra]
       sovits: [<venv python>, "<script>", "-f", song, "-m", model, "-c", config, "-t", str(key),
               "-o", out_dir, "-s", speaker, ...extra]
+      rvc:    [<venv python>, "<script>", "-i", song, "-m", model.pth, "-o", out, "-k", str(key),
+              可选 "--index", path, ...extra]
 
     必须用 ``sys.executable``:Windows 上裸 ``python`` 常落到系统解释器(无 torch)。
     """
@@ -254,6 +290,20 @@ def build_command(
             "-o",
             str(output_dir.absolute()),
         ]
+    elif backend.arg_style is ArgStyle.RVC:
+        cmd += [
+            "-i",
+            str(song_path.absolute()),
+            "-m",
+            str(model_path.absolute()),
+            "-o",
+            str(output_path.absolute()),
+            "-k",
+            str(key),
+        ]
+        index_path = resolve_rvc_index(model_path, speaker_dir)
+        if index_path is not None:
+            cmd += ["--index", str(index_path.absolute())]
     else:
         msg = f"未实现的 arg_style: {backend.arg_style}"
         raise NotImplementedError(msg)

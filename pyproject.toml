@@ -59,6 +59,7 @@ sing = [
     "torchfcpe>=0.0.4",
     "tqdm>=4.66.5",
     "transformers>=4.49.0",
+    "faiss-cpu>=1.7.4",
 ]
 tts = [
     "numpy==1.26.4",

@@ -6,3 +6,7 @@
 	path = app/workers/tts/GPT_SoVITS
 	url = https://github.com/PallasBot/GPT-SoVITS.git
 	branch = interface
+[submodule "app/workers/sing/RVC"]
+	path = app/workers/sing/RVC
+	url = https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI.git
+	branch = main

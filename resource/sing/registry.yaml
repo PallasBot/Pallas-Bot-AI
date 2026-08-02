@@ -76,12 +76,27 @@ backends:
     output_format: "flac"
     enabled: true
 
+  # ── RVC（社区 .pth + 可选 .index；薄 CLI → 子模块 RVC WebUI infer 栈）──
+  # 子模块：app/workers/sing/RVC
+  # 资产：resource/sing/models/pretrain/rvc/{hubert_base/,rmvpe.pt}
+  rvc:
+    script: app/workers/sing/rvc/infer_rvc.py
+    arg_style: rvc
+    model_glob: "*.pth"
+    required_files: []
+    extra_args: []
+    output_suffix: "_rvc"
+    output_format: "flac"
+    enabled: true
+
 # 回退顺序:前面的优先尝试,失败自动切到下一个
 # 官方 pallas.pt 是 6.1/6.2（Conv1d）；6.3（Linear）放后面，避免默认先白跑 ~40s 再 mismatch
 # 未克隆的目录会被 compatible_backends 跳过，不会报「文件不存在」刷屏
+# RVC 仅在 speaker 目录存在 *.pth 时命中（与 DDSP 的 *.pt 分流）
 fallback_order:
   - ddsp_6.2
   - ddsp_6.1
   - ddsp_6.3
+  - rvc
   - sovits_4.1
   - sovits_4.0

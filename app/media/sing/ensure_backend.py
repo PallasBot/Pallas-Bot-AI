@@ -54,15 +54,36 @@ def backend_checkout_path(backend_id: str, *, root: Path | None = None) -> Path 
 
 
 def backend_script_present(backend_id: str, *, root: Path | None = None) -> bool:
-    base = backend_checkout_path(backend_id, root=root)
-    if base is None:
+    base = repo_root(root)
+    # RVC：薄入口 + 可选 WebUI 子模块；以 infer 脚本为准（引擎缺失时推理会报错）
+    if backend_id == "rvc":
+        return (base / "app/workers/sing/rvc/infer_rvc.py").is_file()
+    checkout = backend_checkout_path(backend_id, root=root)
+    if checkout is None:
+        # SoVITS 等：看 registry 里声明的 script 是否存在
+        try:
+            from app.media.sing.registry import get_registry  # noqa: PLC0415
+
+            backend = get_registry().backends.get(backend_id)
+            if backend is not None:
+                return Path(backend.script).is_file()
+        except Exception:
+            return False
         return False
-    return (base / "main_reflow.py").is_file()
+    return (checkout / "main_reflow.py").is_file()
 
 
 def describe_backend_install(backend_id: str, *, root: Path | None = None) -> dict[str, Any]:
     spec = DDSP_BACKEND_SPECS.get(backend_id)
     present = backend_script_present(backend_id, root=root)
+    if backend_id == "rvc":
+        return {
+            "id": backend_id,
+            "auto_installable": False,
+            "script_present": present,
+            "path": "app/workers/sing/rvc/infer_rvc.py",
+            "branch": None,
+        }
     return {
         "id": backend_id,
         "auto_installable": spec is not None,

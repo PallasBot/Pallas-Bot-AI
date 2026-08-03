@@ -162,6 +162,12 @@ class Settings(BaseSettings):
             "CELERY_WORKER_SOFT_SHUTDOWN_TIMEOUT",
         ),
     )
+    tts_pipeline_idle_sec: float = Field(
+        default=120.0,
+        ge=0.0,
+        le=3600.0,
+        validation_alias=AliasChoices("tts_pipeline_idle_sec", "TTS_PIPELINE_IDLE_SEC"),
+    )
     celery_task_packages: str = Field(
         default="sing,tts,chat",
         validation_alias=AliasChoices("celery_task_packages", "CELERY_TASK_PACKAGES"),

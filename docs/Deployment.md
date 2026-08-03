@@ -69,7 +69,13 @@ git submodule update --init --recursive
 
 #### 手动补充 DDSP-SVC 6.3 / 6.1（可选）
 
-默认子模块只有 `app/workers/sing/DDSP-SVC`（分支 **6.2**）。若控制台优先后端选 `ddsp_6.3` / `ddsp_6.1`，需另检出对应目录（约 1.6G/份）。`git clone` 的 URL 与目标路径须在**同一条命令**。
+默认子模块只有 `app/workers/sing/DDSP-SVC`（分支 **6.2**）。`ai_bootstrap.sh` 会初始化它；若源码仓已存在但该目录为空，可在 AI Runtime 根目录恢复默认子模块：
+
+```bash
+git submodule update --init app/workers/sing/DDSP-SVC
+```
+
+若控制台优先后端选 `ddsp_6.3` / `ddsp_6.1`，需另检出对应目录（约 1.6G/份）。`git clone` 的 URL 与目标路径须在**同一条命令**。
 
 PowerShell（代理；改端口）：
 
@@ -85,21 +91,53 @@ git clone --depth 1 --branch 6.3 https://github.com/PallasBot/DDSP-SVC.git app/w
 git clone --depth 1 --branch 6.3 https://ghproxy.net/https://github.com/PallasBot/DDSP-SVC.git app/workers/sing/DDSP-SVC-6.3
 ```
 
-6.1：`--branch 6.1` → `app/workers/sing/DDSP-SVC-6.1`。权重与版本须匹配（6.2+ 不兼容旧 checkpoint）。可为每个音色单独指定优先后端（`speaker_backends` / 控制台音色行下拉）；官方 `pallas`（RectifiedFlow）用 **`ddsp_6.2`**，**不是** 6.1。完整步骤见 Bot 仓 [`docs/maintainer/install/ai-runtime.md`](https://github.com/PallasBot/Pallas-Bot/blob/dev/docs/maintainer/install/ai-runtime.md)（文档站同步页：维护者 → AI Runtime 安装）。
+6.1：`--branch 6.1` → `app/workers/sing/DDSP-SVC-6.1`。权重与版本须匹配（6.2+ 不兼容旧 checkpoint）。可为每个音色单独指定优先后端（`speaker_backends` / 控制台音色行下拉）；官方 `pallas`（RectifiedFlow）用 **`ddsp_6.2`**，**不是** 6.1。
+
+#### DDSP 权重与音色
+
+优先在控制台 **AI 配置 → 媒体 → 媒体资产** 下载官方 `sing_pallas` 和 `sing_pretrain`：前者提供官方 `pallas` 音色，后者提供 DDSP 预训练资产。自备 DDSP 音色必须将 `*.pt` 与同目录 `config.yaml` 一起放入 `resource/sing/models/<音色 id>/`；缺少 `config.yaml` 时推理会失败。
+
+| 后端 | 音色 | 必需共享权重 |
+| --- | --- | --- |
+| `ddsp_6.2` / `ddsp_6.1` | `resource/sing/models/<id>/<name>.pt` + `config.yaml` | `resource/sing/models/pretrain/contentvec/checkpoint_best_legacy_500.pt`、`resource/sing/models/pretrain/rmvpe/model.pt`，以及音色 `config.yaml` 指向的 NSF / PC-NSF HiFiGAN 目录 |
+| `ddsp_6.3` | 同上；权重需由 6.3 训练 | `resource/sing/models/pretrain/contentvec/pytorch_model.bin`；首次使用会从 [lengyue233/content-vec-best](https://huggingface.co/lengyue233/content-vec-best) 自动下载 |
+
+不要跨版本混用 DDSP `.pt`。`sing_pretrain` 是默认来源；若手工准备，请以该音色的 `config.yaml` 中 `encoder_ckpt` 与 vocoder 路径为准。
 
 #### 社区 RVC 音色（可选）
 
 registry 后端 ID：`rvc`（薄入口 `app/workers/sing/rvc/infer_rvc.py` → 子模块 `app/workers/sing/RVC`）。
 
+在 AI Runtime 根目录初始化引擎、安装依赖并下载共享权重：
+
 ```bash
 git submodule update --init app/workers/sing/RVC
-# 资产（推理前必备，来自 https://huggingface.co/lj1995/VoiceConversionWebUI）：
-#   resource/sing/models/pretrain/rvc/hubert_base/   # Transformers：config.json + pytorch_model.bin
-#   resource/sing/models/pretrain/rvc/rmvpe.pt
-# 若只有旧版 fairseq hubert_base.pt：
-#   uv run python tools/convert_rvc_hubert.py
-uv sync --group sing   # 含 av、faiss-cpu、ffmpeg-python（RVC 推理依赖）
+uv sync --group sing   # 含 av、faiss-cpu、ffmpeg-python
+python -m pip install --upgrade huggingface_hub
+hf download lj1995/VoiceConversionWebUI --revision main \
+  --include "hubert_base/*" --local-dir resource/sing/models/pretrain/rvc
+hf download lj1995/VoiceConversionWebUI rmvpe.pt --revision main \
+  --local-dir resource/sing/models/pretrain/rvc
 ```
+
+下载完成后应是：
+
+```text
+resource/sing/models/pretrain/rvc/
+├── hubert_base/
+│   ├── config.json
+│   ├── preprocessor_config.json
+│   └── pytorch_model.bin
+└── rmvpe.pt
+```
+
+若已有旧版 fairseq `hubert_base.pt`，可放在 `resource/sing/models/pretrain/rvc/hubert_base.pt`（或 `hubert_base/hubert_base.pt`），再执行：
+
+```bash
+uv run python tools/convert_rvc_hubert.py
+```
+
+它会生成上述 Transformers `hubert_base/` 目录。Windows 无软链接权限时，也可直接将同一批文件放到 `app/workers/sing/RVC/assets/hubert_base/` 与 `app/workers/sing/RVC/assets/rmvpe/rmvpe.pt`。
 
 自备音色目录示例：
 
@@ -109,7 +147,7 @@ resource/sing/models/<音色id>/
   xxx.index        # 可选；优先同 stem，否则目录内唯一 .index
 ```
 
-控制台「优先后端」可选 `rvc`。默认回退：`ddsp_*` → `rvc` → `sovits_*`。Bot 侧说明见 [ai-runtime.md · 社区 RVC](https://github.com/PallasBot/Pallas-Bot/blob/dev/docs/maintainer/install/ai-runtime.md#社区-rvc-音色可选第三后端)。
+控制台「优先后端」可选 `rvc`。RVC 音色必须使用可推理的 `*.pth`，不要放训练过程的 `G_*.pth`；`.index` 可选。默认回退：`ddsp_*` → `rvc` → `sovits_*`。
 
 2. 模型放到 `resource/` 下对应目录（`sing` / `tts` / `chat`），可从 [Hugging Face pallasbot](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 获取。
 3. 配置 `.env`：至少 `CALLBACK_HOST` / `CALLBACK_PORT` 指向 Bot；建议设置 `PALLAS_AI_API_TOKEN`（与 Bot / 插件 Bearer 一致）。

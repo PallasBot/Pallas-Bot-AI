@@ -14,12 +14,20 @@ from app.media.sing.registry import (
     reset_registry_cache,
     resolve_rvc_index,
 )
+from app.workers.sing.rvc.infer_rvc import parse_args
 
 
 def test_build_env_allows_fairseq_checkpoint_load(monkeypatch) -> None:
     monkeypatch.delenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", raising=False)
     env = build_env()
     assert env.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD") == "1"
+
+
+def test_rvc_cli_uses_project_default_voice_parameters() -> None:
+    args = parse_args(["-i", "input.wav", "-m", "voice.pth", "-o", "output.flac"])
+    assert args.index_rate == 0.55
+    assert args.protect == 0.4
+    assert args.rms_mix_rate == 0.25
 
 
 def test_build_command_uses_sys_executable(tmp_path: Path) -> None:

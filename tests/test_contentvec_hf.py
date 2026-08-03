@@ -17,8 +17,7 @@ def test_adapt_rewrites_fairseq_encoder_name(tmp_path: Path, monkeypatch) -> Non
     speaker.mkdir()
     cfg = speaker / "config.yaml"
     cfg.write_text(
-        "data:\n"
-        f"  encoder_ckpt: pretrain/contentvec/{cv.FAIRSEQ_CONTENTVEC_NAME}\n",
+        f"data:\n  encoder_ckpt: pretrain/contentvec/{cv.FAIRSEQ_CONTENTVEC_NAME}\n",
         encoding="utf-8",
     )
 

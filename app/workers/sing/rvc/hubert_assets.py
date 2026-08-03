@@ -57,36 +57,18 @@ def build_mapping() -> dict[str, str]:
             mapping[f"encoder.layers.{layer}.attention.{j}_proj.bias"] = (
                 f"encoder.layers.{layer}.self_attn.{j}_proj.bias"
             )
-        mapping[f"encoder.layers.{layer}.final_layer_norm.bias"] = (
-            f"encoder.layers.{layer}.final_layer_norm.bias"
-        )
-        mapping[f"encoder.layers.{layer}.final_layer_norm.weight"] = (
-            f"encoder.layers.{layer}.final_layer_norm.weight"
-        )
-        mapping[f"encoder.layers.{layer}.layer_norm.bias"] = (
-            f"encoder.layers.{layer}.self_attn_layer_norm.bias"
-        )
-        mapping[f"encoder.layers.{layer}.layer_norm.weight"] = (
-            f"encoder.layers.{layer}.self_attn_layer_norm.weight"
-        )
-        mapping[f"encoder.layers.{layer}.attention.out_proj.bias"] = (
-            f"encoder.layers.{layer}.self_attn.out_proj.bias"
-        )
+        mapping[f"encoder.layers.{layer}.final_layer_norm.bias"] = f"encoder.layers.{layer}.final_layer_norm.bias"
+        mapping[f"encoder.layers.{layer}.final_layer_norm.weight"] = f"encoder.layers.{layer}.final_layer_norm.weight"
+        mapping[f"encoder.layers.{layer}.layer_norm.bias"] = f"encoder.layers.{layer}.self_attn_layer_norm.bias"
+        mapping[f"encoder.layers.{layer}.layer_norm.weight"] = f"encoder.layers.{layer}.self_attn_layer_norm.weight"
+        mapping[f"encoder.layers.{layer}.attention.out_proj.bias"] = f"encoder.layers.{layer}.self_attn.out_proj.bias"
         mapping[f"encoder.layers.{layer}.attention.out_proj.weight"] = (
             f"encoder.layers.{layer}.self_attn.out_proj.weight"
         )
-        mapping[f"encoder.layers.{layer}.feed_forward.intermediate_dense.bias"] = (
-            f"encoder.layers.{layer}.fc1.bias"
-        )
-        mapping[f"encoder.layers.{layer}.feed_forward.intermediate_dense.weight"] = (
-            f"encoder.layers.{layer}.fc1.weight"
-        )
-        mapping[f"encoder.layers.{layer}.feed_forward.output_dense.bias"] = (
-            f"encoder.layers.{layer}.fc2.bias"
-        )
-        mapping[f"encoder.layers.{layer}.feed_forward.output_dense.weight"] = (
-            f"encoder.layers.{layer}.fc2.weight"
-        )
+        mapping[f"encoder.layers.{layer}.feed_forward.intermediate_dense.bias"] = f"encoder.layers.{layer}.fc1.bias"
+        mapping[f"encoder.layers.{layer}.feed_forward.intermediate_dense.weight"] = f"encoder.layers.{layer}.fc1.weight"
+        mapping[f"encoder.layers.{layer}.feed_forward.output_dense.bias"] = f"encoder.layers.{layer}.fc2.bias"
+        mapping[f"encoder.layers.{layer}.feed_forward.output_dense.weight"] = f"encoder.layers.{layer}.fc2.weight"
     for layer in range(7):
         mapping[f"feature_extractor.conv_layers.{layer}.conv.weight"] = (
             f"feature_extractor.conv_layers.{layer}.0.weight"

@@ -26,9 +26,7 @@ def get_random_song(speaker: str = ""):
     song_dir = Path(SONG_PATH)
     if song_dir.exists():
         all_song = [
-            str(s)
-            for s in song_dir.iterdir()
-            if is_audio_file(s) and speaker in s.name and "_spliced0" not in s.name
+            str(s) for s in song_dir.iterdir() if is_audio_file(s) and speaker in s.name and "_spliced0" not in s.name
         ]
         if all_song:
             source = "splices"

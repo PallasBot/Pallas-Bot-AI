@@ -122,7 +122,8 @@ line-length = 120
 target-version = "py312"
 preview = true
 exclude = [
-    "app/workers/sing/DDSP-SVC",
+    "app/workers/sing/DDSP-SVC*",
+    "app/workers/sing/RVC",
     "app/workers/tts/GPT_SoVITS",
     "app/workers/chat/rwkv_tokenizer.py",
     "app/workers/chat/pipeline.py",

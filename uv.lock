@@ -1917,7 +1917,7 @@ wheels = [
 
 [[package]]
 name = "pallas-bot-ai"
-version = "4.1.0"
+version = "4.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },

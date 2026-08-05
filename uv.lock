@@ -1918,7 +1918,7 @@ wheels = [
 [[package]]
 name = "pallas-bot-ai"
 version = "4.0.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
     { name = "celery", extra = ["redis"] },

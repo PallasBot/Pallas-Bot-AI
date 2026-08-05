@@ -21,6 +21,16 @@ dependencies = [
     "python-ulid>=3.0.0",
 ]
 
+[project.scripts]
+pallas-ai = "app.cli:main"
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [project.optional-dependencies]
 # CPU 线保持 2.5.1；GPU 线 2.7.1+cu128 以支持 Blackwell（RTX 50 / sm_120）
 cpu = ["torch (==2.5.1)", "torchaudio (==2.5.1)"]
@@ -91,6 +101,7 @@ tts = [
 ]
 
 [tool.uv]
+package = true
 conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
 override-dependencies = [
     # fairseq 0.12.2 锁定 hydra-core<1.1，与 Python 3.12 / demucs(dora) 不兼容

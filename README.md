@@ -16,7 +16,7 @@ Pallas-Bot 的可选媒体后端（与本体解耦）：唱歌、TTS 等。聊�
 
 Bot 侧请安装官方扩展 [`pallas-plugin-ai-media`](https://github.com/PallasBot/Plugin-Ai-Media)（`牛牛唱歌` / `牛牛说`），并配置 `AI_SERVER_HOST` / `AI_SERVER_PORT`（或控制台媒体服务地址）。
 
-默认启动 **media worker + API**（`./scripts/ctl.sh start` 或 `./scripts/ai_bootstrap.sh`）。
+默认启动 **media worker + API**（`uv run pallas-ai start` 或 `./scripts/ai_bootstrap.sh`）。
 
 - 文档索引：[docs/README.md](./docs/README.md)
 - 部署细节：[docs/Deployment.md](./docs/Deployment.md)
@@ -62,13 +62,13 @@ Bot 也在 Docker、且与本栈**不同网络**时：让 Bot 挂入固定网络
 ```bash
 cp .env.example .env
 uv sync --all-groups --extra cpu   # 或 --extra gpu
-./scripts/ctl.sh start media
-./scripts/ctl.sh start api
+uv run pallas-ai start
 ```
 
 ```bash
-./scripts/ctl.sh status
-./scripts/ctl.sh stop all
+uv run pallas-ai status
+uv run pallas-ai stop
+uv run pallas-ai restart media
 ```
 
 ### 自检与 API

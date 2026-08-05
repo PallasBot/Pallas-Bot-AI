@@ -8,7 +8,7 @@
 
 | 组件 | 最低要求 | 校验方式 |
 | --- | --- | --- |
-| **Pallas-Bot-AI** | `api_version` ≥ `4.0.0` | `GET /health` → `api_version` |
+| **Pallas-Bot-AI** | `api_version` ≥ `4.1.0` | `GET /health` → `api_version` |
 | **Pallas-Bot** | 支持 `AI_SERVER_*` 的 V4 线 | 启动日志 / WebUI 媒体服务 |
 | **Redis** | 可达（Celery broker） | AI 仓 `REDIS_URL`；compose 已含 redis |
 
@@ -152,11 +152,15 @@ resource/sing/models/<音色id>/
 2. 模型放到 `resource/` 下对应目录（`sing` / `tts` / `chat`），可从 [Hugging Face pallasbot](https://huggingface.co/pallasbot/Pallas-Bot/tree/main) 获取。
 3. 配置 `.env`：至少 `CALLBACK_HOST` / `CALLBACK_PORT` 指向 Bot；建议设置 `PALLAS_AI_API_TOKEN`（与 Bot / 插件 Bearer 一致）。
 
-4. 启动：
+4. 启动（`pallas-ai` 会同时管理 API 与 media；默认目标为 `all`）：
 
 ```bash
-./scripts/ctl.sh start media
-./scripts/ctl.sh start api
+uv run pallas-ai start
+uv run pallas-ai status
+# 只重启媒体任务进程；API 不受影响
+uv run pallas-ai restart media
+# 仅在需要清理遗留 Celery 任务状态时执行
+uv run pallas-ai purge-stale
 # 或
 ./scripts/ai_bootstrap.sh
 ```

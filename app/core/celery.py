@@ -7,6 +7,7 @@ from app.core.logger import configure_stdlib_logging, logger
 from app.core.redis_client import ping_redis_sync
 from app.core.startup_report import emit_startup_summary, register_startup_fact, register_startup_warning
 from app.utils.gpu_locker import sweep_gpu_lock_state_on_worker_startup
+from app.version import VERSION
 
 celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_url)
 
@@ -79,7 +80,7 @@ def on_celery_worker_ready(**kwargs):
         register_startup_warning("redis", "unreachable")
         logger.error("Redis 不可达：{}（任务队列与媒体任务状态依赖此项）", settings.redis_url)
     register_startup_fact("packages", ",".join(resolve_celery_task_packages()))
-    emit_startup_summary(api_version="4.0.0", role="celery")
+    emit_startup_summary(api_version=VERSION, role="celery")
 
 
 celery_app.conf.update(

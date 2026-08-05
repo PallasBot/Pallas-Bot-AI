@@ -9,11 +9,12 @@ from app.core.logger import logger
 from app.core.startup_report import emit_startup_summary, register_startup_fact
 from app.http.routers import build_api_router, resolve_enabled_endpoints
 from app.http.v1_router import build_v1_router
+from app.version import VERSION
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-API_VERSION = "4.0.0"
+API_VERSION = VERSION
 
 
 @asynccontextmanager

@@ -10,8 +10,9 @@ from app.version import VERSION
 
 def test_version_is_exposed_by_http_api() -> None:
     app = create_app(enabled_endpoints=set())
+    pyproject = loads((Path(__file__).parent.parent / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert VERSION == "4.1.0"
+    assert VERSION == pyproject["project"]["version"]
     assert API_VERSION == VERSION
     assert app.version == VERSION
 

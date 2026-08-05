@@ -145,6 +145,38 @@ def test_write_unloads_llm(patch_redis, monkeypatch):
     assert called["n"] == 1
 
 
+def test_write_unloads_tts_before_sing(patch_redis, monkeypatch):
+    patch_redis(FakeRedis())
+    called: list[dict[str, str] | None] = []
+
+    def unload(owner):
+        called.append(owner)
+
+    monkeypatch.setattr(gl, "_unload_resident_tts", unload)
+    mgr = GPULockManager(0, lease_ttl=30, max_hold=1800)
+
+    with mgr.acquire_write(owner={"kind": "sing", "step": "svc"}):
+        pass
+
+    assert called == [{"kind": "sing", "step": "svc"}]
+
+
+def test_write_keeps_tts_pipeline_for_non_sing_work(patch_redis, monkeypatch):
+    patch_redis(FakeRedis())
+    called: list[dict[str, str] | None] = []
+
+    def unload(owner):
+        called.append(owner)
+
+    monkeypatch.setattr(gl, "_unload_resident_tts", unload)
+    mgr = GPULockManager(0, lease_ttl=30, max_hold=1800)
+
+    with mgr.acquire_write(owner={"kind": "tts"}):
+        pass
+
+    assert called == []
+
+
 # ── 子进程超时 / 看门狗杀进程（卡死根治）─────────────────────────────────
 def test_run_subprocess_normal_returns_rc(patch_redis):
     patch_redis(FakeRedis())

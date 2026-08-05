@@ -56,3 +56,26 @@ def test_tts_pipeline_cache_ignores_cancelled_timer_callback_after_new_request()
 
     assert timers[0].cancelled is True
     assert released == []
+
+
+def test_tts_pipeline_cache_can_be_unloaded_immediately_for_sing() -> None:
+    pipeline = object()
+    released: list[str] = []
+    timers: list[FakeTimer] = []
+    cache = TtsPipelineCache(
+        loader=lambda: pipeline,
+        on_unload=lambda: released.append("released"),
+        idle_sec=120,
+        timer_factory=lambda delay, callback: timers.append(FakeTimer(delay, callback)) or timers[-1],
+    )
+
+    cache.get()
+    cache.schedule_unload()
+
+    assert cache.unload() is True
+    assert timers[0].cancelled is True
+    assert released == ["released"]
+
+    timers[0].fire()
+
+    assert released == ["released"]

@@ -320,6 +320,10 @@ class GPULockManager:
             # 媒体任务上卡前卸下 ollama 常驻模型，腾显存给 demucs/SVC/TTS。释放后 LLM 自动重载。
             _unload_resident_llm()
 
+        normalized_owner = self._normalize_owner(owner)
+        if normalized_owner.get("kind") == "sing":
+            _unload_resident_tts(normalized_owner)
+
         stop = threading.Event()
         hold_exceeded = threading.Event()
         started = time.monotonic()
@@ -495,6 +499,16 @@ def _safe_release(lock) -> None:
 
 def _unload_resident_llm() -> None:
     return
+
+
+def _unload_resident_tts(owner: Mapping[str, str]) -> None:
+    try:
+        from app.workers.tts.GPT_SoVITS.interface import unload_tts_pipeline
+
+        owner_text = " ".join(f"{key}={value}" for key, value in owner.items())
+        unload_tts_pipeline(f"sing:{owner_text}")
+    except Exception as exc:
+        logger.warning("唱歌任务启动前卸载 TTS pipeline 失败 owner={} err={}", owner, exc)
 
 
 _shared_locks: dict[int, GPULockManager] = {}

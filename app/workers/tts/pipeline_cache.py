@@ -44,6 +44,21 @@ class TtsPipelineCache[T]:
             timer.start()
             self._timer = timer
 
+    def unload(self) -> bool:
+        with self._lock:
+            self._cancel_pending_unload()
+            if self._pipeline is None:
+                return False
+            self._pipeline = None
+            self._generation += 1
+            self._on_unload()
+            return True
+
+    @property
+    def is_loaded(self) -> bool:
+        with self._lock:
+            return self._pipeline is not None
+
     def _cancel_pending_unload(self) -> None:
         if self._timer is not None:
             self._timer.cancel()
@@ -53,7 +68,4 @@ class TtsPipelineCache[T]:
         with self._lock:
             if generation != self._generation or self._pipeline is None:
                 return
-            self._timer = None
-            self._pipeline = None
-            self._generation += 1
-            self._on_unload()
+            self.unload()

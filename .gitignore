@@ -190,3 +190,4 @@ config/providers.toml
 # DDSP 上游路径兼容（指向 resource/sing/models/pretrain，运行时创建）
 /pretrain
 docs/superpowers/
+.worktrees/

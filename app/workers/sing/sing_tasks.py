@@ -13,12 +13,44 @@ from app.media.services.callback import callback
 from app.media.sing.inference import inference
 from app.utils.gpu_locker import get_gpu_locker
 
+from .cache_paths import archive_legacy_cache, legacy_stage_path, speaker_cache_dir, stage_cache_path
 from .mixer import mix, splice
 from .ncm_loader import download
 from .separater import separate
 from .slicer import slice_audio
 
 gpu_locker = get_gpu_locker(settings.sing_cuda_device)
+SING_ROOT = Path("resource/sing")
+
+
+@celery_app.task(name="sing.cache_archive", ignore_result=True)
+def archive_legacy_cache_task(stage: str, speaker: str, source: str) -> None:
+    archived = archive_legacy_cache(stage, speaker, Path(source), root=SING_ROOT)
+    if archived is None:
+        logger.debug("sing legacy cache archive skipped: stage={} speaker={} source={}", stage, speaker, source)
+
+
+def find_stage_cache(stage: str, speaker: str, filename: str) -> Path | None:
+    current = stage_cache_path(stage, speaker, filename, root=SING_ROOT)
+    if current.is_file():
+        return current
+
+    legacy = legacy_stage_path(stage, filename, root=SING_ROOT)
+    if legacy.is_file():
+        archive_legacy_cache_task.delay(stage, speaker, str(legacy))
+        return legacy
+    return None
+
+
+def find_stage_matches(stage: str, speaker: str, pattern: str) -> list[Path]:
+    current = sorted(speaker_cache_dir(stage, speaker, root=SING_ROOT).glob(pattern))
+    if current:
+        return current
+
+    legacy = sorted((SING_ROOT / stage).glob(pattern))
+    for path in legacy:
+        archive_legacy_cache_task.delay(stage, speaker, str(path))
+    return legacy
 
 
 async def sing_audio_callback(
@@ -79,7 +111,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
     )
 
     if chunk_index == 0:
-        for cache_path in Path("resource/sing/splices").glob(f"{song_id}_*_{key}key_{speaker}.mp3"):
+        for cache_path in find_stage_matches("splices", speaker, f"{song_id}_*_{key}key_{speaker}.mp3"):
             if cache_path.name.startswith(f"{song_id}_full_"):
                 task_log(
                     "sing task hit full cache{} path={} song_id={} key={} speaker={}",
@@ -124,8 +156,8 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
                     await sing_audio_callback(request_id, file, song_id, cached_chunk, key)
                 return True
     else:
-        cache_path = Path("resource/sing/mix") / f"{song_id}_chunk{chunk_index}_{key}key_{speaker}.mp3"
-        if cache_path.exists():
+        cache_path = find_stage_cache("mix", speaker, f"{song_id}_chunk{chunk_index}_{key}key_{speaker}.mp3")
+        if cache_path is not None:
             task_log(
                 "sing task hit mix cache{} path={} song_id={} chunk_index={} key={} speaker={}",
                 log_id_suffix(request_id),
@@ -136,7 +168,13 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
                 speaker,
             )
             await asyncify(splice)(
-                cache_path, Path("resource/sing/splices"), False, song_id, chunk_index, speaker, key=key
+                cache_path,
+                speaker_cache_dir("splices", speaker, root=SING_ROOT),
+                False,
+                song_id,
+                chunk_index,
+                speaker,
+                key=key,
             )
             async with await anyio.open_file(cache_path, "rb") as f:
                 file = await f.read()
@@ -160,11 +198,17 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
 
     # 音频切片
     task_log("sing task slicing audio{} origin={} size_ms={}", log_id_suffix(request_id), origin, sing_length * 1000)
-    slices_list = await asyncify(slice_audio)(origin, Path("resource/sing/slices"), song_id, size_ms=sing_length * 1000)
+    slices_list = await asyncify(slice_audio)(origin, SING_ROOT / "slices", song_id, size_ms=sing_length * 1000)
     if not slices_list or chunk_index >= len(slices_list):
         if chunk_index == len(slices_list):
             await asyncify(splice)(
-                Path("NotExists"), Path("resource/sing/splices"), True, song_id, chunk_index, speaker, key=key
+                Path("NotExists"),
+                speaker_cache_dir("splices", speaker, root=SING_ROOT),
+                True,
+                song_id,
+                chunk_index,
+                speaker,
+                key=key,
             )
         logger.error(
             "sing task slice failed{} song_id={} chunk_index={} slices_count={}",
@@ -188,7 +232,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
 
     # 人声分离
     task_log("sing task separating vocals{} chunk={} key={}", log_id_suffix(request_id), chunk, key)
-    separated = await asyncify(separate)(chunk, Path("resource/sing"), locker=gpu_locker, key=key)
+    separated = await asyncify(separate)(chunk, SING_ROOT, locker=gpu_locker, key=key)
     if not separated:
         logger.error(
             "sing task separate failed{} song_id={} chunk_index={} chunk={} key={}",
@@ -217,7 +261,13 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         speaker,
         key,
     )
-    svc = await asyncify(inference)(vocals, Path("resource/sing/svc"), key=key, speaker=speaker, locker=gpu_locker)
+    svc = await asyncify(inference)(
+        vocals,
+        speaker_cache_dir("svc", speaker, root=SING_ROOT),
+        key=key,
+        speaker=speaker,
+        locker=gpu_locker,
+    )
     if not svc:
         logger.error(
             "sing task svc failed{} song_id={} chunk_index={} vocals={} speaker={} key={}",
@@ -240,7 +290,7 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         no_vocals,
         vocals,
     )
-    result = await asyncify(mix)(svc, no_vocals, vocals, Path("resource/sing/mix"), svc.stem)
+    result = await asyncify(mix)(svc, no_vocals, vocals, speaker_cache_dir("mix", speaker, root=SING_ROOT), svc.stem)
     if not result:
         logger.error(
             "sing task mix failed{} song_id={} chunk_index={} svc={}",
@@ -262,7 +312,15 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         finished,
         chunk_index,
     )
-    await asyncify(splice)(result, Path("resource/sing/splices"), finished, song_id, chunk_index, speaker, key=key)
+    await asyncify(splice)(
+        result,
+        speaker_cache_dir("splices", speaker, root=SING_ROOT),
+        finished,
+        song_id,
+        chunk_index,
+        speaker,
+        key=key,
+    )
     async with await anyio.open_file(result, "rb") as f:
         file = await f.read()
     task_log(

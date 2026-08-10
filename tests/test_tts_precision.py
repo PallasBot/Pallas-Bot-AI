@@ -36,3 +36,15 @@ def test_resolve_effective_precision_disables_half_on_cpu() -> None:
     assert module.resolve_effective_precision(torch.device("cpu"), is_half=True) is torch.float32
     assert module.resolve_effective_precision(torch.device("cuda"), is_half=True) is torch.float16
     assert module.resolve_effective_precision(torch.device("cuda"), is_half=False) is torch.float32
+
+
+def test_resolve_effective_precision_accepts_string_device() -> None:
+    module_path = GPT_SOVITS_ROOT / "TTS_infer_pack/precision.py"
+    spec = importlib.util.spec_from_file_location("tts_precision", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.resolve_effective_precision("cpu", is_half=True) is torch.float32
+    assert module.resolve_effective_precision("cuda", is_half=True) is torch.float16

@@ -1,6 +1,7 @@
 import asyncio
 
 from app.core.celery import celery_app
+from app.core.logger import logger
 from app.media.models import resolve_tts_request
 from app.media.services.callback import callback
 from app.media.services.translator import translate_for_tts
@@ -45,17 +46,22 @@ def tts_task(request_id: str, text: str, media_type: str = "wav"):
 
 
 async def _tts_task_async(request_id: str, text: str, media_type: str = "wav"):
-    with gpu_locker.acquire(
-        unload_llm=True,
-        owner={"kind": "tts", "request_id": request_id, "media_type": media_type},
-    ):
-        req = resolve_tts_request(text=text, media_type=media_type)
-        translated_text = translate_for_tts(text)
-        if translated_text:
-            req["text"] = translated_text
-            req["text_lang"] = "ja"
-        # 未开启或翻译失败：保留原文与配置 text_lang（通常为 zh）
-        audio_data = tts_handle(req)
+    try:
+        with gpu_locker.acquire(
+            unload_llm=True,
+            owner={"kind": "tts", "request_id": request_id, "media_type": media_type},
+        ):
+            req = resolve_tts_request(text=text, media_type=media_type)
+            translated_text = translate_for_tts(text)
+            if translated_text:
+                req["text"] = translated_text
+                req["text_lang"] = "ja"
+            # 未开启或翻译失败：保留原文与配置 text_lang（通常为 zh）
+            audio_data = tts_handle(req)
+    except Exception:
+        logger.exception("TTS 任务初始化或执行失败：request_id={}", request_id)
+        await callback(request_id, status="failed")
+        return
     if audio_data:
         await callback(request_id, audio=audio_data)
     else:

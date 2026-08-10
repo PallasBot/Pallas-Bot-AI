@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import threading
 from pathlib import Path  # noqa: TC003
 from typing import Any
@@ -49,9 +51,28 @@ def media_models_path(root: Path | None = None) -> Path:
     return base / "data" / "media_models.json"
 
 
+def normalize_song_cache_value(name: str, value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} 须为整数")
+    minimum, maximum = (1, 3650) if name == "song_cache_days" else (0, 10000)
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} 须在 {minimum}..{maximum} 范围内")
+    return value
+
+
+def settings_song_cache_value(name: str, fallback: int) -> int:
+    try:
+        return normalize_song_cache_value(name, getattr(settings, name, fallback))
+    except ValueError:
+        return fallback
+
+
 def _default_payload() -> dict[str, Any]:
+    sing = dict(_DEFAULT_SING)
+    sing["song_cache_days"] = settings_song_cache_value("song_cache_days", 30)
+    sing["song_cache_size"] = settings_song_cache_value("song_cache_size", 100)
     return {
-        "sing": dict(_DEFAULT_SING),
+        "sing": sing,
         "tts": dict(_DEFAULT_TTS),
     }
 
@@ -136,6 +157,12 @@ def load_media_models(root: Path | None = None) -> dict[str, Any]:
     if isinstance(sing.get("preferred_backend"), str):
         payload["sing"]["preferred_backend"] = sing["preferred_backend"].strip()
     payload["sing"]["speaker_backends"] = _normalize_speaker_backends(sing.get("speaker_backends"))
+    for key in ("song_cache_days", "song_cache_size"):
+        if key in sing:
+            try:
+                payload["sing"][key] = normalize_song_cache_value(key, sing[key])
+            except ValueError:
+                pass
     for key in _DEFAULT_TTS:
         val = tts.get(key)
         if isinstance(val, str) and val.strip():
@@ -157,6 +184,9 @@ def save_media_models(payload: dict[str, Any], *, root: Path | None = None) -> d
     if isinstance(sing.get("preferred_backend"), str):
         merged["sing"]["preferred_backend"] = sing["preferred_backend"].strip()
     merged["sing"]["speaker_backends"] = _normalize_speaker_backends(sing.get("speaker_backends"))
+    for key in ("song_cache_days", "song_cache_size"):
+        if key in sing:
+            merged["sing"][key] = normalize_song_cache_value(key, sing[key])
     for key in _DEFAULT_TTS:
         val = tts.get(key)
         if isinstance(val, str) and val.strip():
@@ -167,7 +197,25 @@ def save_media_models(payload: dict[str, Any], *, root: Path | None = None) -> d
     elif isinstance(existing.get("translator"), dict):
         merged["translator"] = _normalize_translator_dict(existing.get("translator"))
     with _LOCK:
-        path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary:
+                temporary_path = Path(temporary.name)
+                temporary.write(json.dumps(merged, ensure_ascii=False, indent=2) + "\n")
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            os.replace(temporary_path, path)  # noqa: PTH105
+        except OSError:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+            raise
     return merged
 
 
@@ -259,6 +307,8 @@ def list_sing_speakers(root: Path | None = None) -> dict[str, Any]:
         "default_speaker": str(cfg["sing"]["default_speaker"]),
         "preferred_backend": str(cfg["sing"].get("preferred_backend") or ""),
         "speaker_backends": per,
+        "song_cache_days": cfg["sing"]["song_cache_days"],
+        "song_cache_size": cfg["sing"]["song_cache_size"],
         "sing_speakers_map": dict(settings.sing_speakers or {}),
         "writable": defaults_writable(base),
         "deploy_mode": detect_deploy_mode(base),
@@ -327,6 +377,8 @@ def get_sing_defaults(root: Path | None = None) -> dict[str, Any]:
         "default_speaker": cfg["sing"]["default_speaker"],
         "preferred_backend": str(cfg["sing"].get("preferred_backend") or ""),
         "speaker_backends": _normalize_speaker_backends(cfg["sing"].get("speaker_backends")),
+        "song_cache_days": cfg["sing"]["song_cache_days"],
+        "song_cache_size": cfg["sing"]["song_cache_size"],
         "writable": defaults_writable(base),
     }
 
@@ -336,15 +388,26 @@ def set_sing_defaults(
     default_speaker: str | None = None,
     preferred_backend: str | None = None,
     speaker_backends: dict[str, str] | None = None,
+    song_cache_days: int | None = None,
+    song_cache_size: int | None = None,
     root: Path | None = None,
 ) -> dict[str, Any]:
     base = repo_root(root)
     if not defaults_writable(base):
         raise PermissionError("当前部署不可写入唱歌默认配置")
-    if default_speaker is None and preferred_backend is None and speaker_backends is None:
-        raise ValueError("至少提供 default_speaker、preferred_backend 或 speaker_backends")
+    if all(
+        value is None
+        for value in (default_speaker, preferred_backend, speaker_backends, song_cache_days, song_cache_size)
+    ):
+        raise ValueError(
+            "至少提供 default_speaker、preferred_backend、speaker_backends、song_cache_days 或 song_cache_size"
+        )
 
     cfg = load_media_models(base)
+    if song_cache_days is not None:
+        cfg["sing"]["song_cache_days"] = normalize_song_cache_value("song_cache_days", song_cache_days)
+    if song_cache_size is not None:
+        cfg["sing"]["song_cache_size"] = normalize_song_cache_value("song_cache_size", song_cache_size)
 
     if default_speaker is not None:
         speaker = default_speaker.strip()

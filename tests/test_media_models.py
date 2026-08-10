@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,7 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.http.factory import create_app
+from app.media import models as media_models
 from app.media.models import (
+    get_sing_defaults,
     get_tts_defaults,
     get_tts_translator,
     list_sing_speakers,
@@ -17,6 +20,7 @@ from app.media.models import (
     resolve_sing_speaker,
     resolve_tts_request,
     resolve_tts_translator_config,
+    save_media_models,
     set_sing_defaults,
     set_tts_defaults,
     set_tts_translator,
@@ -39,6 +43,70 @@ def test_set_sing_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     result = set_sing_defaults(default_speaker="foo", root=tmp_path)
     assert result["default_speaker"] == "foo"
     assert load_media_models(tmp_path)["sing"]["default_speaker"] == "foo"
+
+
+def test_save_media_models_replaces_complete_temp_file_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    replacements: list[tuple[Path, Path]] = []
+    real_replace = os.replace
+
+    def capture_replace(source: Path, destination: Path) -> None:
+        replacements.append((Path(source), Path(destination)))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(media_models.os, "replace", capture_replace)
+    save_media_models({"sing": {"song_cache_days": 90, "song_cache_size": 12}}, root=tmp_path)
+
+    target = tmp_path / "data/media_models.json"
+    assert replacements == [(replacements[0][0], target)]
+    assert replacements[0][0].parent == target.parent
+    assert replacements[0][0] != target
+    assert not replacements[0][0].exists()
+    assert load_media_models(tmp_path)["sing"]["song_cache_days"] == 90
+
+
+def test_sing_cache_defaults_follow_settings_and_disk_wins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    (tmp_path / "data").mkdir()
+    monkeypatch.setattr("app.media.models.settings.song_cache_days", 45)
+    monkeypatch.setattr("app.media.models.settings.song_cache_size", 250)
+
+    defaults = get_sing_defaults(tmp_path)
+    assert defaults["song_cache_days"] == 45
+    assert defaults["song_cache_size"] == 250
+    assert list_sing_speakers(tmp_path)["song_cache_days"] == 45
+
+    set_sing_defaults(song_cache_days=90, song_cache_size=12, root=tmp_path)
+    monkeypatch.setattr("app.media.models.settings.song_cache_days", 60)
+    saved = get_sing_defaults(tmp_path)
+    assert saved["song_cache_days"] == 90
+    assert saved["song_cache_size"] == 12
+    assert load_media_models(tmp_path)["sing"]["song_cache_days"] == 90
+
+    set_sing_defaults(preferred_backend="", root=tmp_path)
+    assert get_sing_defaults(tmp_path)["song_cache_days"] == 90
+    assert get_sing_defaults(tmp_path)["song_cache_size"] == 12
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("song_cache_days", 0),
+        ("song_cache_days", 3651),
+        ("song_cache_size", -1),
+        ("song_cache_size", 10001),
+        ("song_cache_days", True),
+    ],
+)
+def test_set_sing_cache_rejects_invalid_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object
+) -> None:
+    monkeypatch.setenv("AI_DEPLOY_MODE", "source")
+    (tmp_path / "data").mkdir()
+    with pytest.raises(ValueError, match="song_cache"):
+        set_sing_defaults(root=tmp_path, **{field: value})
 
 
 def test_preferred_backend_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -154,8 +222,18 @@ def test_api_media_models_endpoints(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     speakers = client.get("/api/media/models/sing/speakers")
     assert speakers.status_code == 200
     assert "speakers" in speakers.json()
-    put = client.put("/api/media/models/sing/defaults", json={"default_speaker": "pallas"})
+    put = client.put(
+        "/api/media/models/sing/defaults",
+        json={"default_speaker": "pallas", "song_cache_days": 3650, "song_cache_size": 0},
+    )
     assert put.status_code == 200
+    assert put.json()["song_cache_days"] == 3650
+    assert put.json()["song_cache_size"] == 0
+    assert client.get("/api/media/models/sing/defaults").json()["song_cache_size"] == 0
+    assert client.put("/api/media/models/sing/defaults", json={"song_cache_days": 0}).status_code == 422
+    assert client.put("/api/media/models/sing/defaults", json={"song_cache_size": 10001}).status_code == 422
+    for field, value in (("song_cache_days", True), ("song_cache_days", "30"), ("song_cache_size", 1.0)):
+        assert client.put("/api/media/models/sing/defaults", json={field: value}).status_code == 422
     backends = client.get("/api/media/models/sing/backends")
     assert backends.status_code == 200
     assert "backends" in backends.json()

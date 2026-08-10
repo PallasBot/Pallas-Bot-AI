@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 from app.media import models as media_models
 from app.media.sing.ensure_backend import (
@@ -25,6 +25,8 @@ class SingDefaultsBody(BaseModel):
         default=None,
         description="按音色覆盖（整表替换）：{ speaker_id: backend_id }；空对象清空；空串键忽略",
     )
+    song_cache_days: StrictInt | None = Field(default=None, ge=1, le=3650)
+    song_cache_size: StrictInt | None = Field(default=None, ge=0, le=10000)
 
 
 class TtsDefaultsBody(BaseModel):
@@ -65,6 +67,8 @@ async def sing_defaults_put(body: SingDefaultsBody) -> dict:
             default_speaker=body.default_speaker,
             preferred_backend=body.preferred_backend,
             speaker_backends=body.speaker_backends,
+            song_cache_days=body.song_cache_days,
+            song_cache_size=body.song_cache_size,
         )
     except PermissionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

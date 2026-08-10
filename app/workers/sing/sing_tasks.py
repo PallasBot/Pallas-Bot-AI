@@ -1,9 +1,7 @@
 import asyncio
-import time
 from pathlib import Path
 
 import anyio
-from apscheduler.schedulers.background import BackgroundScheduler
 from asyncer import asyncify
 
 from app.core.celery import celery_app
@@ -378,47 +376,3 @@ async def _request_task_async(request_id: str, song_id: int):
 
     task_log("request task completed{} song_id={} path={}", log_id_suffix(request_id), song_id, origin)
     return True
-
-
-SONG_PATH = "resource/sing/splices/"
-MUSIC_PATH = "resource/music/"
-
-cleanup_sched = BackgroundScheduler()
-
-
-@cleanup_sched.scheduled_job("cron", hour=4, minute=15)
-def cleanup_cache():
-    logger.info("cleaning up cache...")
-
-    cache_size = settings.song_cache_size
-    cache_days = settings.song_cache_days
-    current_time = time.time()
-    song_atime = {}
-
-    for file_path in Path(SONG_PATH).glob("**/*.*"):
-        try:
-            last_access_time = file_path.stat().st_atime
-        except OSError:
-            continue
-        song_atime[file_path] = last_access_time
-    # 只保留最近最多 cache_size 首歌
-    recent_songs = sorted(song_atime, key=song_atime.get, reverse=True)[:cache_size]
-
-    prefix_path = "resource/sing"
-    cache_dirs = [Path(prefix_path, suffix) for suffix in ["hdemucs_mmi", "mix", "ncm", "slices", "splices", "svc"]]
-    removed_files = 0
-
-    for dir_path in cache_dirs:
-        for file_path in dir_path.glob("**/*.*"):
-            if file_path in recent_songs:
-                continue
-            try:
-                last_access_time = file_path.stat().st_atime
-            except OSError:
-                continue
-            # 清理超过 cache_days 天未访问的文件
-            if (current_time - last_access_time) > (24 * 60 * 60) * cache_days:
-                file_path.unlink()
-                removed_files += 1
-
-    logger.info(f"cleaned up {removed_files} files.")

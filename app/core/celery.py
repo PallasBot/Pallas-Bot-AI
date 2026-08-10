@@ -1,5 +1,5 @@
 from celery import Celery
-from celery.signals import setup_logging, worker_ready
+from celery.signals import setup_logging, worker_ready, worker_shutdown
 from kombu import Queue
 
 from app.core.config import settings
@@ -64,6 +64,41 @@ def resolve_celery_queue_for_task(task_name: str, default: str = "media") -> str
     return _TASK_QUEUE_ROUTES.get(name, default)
 
 
+sing_cleanup_scheduler = None
+
+
+def get_sing_cleanup_scheduler():
+    if sing_cleanup_scheduler is not None:
+        return sing_cleanup_scheduler
+    from app.workers.sing.cache_cleanup import cleanup_scheduler  # noqa: PLC0415
+
+    return cleanup_scheduler
+
+
+def start_sing_cleanup_scheduler() -> None:
+    if not celery_task_package_enabled("sing"):
+        return
+    try:
+        scheduler = get_sing_cleanup_scheduler()
+        if not scheduler.running:
+            scheduler.start()
+            logger.info("sing cache cleanup scheduler started")
+    except Exception as exc:
+        logger.exception("sing cache cleanup scheduler failed to start: {}", exc)
+
+
+def stop_sing_cleanup_scheduler() -> None:
+    if not celery_task_package_enabled("sing"):
+        return
+    try:
+        scheduler = get_sing_cleanup_scheduler()
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+            logger.info("sing cache cleanup scheduler stopped")
+    except Exception as exc:
+        logger.exception("sing cache cleanup scheduler failed to stop: {}", exc)
+
+
 celery_app.autodiscover_tasks(resolve_celery_task_packages())
 
 
@@ -74,6 +109,7 @@ def on_celery_setup_logging(**kwargs):
 
 @worker_ready.connect
 def on_celery_worker_ready(**kwargs):
+    start_sing_cleanup_scheduler()
     sweep_gpu_lock_state_on_worker_startup()
     register_startup_fact("concurrency", str(settings.celery_worker_concurrency))
     if not ping_redis_sync():
@@ -81,6 +117,11 @@ def on_celery_worker_ready(**kwargs):
         logger.error("Redis 不可达：{}（任务队列与媒体任务状态依赖此项）", settings.redis_url)
     register_startup_fact("packages", ",".join(resolve_celery_task_packages()))
     emit_startup_summary(api_version=VERSION, role="celery")
+
+
+@worker_shutdown.connect
+def on_celery_worker_shutdown(**kwargs):
+    stop_sing_cleanup_scheduler()
 
 
 celery_app.conf.update(

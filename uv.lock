@@ -783,12 +783,6 @@ wheels = [
 ]
 
 [[package]]
-name = "gin"
-version = "0.1.6"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/24/03/e714d1c947680cd722c57dd9a274e9c4f999fb76629a6c2efbee4487607d/gin-0.1.006.tar.bz2", hash = "sha256:0747da840881792f1726f9145094953b0a1499e9b41324a14ca6a10c03baa1ef", size = 2985, upload-time = "2013-03-17T23:44:27.097Z" }
-
-[[package]]
 name = "gin-config"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1917,7 +1911,7 @@ wheels = [
 
 [[package]]
 name = "pallas-bot-ai"
-version = "4.1.5"
+version = "4.1.6"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -1962,7 +1956,6 @@ sing = [
     { name = "fairseq" },
     { name = "faiss-cpu" },
     { name = "ffmpeg-python" },
-    { name = "gin" },
     { name = "gin-config" },
     { name = "gradio" },
     { name = "librosa" },
@@ -2048,7 +2041,6 @@ sing = [
     { name = "fairseq", git = "https://github.com/One-sixth/fairseq.git" },
     { name = "faiss-cpu", specifier = ">=1.7.4" },
     { name = "ffmpeg-python", specifier = ">=0.2.0" },
-    { name = "gin", specifier = ">=0.1.6" },
     { name = "gin-config", specifier = ">=0.5.0" },
     { name = "gradio", specifier = ">=4.44.1" },
     { name = "librosa", specifier = "==0.10.2" },

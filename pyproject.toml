@@ -49,7 +49,6 @@ sing = [
     "einops>=0.8.1",
     "fairseq @ git+https://github.com/One-sixth/fairseq.git",
     "ffmpeg-python>=0.2.0",
-    "gin>=0.1.6",
     "gin-config>=0.5.0",
     "gradio>=4.44.1",
     "librosa==0.10.2",

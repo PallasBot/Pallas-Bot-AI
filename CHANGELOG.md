@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.1.7] - 2026-08-14
+
+### 更新公告
+
+- 随机播放与点歌拆到独立的 fast 队列与 worker，不再被 AI 翻唱/TTS 长任务堵住，出歌更及时。
+- 媒体任务拆成 media（AI 翻唱/TTS）与 fast（随机播放/点歌）两个 Celery worker，`pallas-ai start` / `ctl.sh` 会自动拉起两者；fast 并发可用 `CELERY_FAST_WORKER_CONCURRENCY` 调整。
+- fast 队列显式绑定独立 exchange，避免轻任务被重复投递到 media 队列。
+
 ## [4.1.6] - 2026-08-11
 
 ### 更新公告

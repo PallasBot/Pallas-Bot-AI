@@ -7,7 +7,7 @@ from pathlib import Path
 from app.version import VERSION
 
 _LIFECYCLE_COMMANDS = ("start", "stop", "restart", "restart-clean", "status")
-_TARGETS = ("api", "media", "all")
+_TARGETS = ("api", "media", "fast", "all")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -15,7 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {VERSION}")
     commands = parser.add_subparsers(dest="command", required=True)
     for command in _LIFECYCLE_COMMANDS:
-        service_parser = commands.add_parser(command, help=f"{command} API 与 media 服务")
+        service_parser = commands.add_parser(command, help=f"{command} API 与 media/fast 服务")
         service_parser.add_argument("target", nargs="?", default="all", choices=_TARGETS)
     commands.add_parser("purge-stale", help="清理 Redis 中遗留的 Celery 任务状态")
     return parser

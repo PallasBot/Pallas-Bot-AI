@@ -26,7 +26,6 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     pkg = "app.workers.sing"
     for sub, attrs in {
         "mixer": {"mix": lambda *args, **kwargs: None, "splice": lambda *args, **kwargs: None},
-        "ncm_loader": {"download": lambda *args, **kwargs: None},
         "separater": {"separate": lambda *args, **kwargs: None},
         "slicer": {"slice_audio": lambda *args, **kwargs: None},
     }.items():
@@ -34,6 +33,10 @@ def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
         for name, value in attrs.items():
             setattr(module, name, value)
         monkeypatch.setitem(sys.modules, module.__name__, module)
+
+    ncm_loader = types.ModuleType("app.media.services.ncm_loader")
+    ncm_loader.download = lambda *args, **kwargs: None
+    monkeypatch.setitem(sys.modules, ncm_loader.__name__, ncm_loader)
 
     inference = types.ModuleType("app.media.sing.inference")
     inference.inference = lambda *args, **kwargs: None

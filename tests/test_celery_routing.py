@@ -21,29 +21,25 @@ def test_sing_routes_to_media_queue(monkeypatch) -> None:
     assert kwargs["queue"] == "media"
 
 
-def test_play_routes_to_media_queue(monkeypatch) -> None:
-    pytest.importorskip("app.workers.sing.sing_tasks")
-
+def test_play_routes_to_fast_queue(monkeypatch) -> None:
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-play-1"))
     monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.workers.sing.play_task.apply_async", apply_async)
+    monkeypatch.setattr("app.workers.fast.play_task.apply_async", apply_async)
 
     request_id = asyncio.run(sing_mod.play("req-play-1", "amiya"))
 
     assert request_id == "req-play-1"
     _, kwargs = apply_async.call_args
-    assert kwargs["queue"] == "media"
+    assert kwargs["queue"] == "fast"
 
 
-def test_download_routes_to_media_queue(monkeypatch) -> None:
-    pytest.importorskip("app.workers.sing.sing_tasks")
-
+def test_download_routes_to_fast_queue(monkeypatch) -> None:
     apply_async = MagicMock(return_value=SimpleNamespace(id="celery-request-1"))
     monkeypatch.setattr(sing_mod, "ensure_sing_worker", lambda: None)
-    monkeypatch.setattr("app.workers.sing.request_task.apply_async", apply_async)
+    monkeypatch.setattr("app.workers.fast.request_task.apply_async", apply_async)
 
     task_id = asyncio.run(sing_mod.download("req-2", 456))
 
     assert task_id == "celery-request-1"
     _, kwargs = apply_async.call_args
-    assert kwargs["queue"] == "media"
+    assert kwargs["queue"] == "fast"

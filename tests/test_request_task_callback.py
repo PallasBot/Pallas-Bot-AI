@@ -8,51 +8,15 @@ from pathlib import Path
 import pytest
 
 
-def _install_sing_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stub optional sing-stack deps so sing_tasks can be imported under --group dev."""
-    asyncer = types.ModuleType("asyncer")
-    asyncer.asyncify = lambda fn: fn
-    monkeypatch.setitem(sys.modules, "asyncer", asyncer)
-
-    pydub = types.ModuleType("pydub")
-    pydub.AudioSegment = type("AudioSegment", (), {})
-    monkeypatch.setitem(sys.modules, "pydub", pydub)
-
-    for name in (
-        "pyncm_async",
-        "pyncm_async.apis",
-        "pyncm_async.apis.login",
-        "librosa",
-        "soundfile",
-    ):
+def _install_ncm_import_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub pyncm_async so app.media.services.ncm_loader 可在 dev 依赖下导入。"""
+    for name in ("pyncm_async", "pyncm_async.apis", "pyncm_async.apis.login"):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
-
-    pkg = "app.workers.sing"
-    stubs = {
-        "mixer": {"mix": lambda *args, **kwargs: None, "splice": lambda *args, **kwargs: None},
-        "ncm_loader": {"download": lambda *args, **kwargs: None},
-        "separater": {"separate": lambda *args, **kwargs: None},
-        "slicer": {"slice_audio": lambda *args, **kwargs: None},
-    }
-    for sub, attrs in stubs.items():
-        full = f"{pkg}.{sub}"
-        stub = types.ModuleType(full)
-        for name, value in attrs.items():
-            setattr(stub, name, value)
-        monkeypatch.setitem(sys.modules, full, stub)
-
-    inference_mod = types.ModuleType("app.media.sing.inference")
-    inference_mod.inference = lambda *args, **kwargs: None
-    monkeypatch.setitem(sys.modules, "app.media.sing.inference", inference_mod)
-
-    # Force a fresh import against the stubs above.
-    monkeypatch.delitem(sys.modules, "app.workers.sing.sing_tasks", raising=False)
-    monkeypatch.delitem(sys.modules, "app.workers.sing", raising=False)
 
 
 def test_request_task_callback_includes_song_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    _install_sing_import_stubs(monkeypatch)
-    from app.workers.sing import sing_tasks
+    _install_ncm_import_stubs(monkeypatch)
+    from app.workers.fast import request_tasks
 
     audio_path = tmp_path / "12345.mp3"
     audio_path.write_bytes(b"fake-audio")
@@ -67,10 +31,10 @@ def test_request_task_callback_includes_song_id(monkeypatch: pytest.MonkeyPatch,
         captured["request_id"] = request_id
         captured.update(kwargs)
 
-    monkeypatch.setattr(sing_tasks, "download", fake_download)
-    monkeypatch.setattr(sing_tasks, "callback", fake_callback)
+    monkeypatch.setattr("app.media.services.ncm_loader.download", fake_download)
+    monkeypatch.setattr(request_tasks, "callback", fake_callback)
 
-    ok = asyncio.run(sing_tasks._request_task_async("req-song-1", 12345))
+    ok = asyncio.run(request_tasks._request_task_async("req-song-1", 12345))
 
     assert ok is True
     assert captured["request_id"] == "req-song-1"

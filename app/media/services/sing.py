@@ -35,7 +35,7 @@ async def sing(
 
 
 async def play(request_id: str, speaker: str = ""):
-    from app.workers.sing import play_task
+    from app.workers.fast import play_task
 
     ensure_sing_worker()
     resolved = resolve_sing_speaker(speaker) if (speaker or "").strip() else (speaker or "")
@@ -48,7 +48,7 @@ async def play(request_id: str, speaker: str = ""):
 
 
 async def download(request_id: str, song_id: int):
-    from app.workers.sing import request_task
+    from app.workers.fast import request_task
 
     ensure_sing_worker()
     task = request_task.apply_async(

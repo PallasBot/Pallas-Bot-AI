@@ -34,18 +34,23 @@ REDIS_URL_OVERRIDE="${PALLAS_REDIS_URL:-${REDIS_URL:-}}"
 
 mkdir -p "$LOG_DIR"
 
-svc_kind()    { case "$1" in media) echo celery ;; api) echo api ;; esac; }
-svc_queue()   { case "$1" in media) echo media ;; *) echo "" ;; esac; }
-svc_packages(){ case "$1" in media) echo "sing,tts,chat" ;; *) echo "" ;; esac; }
+svc_kind()    { case "$1" in media|fast) echo celery ;; api) echo api ;; esac; }
+svc_queue()   { case "$1" in media) echo media ;; fast) echo fast ;; *) echo "" ;; esac; }
+svc_packages(){ case "$1" in media) echo "sing,tts,chat" ;; fast) echo "fast" ;; *) echo "" ;; esac; }
+svc_concurrency() {
+  # 轻任务（随机播放/点歌）I/O 密集，给更高并发；不设置则用 app 默认。
+  case "$1" in fast) echo "${CELERY_FAST_WORKER_CONCURRENCY:-6}" ;; *) echo "" ;; esac
+}
 svc_pidfile() { echo "$LOG_DIR/$1.pid"; }
 svc_logfile() {
   case "$1" in
     media) echo "$LOG_DIR/celery-media.log" ;;
+    fast)  echo "$LOG_DIR/celery-fast.log" ;;
     api)   echo "$LOG_DIR/uvicorn.log" ;;
   esac
 }
 
-ALL_SERVICES=(api media)
+ALL_SERVICES=(api media fast)
 
 read_pid() {
   local pidfile="$1"
@@ -112,14 +117,16 @@ start_one() {
 
   local wait_sec="$START_WAIT_API_SEC"
   if [[ "$(svc_kind "$svc")" == "celery" ]]; then
-    local queue packages
+    local queue packages concurrency
     queue="$(svc_queue "$svc")"
     packages="$(svc_packages "$svc")"
+    concurrency="$(svc_concurrency "$svc")"
     wait_sec="$START_WAIT_SEC"
     echo "[$svc] 启动 celery worker queue=$queue → $logfile（最多等 ${wait_sec}s）"
     CELERY_TASK_PACKAGES="$packages" background_cmd "$logfile" \
       uv run --no-sync celery -A app.core.celery worker \
-      --loglevel=warning -Q "$queue" -n "${svc}@%h" --pidfile="$pidfile"
+      --loglevel=warning -Q "$queue" ${concurrency:+--concurrency "$concurrency"} \
+      -n "${svc}@%h" --pidfile="$pidfile"
   else
     echo "[$svc] 启动 API → $logfile（最多等 ${wait_sec}s）"
     # 由 Python 写原生 PID；勿用 echo $!（Git Bash / MSYS 伪 PID，Bot 侧 OpenProcess 认不出）
@@ -260,9 +267,9 @@ resolve_targets() {
   local target="${1:-all}"
   case "$target" in
     all|"") printf '%s\n' "${ALL_SERVICES[@]}" ;;
-    media|api) printf '%s\n' "$target" ;;
+    media|fast|api) printf '%s\n' "$target" ;;
     *)
-      echo "未知目标: $target（可选 media|api|all）" >&2
+      echo "未知目标: $target（可选 media|fast|api|all）" >&2
       return 1
       ;;
   esac

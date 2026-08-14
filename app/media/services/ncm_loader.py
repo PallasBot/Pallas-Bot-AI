@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pyncm_async import apis as ncm
 
+from app.media.services.ncm_login import ncm_request_session
 from app.utils.download_tool import DownloadTools
-from app.workers.sing.ncm_login import ncm_request_session
 
 
 async def download(song_id):

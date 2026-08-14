@@ -67,7 +67,12 @@ def test_sing_cleanup_scheduler_not_started_when_package_disabled(monkeypatch) -
 def test_resolve_celery_queue_for_task() -> None:
     assert resolve_celery_queue_for_task("chat") == "media"
     assert resolve_celery_queue_for_task("sing") == "media"
-    assert resolve_celery_queue_for_task("play") == "media"
-    assert resolve_celery_queue_for_task("request") == "media"
     assert resolve_celery_queue_for_task("tts") == "media"
+    assert resolve_celery_queue_for_task("play") == "fast"
+    assert resolve_celery_queue_for_task("request") == "fast"
     assert resolve_celery_queue_for_task("unknown") == "media"
+
+
+def test_celery_queue_names_includes_fast() -> None:
+    assert "fast" in celery_module.celery_queue_names()
+    assert "media" in celery_module.celery_queue_names()

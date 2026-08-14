@@ -12,6 +12,9 @@ API_STOP_WAIT_SEC="${AI_SERVICE_API_STOP_WAIT_SEC:-20}"
 MEDIA_WORKER_PID_FILE="${AI_SERVICE_MEDIA_WORKER_PID_FILE:-$ROOT/logs/celery-media.pid}"
 MEDIA_WORKER_LOG_FILE="${AI_SERVICE_MEDIA_WORKER_LOG_FILE:-$ROOT/logs/celery-media.log}"
 MEDIA_WORKER_PACKAGES="${AI_SERVICE_MEDIA_WORKER_PACKAGES:-sing,tts,chat}"
+FAST_WORKER_PID_FILE="${AI_SERVICE_FAST_WORKER_PID_FILE:-$ROOT/logs/celery-fast.pid}"
+FAST_WORKER_LOG_FILE="${AI_SERVICE_FAST_WORKER_LOG_FILE:-$ROOT/logs/celery-fast.log}"
+FAST_WORKER_PACKAGES="${AI_SERVICE_FAST_WORKER_PACKAGES:-fast}"
 
 run_worker() {
   local action="$1"
@@ -114,17 +117,21 @@ stop_api() {
 
 start_service() {
   run_worker start "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  run_worker start "fast" "$FAST_WORKER_PID_FILE" "$FAST_WORKER_LOG_FILE" "$FAST_WORKER_PACKAGES"
   start_api
   echo "AI service 已启动"
   echo "API PID file: $API_PID_FILE"
   echo "API log file: $API_LOG_FILE"
   echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
   echo "media worker log file: $MEDIA_WORKER_LOG_FILE"
+  echo "fast worker PID file: $FAST_WORKER_PID_FILE"
+  echo "fast worker log file: $FAST_WORKER_LOG_FILE"
 }
 
 stop_service() {
   stop_api
   run_worker stop "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  run_worker stop "fast" "$FAST_WORKER_PID_FILE" "$FAST_WORKER_LOG_FILE" "$FAST_WORKER_PACKAGES"
   echo "AI service 已停止"
 }
 
@@ -138,6 +145,8 @@ status_service() {
   echo "API PID file: $API_PID_FILE"
   run_worker status "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
   echo "media worker PID file: $MEDIA_WORKER_PID_FILE"
+  run_worker status "fast" "$FAST_WORKER_PID_FILE" "$FAST_WORKER_LOG_FILE" "$FAST_WORKER_PACKAGES"
+  echo "fast worker PID file: $FAST_WORKER_PID_FILE"
 }
 
 purge_stale_service() {
@@ -147,6 +156,7 @@ purge_stale_service() {
 restart_clean_service() {
   stop_api
   run_worker restart-clean "media" "$MEDIA_WORKER_PID_FILE" "$MEDIA_WORKER_LOG_FILE" "$MEDIA_WORKER_PACKAGES"
+  run_worker restart-clean "fast" "$FAST_WORKER_PID_FILE" "$FAST_WORKER_LOG_FILE" "$FAST_WORKER_PACKAGES"
   start_api
   echo "AI service 已启动"
 }

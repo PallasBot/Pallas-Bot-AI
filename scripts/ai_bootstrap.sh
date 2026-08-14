@@ -298,6 +298,10 @@ start_services() {
     warn "media worker 启动失败，见 logs/celery-media.log（唱歌/TTS 会不可用；API 仍可单独排查）"
     start_rc=1
   fi
+  if ! "$ROOT/scripts/ctl.sh" start fast; then
+    warn "fast worker 启动失败，见 logs/celery-fast.log（随机播放/点歌会不可用）"
+    start_rc=1
+  fi
   return "$start_rc"
 }
 

@@ -1,13 +1,13 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from app.media.services.ncm_login import ncm_login_manager
 from app.schemas.ncm_login import (
     CellphoneSMSLoginRequest,
     LoginResponse,
     LogoutResponse,
     SendSMSRequest,
 )
-from app.workers.sing.ncm_login import ncm_login_manager
 
 router = APIRouter(prefix="/ncm", tags=["网易云音乐登录"])
 

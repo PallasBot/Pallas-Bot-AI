@@ -14,6 +14,8 @@
 
 本机一键：`./scripts/ai_bootstrap.sh`（默认装媒体栈并启动 media worker + API）。
 
+后台任务拆两个 Celery worker：**media**（AI 翻唱 / TTS，吃 GPU）与 **fast**（随机播放 / 点歌，不吃 GPU，独立并发），避免轻任务被翻唱/TTS 长任务堵在队列里。`pallas-ai start` 与 `ctl.sh` 的 `all` 目标会同时拉起两者。
+
 **Windows 本机**：需 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) 已安装且引擎在跑（bootstrap 用其拉 Redis）；也可用 WSL/本机 Redis，在 `.env` 写 `REDIS_URL`。引擎未开时日志会提示，勿依赖 WSL Containers 公测替代 Compose。
 
 ## 方式一：Docker
@@ -159,6 +161,8 @@ uv run pallas-ai start
 uv run pallas-ai status
 # 只重启媒体任务进程；API 不受影响
 uv run pallas-ai restart media
+# 轻任务（随机播放/点歌）单独重启；默认并发由 CELERY_FAST_WORKER_CONCURRENCY 控制
+uv run pallas-ai restart fast
 # 仅在需要清理遗留 Celery 任务状态时执行
 uv run pallas-ai purge-stale
 # 或

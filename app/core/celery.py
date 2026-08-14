@@ -13,18 +13,21 @@ celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_
 
 _TASK_PACKAGE_ALIASES = {
     "chat": "app.workers.chat",
+    "fast": "app.workers.fast",
     "sing": "app.workers.sing",
     "tts": "app.workers.tts",
 }
 
 _DEFAULT_TASK_PACKAGES = ["app.workers.sing", "app.workers.tts", "app.workers.chat"]
 
+# GPU 写锁串行的重任务留在 media；随机播放/点歌不吃 GPU，走独立 fast 队列，
+# 避免被翻唱/TTS 长任务堵在队列里。
 _TASK_QUEUE_ROUTES = {
     "chat": "media",
     "sing": "media",
-    "play": "media",
-    "request": "media",
     "tts": "media",
+    "play": "fast",
+    "request": "fast",
 }
 
 
@@ -62,6 +65,11 @@ def require_celery_task_package(alias: str) -> None:
 def resolve_celery_queue_for_task(task_name: str, default: str = "media") -> str:
     name = str(task_name or "").strip()
     return _TASK_QUEUE_ROUTES.get(name, default)
+
+
+def celery_queue_names() -> tuple[str, ...]:
+    """已注册的 Celery 队列名（供部署脚本 / 运维确认队列一致性）。"""
+    return tuple(sorted(set(_TASK_QUEUE_ROUTES.values()) | {"default"}))
 
 
 sing_cleanup_scheduler = None
@@ -133,6 +141,7 @@ celery_app.conf.update(
     task_queues=(
         Queue("default"),
         Queue("media"),
+        Queue("fast"),
     ),
     task_routes={task_name: {"queue": queue} for task_name, queue in _TASK_QUEUE_ROUTES.items()},
     task_track_started=True,

@@ -21,6 +21,8 @@ def _run_script(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
     api_log = tmp_path / "api.log"
     media_worker_pid = tmp_path / "worker-media.pid"
     media_worker_log = tmp_path / "worker-media.log"
+    fast_worker_pid = tmp_path / "worker-fast.pid"
+    fast_worker_log = tmp_path / "worker-fast.log"
 
     _write_executable(
         api_cmd,
@@ -93,6 +95,8 @@ esac
         "AI_SERVICE_API_LOG_FILE": str(api_log),
         "AI_SERVICE_MEDIA_WORKER_PID_FILE": str(media_worker_pid),
         "AI_SERVICE_MEDIA_WORKER_LOG_FILE": str(media_worker_log),
+        "AI_SERVICE_FAST_WORKER_PID_FILE": str(fast_worker_pid),
+        "AI_SERVICE_FAST_WORKER_LOG_FILE": str(fast_worker_log),
         "AI_SERVICE_TEST_API_LOG": str(api_log),
     })
     return subprocess.run(
@@ -111,11 +115,13 @@ def test_ai_service_script_start_status_stop(tmp_path: Path) -> None:
     assert "AI service 已启动" in start.stdout
     assert f"API PID file: {tmp_path / 'api.pid'}" in start.stdout
     assert f"media worker PID file: {tmp_path / 'worker-media.pid'}" in start.stdout
+    assert f"fast worker PID file: {tmp_path / 'worker-fast.pid'}" in start.stdout
 
     status = _run_script(tmp_path, "status")
     assert status.returncode == 0
     assert "API 运行中" in status.stdout
     assert "celery worker 运行中: queue=media" in status.stdout
+    assert "celery worker 运行中: queue=fast" in status.stdout
 
     stop = _run_script(tmp_path, "stop")
     assert stop.returncode == 0
@@ -125,6 +131,7 @@ def test_ai_service_script_start_status_stop(tmp_path: Path) -> None:
     assert status_after.returncode == 0
     assert "API 未运行" in status_after.stdout
     assert "celery worker 未运行: queue=media" in status_after.stdout
+    assert "celery worker 未运行: queue=fast" in status_after.stdout
 
 
 def test_ai_service_script_reuses_existing_processes(tmp_path: Path) -> None:
@@ -147,3 +154,4 @@ def test_ai_service_forwards_worker_actions(tmp_path: Path) -> None:
     restart_clean = _run_script(tmp_path, "restart-clean")
     assert restart_clean.returncode == 0
     assert "worker restart-clean queue=media" in restart_clean.stdout
+    assert "worker restart-clean queue=fast" in restart_clean.stdout

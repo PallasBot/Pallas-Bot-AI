@@ -8,12 +8,12 @@ from app.core.celery import celery_app
 from app.core.config import settings
 from app.core.logger import log_id_suffix, logger, task_log
 from app.media.services.callback import callback
+from app.media.services.ncm_loader import download
 from app.media.sing.inference import inference
 from app.utils.gpu_locker import get_gpu_locker
 
 from .cache_paths import archive_legacy_cache, legacy_stage_path, speaker_cache_dir, stage_cache_path
 from .mixer import mix, splice
-from .ncm_loader import download
 from .separater import separate
 from .slicer import slice_audio
 
@@ -338,41 +338,4 @@ async def _sing_task_async(request_id: str, speaker: str, song_id: int, sing_len
         chunk_index,
         key,
     )
-    return True
-
-
-@celery_app.task(name="request")
-def request_task(request_id: str, song_id: int):
-    return run_celery_async(_request_task_async(request_id, song_id))
-
-
-async def _request_task_async(request_id: str, song_id: int):
-    # 从网易云下载
-    task_log("request task started{} song_id={}", log_id_suffix(request_id), song_id)
-    origin = await download(song_id)
-    if not origin:
-        logger.error("request task download failed{} song_id={}", log_id_suffix(request_id), song_id)
-        await callback(request_id, status="failed")
-        return False
-
-    # 直接回调回去
-
-    async with await anyio.open_file(origin, "rb") as f:
-        file = await f.read()
-        task_log(
-            "request task sending callback{} song_id={} path={} bytes={}",
-            log_id_suffix(request_id),
-            song_id,
-            origin,
-            len(file),
-        )
-        await callback(
-            request_id,
-            audio=file,
-            song_id=str(song_id),
-            chunk_index=0,
-            key=0,
-        )
-
-    task_log("request task completed{} song_id={} path={}", log_id_suffix(request_id), song_id, origin)
     return True

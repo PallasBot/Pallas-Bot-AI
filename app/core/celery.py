@@ -1,6 +1,6 @@
 from celery import Celery
 from celery.signals import setup_logging, worker_ready, worker_shutdown
-from kombu import Queue
+from kombu import Exchange, Queue
 
 from app.core.config import settings
 from app.core.logger import configure_stdlib_logging, logger
@@ -141,7 +141,9 @@ celery_app.conf.update(
     task_queues=(
         Queue("default"),
         Queue("media"),
-        Queue("fast"),
+        # fast 必须显式绑定独立 exchange/routing_key，否则会继承 task_default_queue=media，
+        # 与 media 队列绑定相同导致轻任务被重复投递到 media 队列。
+        Queue("fast", Exchange("fast"), routing_key="fast"),
     ),
     task_routes={task_name: {"queue": queue} for task_name, queue in _TASK_QUEUE_ROUTES.items()},
     task_track_started=True,

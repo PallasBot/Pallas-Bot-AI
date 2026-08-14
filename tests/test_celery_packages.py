@@ -76,3 +76,12 @@ def test_resolve_celery_queue_for_task() -> None:
 def test_celery_queue_names_includes_fast() -> None:
     assert "fast" in celery_module.celery_queue_names()
     assert "media" in celery_module.celery_queue_names()
+
+
+def test_fast_queue_binding_is_distinct_from_media() -> None:
+    app = celery_module.celery_app
+    fast = app.amqp.queues["fast"]
+    media = app.amqp.queues["media"]
+    assert fast.exchange.name != media.exchange.name
+    assert fast.routing_key != media.routing_key
+    assert fast.routing_key == "fast"

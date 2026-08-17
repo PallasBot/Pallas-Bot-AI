@@ -80,7 +80,7 @@ backends:
   # 子模块：app/workers/sing/RVC
   # 资产：resource/sing/models/pretrain/rvc/{hubert_base/,rmvpe.pt}
   rvc:
-    script: app/workers/sing/rvc/infer_rvc.py
+    script: app/workers/sing/rvc_launcher/infer_rvc.py
     arg_style: rvc
     model_glob: "*.pth"
     required_files: []

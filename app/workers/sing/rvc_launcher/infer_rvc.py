@@ -22,7 +22,7 @@ from pathlib import Path
 
 
 def _repo_root() -> Path:
-    # …/app/workers/sing/rvc/infer_rvc.py → 仓根
+    # …/app/workers/sing/rvc_launcher/infer_rvc.py → 仓根
     return Path(__file__).resolve().parents[4]
 
 
@@ -76,7 +76,7 @@ def prepare_rvc_assets(rvc_root: Path) -> None:
     assets = rvc_root / "assets"
     assets.mkdir(parents=True, exist_ok=True)
 
-    from app.workers.sing.rvc.hubert_assets import ensure_hubert_transformers  # noqa: PLC0415
+    from app.workers.sing.rvc_launcher.hubert_assets import ensure_hubert_transformers  # noqa: PLC0415
 
     hubert_src = ensure_hubert_transformers(pretrain)
     hubert_dst = assets / "hubert_base"

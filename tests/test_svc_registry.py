@@ -14,7 +14,7 @@ from app.media.sing.registry import (
     reset_registry_cache,
     resolve_rvc_index,
 )
-from app.workers.sing.rvc.infer_rvc import parse_args
+from app.workers.sing.rvc_launcher.infer_rvc import parse_args
 
 
 def test_build_env_allows_fairseq_checkpoint_load(monkeypatch) -> None:

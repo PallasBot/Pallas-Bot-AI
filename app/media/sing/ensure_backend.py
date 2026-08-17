@@ -57,7 +57,7 @@ def backend_script_present(backend_id: str, *, root: Path | None = None) -> bool
     base = repo_root(root)
     # RVC：薄入口 + 可选 WebUI 子模块；以 infer 脚本为准（引擎缺失时推理会报错）
     if backend_id == "rvc":
-        return (base / "app/workers/sing/rvc/infer_rvc.py").is_file()
+        return (base / "app/workers/sing/rvc_launcher/infer_rvc.py").is_file()
     checkout = backend_checkout_path(backend_id, root=root)
     if checkout is None:
         # SoVITS 等：看 registry 里声明的 script 是否存在
@@ -81,7 +81,7 @@ def describe_backend_install(backend_id: str, *, root: Path | None = None) -> di
             "id": backend_id,
             "auto_installable": False,
             "script_present": present,
-            "path": "app/workers/sing/rvc/infer_rvc.py",
+            "path": "app/workers/sing/rvc_launcher/infer_rvc.py",
             "branch": None,
         }
     return {

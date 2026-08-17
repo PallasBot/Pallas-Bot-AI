@@ -108,7 +108,7 @@ git clone --depth 1 --branch 6.3 https://ghproxy.net/https://github.com/PallasBo
 
 #### 社区 RVC 音色（可选）
 
-registry 后端 ID：`rvc`（薄入口 `app/workers/sing/rvc/infer_rvc.py` → 子模块 `app/workers/sing/RVC`）。
+registry 后端 ID：`rvc`（薄入口 `app/workers/sing/rvc_launcher/infer_rvc.py` → 子模块 `app/workers/sing/RVC`）。
 
 在 AI Runtime 根目录初始化引擎、安装依赖并下载共享权重：
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CLI：fairseq hubert_base.pt → Transformers hubert_base/。
 
-实现见 ``app.workers.sing.rvc.hubert_assets``。
+实现见 ``app.workers.sing.rvc_launcher.hubert_assets``。
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-from app.workers.sing.rvc.hubert_assets import convert_hubert  # noqa: E402
+from app.workers.sing.rvc_launcher.hubert_assets import convert_hubert  # noqa: E402
 
 
 def main() -> None:

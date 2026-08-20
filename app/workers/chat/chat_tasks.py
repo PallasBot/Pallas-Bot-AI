@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from app.core.celery import celery_app
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logger import log_id_suffix, logger
 from app.media.services.callback import callback
 from app.utils.gpu_locker import get_gpu_locker
 
@@ -58,7 +58,7 @@ async def _chat_task_async(request_id: str, session: str, text: str, token_count
             chat = ChatManager.get_chat()
             ans = chat.chat(session, text, token_count)
     except Exception:
-        logger.exception("旧版 chat 任务初始化或执行失败：request_id={}", request_id)
+        logger.exception("legacy chat task init or run failed{}", log_id_suffix(request_id, label="request_id"))
         await callback(request_id, status="failed")
         return
     if not ans:

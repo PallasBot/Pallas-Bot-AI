@@ -148,7 +148,7 @@ def convert_hubert(src: Path, out: Path, *, skip_sanity: bool = False) -> Path:
     bin_path = out / "pytorch_model.bin"
     if not bin_path.is_file():
         raise RuntimeError(f"未写出 {bin_path}")
-    logger.info("RVC HuBERT 已从 fairseq 转换: %s -> %s", src, bin_path)
+    logger.info("RVC HuBERT converted from fairseq: %s -> %s", src, bin_path)
     return bin_path
 
 
@@ -166,6 +166,6 @@ def ensure_hubert_transformers(pretrain_rvc: Path) -> Path:
             "`uv run python tools/convert_rvc_hubert.py`。"
             "来源：https://huggingface.co/lj1995/VoiceConversionWebUI"
         )
-    logger.warning("RVC HuBERT 仅为 fairseq .pt，正在转换为 Transformers 目录: %s", src)
+    logger.warning("RVC HuBERT is fairseq .pt only, converting to Transformers dir: %s", src)
     convert_hubert(src, out)
     return out

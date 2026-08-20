@@ -7,6 +7,7 @@ from typing import Any
 import requests
 
 from app.core.config import settings
+from app.core.logger import logger
 from app.media.models import resolve_tts_translator_config
 
 
@@ -39,10 +40,10 @@ class BaiduTranslator:
 
             if "trans_result" in result:
                 return result["trans_result"][0]["dst"]
-            print(f"翻译出错: {result}")
+            logger.warning("translation error: {}", result)
             return None
         except Exception as e:
-            print(f"翻译请求异常: {e}")
+            logger.warning("translation request failed: {}", e)
             return None
 
 
@@ -76,10 +77,10 @@ class YoudaoTranslator:
 
             if result.get("errorCode") == "0" and "translation" in result:
                 return result["translation"][0]
-            print(f"翻译出错: {result}")
+            logger.warning("translation error: {}", result)
             return None
         except Exception as e:
-            print(f"翻译请求异常: {e}")
+            logger.warning("translation request failed: {}", e)
             return None
 
     def _calculate_sign(self, q, salt, curtime):

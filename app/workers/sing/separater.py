@@ -35,10 +35,9 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
                 unload_llm=True,
                 owner={"kind": "sing", "step": "separate", "song": song_path.name},
             ) as gpu:
-                print(cmd)
                 gpu.run_subprocess(cmd)
         except Exception as e:
-            logger.error("demucs 分离子进程失败：{}", e)
+            logger.error("demucs subprocess failed: {}", e)
             return None
         if not vocals.exists() or not no_vocals_0key.exists():
             return None

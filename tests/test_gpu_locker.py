@@ -274,6 +274,7 @@ def test_write_lock_records_owner_metadata(patch_redis, monkeypatch):
     fake = patch_redis(FakeRedis())
     logs: list[str] = []
     monkeypatch.setattr(gl.logger, "info", lambda message, *args: logs.append(message.format(*args)))
+    monkeypatch.setattr(gl.logger, "debug", lambda message, *args: logs.append(message.format(*args)))
     monkeypatch.setattr(gl.logger, "warning", lambda *args, **kwargs: None)
     mgr = GPULockManager(0, lease_ttl=30, max_hold=1800)
     owner = {"kind": "sing", "request_id": "req-1", "step": "separate"}
@@ -283,8 +284,8 @@ def test_write_lock_records_owner_metadata(patch_redis, monkeypatch):
         assert '"kind": "sing"' in meta
         assert '"request_id": "req-1"' in meta
     assert fake.get("gpu_lock_meta:0") is None
-    assert any("写锁已获取" in line and "kind=sing" in line and "request_id=req-1" in line for line in logs)
-    assert any("写锁已释放" in line and "kind=sing" in line and "request_id=req-1" in line for line in logs)
+    assert any("write lock acquired" in line and "kind=sing" in line and "request_id=req-1" in line for line in logs)
+    assert any("write lock released" in line and "kind=sing" in line and "request_id=req-1" in line for line in logs)
 
 
 def test_read_timeout_logs_current_writer_owner(patch_redis, monkeypatch):
@@ -297,7 +298,9 @@ def test_read_timeout_logs_current_writer_owner(patch_redis, monkeypatch):
     with pytest.raises(GPULockTimeoutError):
         with mgr.acquire_read(owner={"kind": "llm_chat", "request_id": "req-3"}):
             pass
-    assert any("读锁等待超时" in line and "current_writer=kind=chat request_id=req-2" in line for line in warnings)
+    assert any(
+        "read lock wait timed out" in line and "current_writer=kind=chat request_id=req-2" in line for line in warnings
+    )
 
 
 def test_resolve_gpu_lock_lease_ttl_aligns_with_media_subprocess() -> None:

@@ -60,20 +60,20 @@ def ensure_ddsp63_contentvec(root: Path | None = None) -> bool:
             try:
                 if tmp.exists():
                     tmp.unlink()
-                logger.info("正在下载 DDSP 6.3 ContentVec: {} -> {}", url, dest)
+                logger.info("downloading DDSP 6.3 ContentVec: {} -> {}", url, dest)
                 urlretrieve(url, tmp)  # noqa: S310 — 固定镜像列表
                 if tmp.stat().st_size < _MIN_BYTES:
                     last_err = f"文件过小 ({tmp.stat().st_size} bytes): {url}"
                     tmp.unlink(missing_ok=True)
                     continue
                 tmp.replace(dest)
-                logger.info("DDSP 6.3 ContentVec 已就绪: {}", dest)
+                logger.info("DDSP 6.3 ContentVec ready: {}", dest)
                 return True
             except Exception as exc:
                 last_err = str(exc)
-                logger.warning("下载 ContentVec 失败 url={} err={}", url, exc)
+                logger.warning("ContentVec download failed url={} err={}", url, exc)
                 tmp.unlink(missing_ok=True)
-        logger.error("DDSP 6.3 ContentVec 下载失败: {}", last_err)
+        logger.error("DDSP 6.3 ContentVec download failed: {}", last_err)
         return False
 
 
@@ -84,13 +84,13 @@ def adapt_speaker_config_for_ddsp63(speaker_dir: Path, *, root: Path | None = No
 
     cfg_path = speaker_dir / "config.yaml"
     if not cfg_path.is_file():
-        logger.warning("speaker={} 缺少 config.yaml，DDSP 6.3 无法加载", speaker_dir.name)
+        logger.warning("speaker={} lacks config.yaml, DDSP 6.3 cannot load", speaker_dir.name)
         return False
 
     try:
         text = cfg_path.read_text(encoding="utf-8")
     except OSError as exc:
-        logger.warning("读取 {} 失败: {}", cfg_path, exc)
+        logger.warning("failed to read {}: {}", cfg_path, exc)
         return False
 
     if HF_CONTENTVEC_NAME in text and FAIRSEQ_CONTENTVEC_NAME not in text:
@@ -103,10 +103,10 @@ def adapt_speaker_config_for_ddsp63(speaker_dir: Path, *, root: Path | None = No
     try:
         cfg_path.write_text(new_text, encoding="utf-8")
     except OSError as exc:
-        logger.warning("写入 {} 失败: {}", cfg_path, exc)
+        logger.warning("failed to write {}: {}", cfg_path, exc)
         return False
     logger.info(
-        "已将 speaker={} 的 encoder_ckpt 从 {} 改为 {}（DDSP 6.3）",
+        "speaker={} encoder_ckpt switched from {} to {} (DDSP 6.3)",
         speaker_dir.name,
         FAIRSEQ_CONTENTVEC_NAME,
         HF_CONTENTVEC_NAME,

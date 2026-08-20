@@ -11,7 +11,7 @@ def should_retry_callback(exc: BaseException) -> bool:
     # ReadTimeout：请求体多半已送达，Bot 可能仍在发语音；再重试会重复投递。
     if isinstance(exc, httpx.ReadTimeout):
         logger.warning(
-            "回调 ReadTimeout，跳过重试以免重复投递: {}",
+            "callback ReadTimeout, skip retry to avoid duplicate delivery: {}",
             exc,
         )
         return False
@@ -61,10 +61,10 @@ async def callback(
     data = {"status": status}
     task_log(
         (
-            "准备回调 Bot{} status={} has_text={} has_audio={} song_id={} chunk_index={} "
+            "preparing bot callback{} status={} has_text={} has_audio={} song_id={} chunk_index={} "
             "key={} history_summary={} history_keep_messages={} agent_trace={}"
         ),
-        log_id_suffix(request_id),
+        log_id_suffix(request_id, label="request_id"),
         status,
         bool(text),
         audio is not None,
@@ -79,18 +79,22 @@ async def callback(
     if status == "failed":
         try:
             result = await send_callback(callback_url, data, use_file_timeout=False)
-            task_log("回调 Bot 完成{} status=failed result={}", log_id_suffix(request_id), result)
+            task_log(
+                "bot callback completed{} status=failed result={}",
+                log_id_suffix(request_id, label="request_id"),
+                result,
+            )
         except httpx.HTTPStatusError as err:
             logger.warning(
-                "回调 Bot 失败{} http={} url={}",
-                log_id_suffix(request_id),
+                "bot callback failed{} http={} url={}",
+                log_id_suffix(request_id, label="request_id"),
                 err.response.status_code,
                 callback_url,
             )
         except Exception as exc:
             logger.exception(
-                "回调 Bot 异常{} status=failed url={} error={}",
-                log_id_suffix(request_id),
+                "bot callback error{} status=failed url={} error={}",
+                log_id_suffix(request_id, label="request_id"),
                 callback_url,
                 exc,
             )
@@ -121,18 +125,23 @@ async def callback(
             )
         else:
             result = await send_callback(callback_url, data, use_file_timeout=False)
-        task_log("回调 Bot 完成{} status={} result={}", log_id_suffix(request_id), status, result)
+        task_log(
+            "bot callback completed{} status={} result={}",
+            log_id_suffix(request_id, label="request_id"),
+            status,
+            result,
+        )
     except httpx.HTTPStatusError as err:
         logger.warning(
-            "回调 Bot 失败{} http={} url={}",
-            log_id_suffix(request_id),
+            "bot callback failed{} http={} url={}",
+            log_id_suffix(request_id, label="request_id"),
             err.response.status_code,
             callback_url,
         )
     except Exception as exc:
         logger.exception(
-            "回调 Bot 异常{} status={} url={} error={}",
-            log_id_suffix(request_id),
+            "bot callback error{} status={} url={} error={}",
+            log_id_suffix(request_id, label="request_id"),
             status,
             callback_url,
             exc,

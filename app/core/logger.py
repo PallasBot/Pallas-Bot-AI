@@ -62,6 +62,8 @@ _MODULE_ALIASES = (
 
 def module_display_name(name: str) -> str:
     text = str(name or "").strip()
+    if not text or text == "__main__":
+        return "ai"
     for prefix, alias in _MODULE_ALIASES:
         if text == prefix.rstrip(".") or text.startswith(prefix):
             return alias
@@ -80,10 +82,8 @@ class InterceptHandler(logging.Handler):
             frame = frame.f_back
             depth += 1
         label = module_display_name(record.name)
-        text = record.getMessage()
-        loguru_logger.opt(depth=depth, exception=record.exc_info).log(
-            level,
-            f"[{label}] {text}" if label else text,
+        loguru_logger.bind(display_name=label).opt(depth=depth, exception=record.exc_info).log(
+            level, record.getMessage()
         )
 
 
@@ -111,11 +111,11 @@ def short_log_id(value: str | None) -> str:
 
 
 def log_id_clause(value: str | None, *, label: str = "单号") -> str:
-    """返回可拼进日志的前缀，如「单号=01KV95T5 」；省略时返回空串。"""
+    """返回可拼进日志的片段，如「单号=01KV95T5」；省略时返回空串。"""
     short = short_log_id(value)
     if not short:
         return ""
-    return f"{label}={short} "
+    return f"{label}={short}"
 
 
 def log_id_suffix(value: str | None, *, label: str = "单号", prefix: str = " ") -> str:
@@ -150,17 +150,25 @@ def patch_log_record(record: dict) -> None:
     name = str(record.get("name") or "")
     module = module_display_name(name)
     record["extra"]["loc"] = f"{module}:{record['line']}"
+    record["extra"]["display_name"] = module
 
 
-def effective_log_format() -> str:
+def effective_log_format(console: bool = False) -> str:
     if settings.log_loc_short:
         return (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <7}</level> | "
-            "<cyan>{extra[loc]:<16}</cyan> | "
-            "<level>{message}</level>"
+            "<green>{time:MM-DD HH:mm:ss}</green> "
+            "[<level>{level:<8}</level>] "
+            "<cyan>{extra[loc]:<16}</cyan> "
+            "{message}\n{exception}"
         )
-    return settings.log_format
+    if console:
+        return (
+            "<g>{time:MM-DD HH:mm:ss}</g> "
+            "[<lvl>{level:<8}</lvl>] "
+            "<c>{extra[display_name]:<8}</c> "
+            "{message}\n{exception}"
+        )
+    return "{time:MM-DD HH:mm:ss} [{level:<8}] {extra[display_name]:<8} {message}\n{exception}"
 
 
 def configure_logger():
@@ -170,8 +178,9 @@ def configure_logger():
     loguru_logger.configure(patcher=patch_log_record)
 
     app_level = resolve_log_level(settings.log_level, fallback="INFO")
-    log_format = effective_log_format()
-    loguru_logger.add(sys.stderr, level=app_level, format=log_format)
+    console_format = effective_log_format(console=True)
+    file_format = effective_log_format()
+    loguru_logger.add(sys.stderr, level=app_level, format=console_format)
 
     if settings.log_file_enabled:
         log_path = Path(settings.log_path)
@@ -183,7 +192,7 @@ def configure_logger():
             retention=settings.log_retention,
             compression=settings.log_compression,
             level=app_level,
-            format=log_format,
+            format=file_format,
             filter=lambda record: "access" not in record["extra"],
         )
 
@@ -191,7 +200,7 @@ def configure_logger():
         access_logger.add(
             log_path / "access.log",
             rotation=settings.log_rotation,
-            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+            format="{time:MM-DD HH:mm:ss} [{level:<8}] {extra[display_name]:<8} {message}\n{exception}",
             filter=lambda record: "access" in record["extra"],
         )
 

@@ -84,7 +84,7 @@ def _read_raw_media_models(root: Path | None = None) -> dict[str, Any]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("media_models.json 读取失败: {}", exc)
+        logger.warning("failed to read media_models.json: {}", exc)
         return {}
     return raw if isinstance(raw, dict) else {}
 

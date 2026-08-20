@@ -107,7 +107,11 @@ class GPUWriteHandle:
         try:
             return proc.wait(timeout=limit)
         except subprocess.TimeoutExpired:
-            logger.error("GPU {} 媒体子进程超过 {}s 硬超时，强制杀进程组", self.gpu_id, limit)
+            logger.error(
+                "GPU [{}] media subprocess exceeded [{}]s hard timeout, killing process group",
+                self.gpu_id,
+                limit,
+            )
             _kill_process_tree(proc)
             raise MediaSubprocessTimeoutError(f"media subprocess timeout {limit}s") from None
         finally:
@@ -261,7 +265,7 @@ class GPULockManager:
         try:
             redis_client.set(self.meta_key, json.dumps(payload, ensure_ascii=False), ex=self.lease_ttl)
         except Exception as exc:
-            logger.warning("GPU {} 写锁元信息写入失败：{}", self.gpu_id, exc)
+            logger.warning("GPU {} failed to persist writer meta: {}", self.gpu_id, exc)
 
     def _refresh_writer_meta(self, owner: Mapping[str, Any] | None, started: float) -> None:
         payload = dict(self._normalize_owner(owner))
@@ -269,7 +273,7 @@ class GPULockManager:
         try:
             redis_client.set(self.meta_key, json.dumps(payload, ensure_ascii=False), ex=self.lease_ttl)
         except Exception as exc:
-            logger.warning("GPU {} 写锁元信息续期失败：{}", self.gpu_id, exc)
+            logger.warning("GPU {} failed to refresh writer meta: {}", self.gpu_id, exc)
 
     def _clear_writer_meta(self) -> None:
         try:
@@ -330,13 +334,13 @@ class GPULockManager:
         handle = GPUWriteHandle(self.gpu_id, self.subprocess_timeout)
         owner_text = self._owner_text(owner)
         self._set_writer_meta(owner, started)
-        logger.info("GPU {} 写锁已获取 owner={}", self.gpu_id, owner_text)
+        logger.info("GPU [{}] write lock acquired [{}]", self.gpu_id, owner_text)
 
         def _watchdog() -> None:
             while not stop.wait(self.renew_interval):
                 if time.monotonic() - started >= self.max_hold:
                     logger.error(
-                        "GPU {} 写锁持有超过硬上限 {}s，看门狗强制释放并杀子进程 owner={}",
+                        "GPU [{}] write lock held beyond hard limit [{}]s, watchdog killing subprocess [{}]",
                         self.gpu_id,
                         self.max_hold,
                         owner_text,
@@ -351,7 +355,7 @@ class GPULockManager:
                     lock.extend(self.lease_ttl, replace_ttl=True)
                     self._refresh_writer_meta(owner, started)
                 except Exception as exc:
-                    logger.warning("GPU {} 写锁续租失败：{}", self.gpu_id, exc)
+                    logger.warning("GPU {} write lease renewal failed: {}", self.gpu_id, exc)
 
         watcher = threading.Thread(target=_watchdog, name=f"gpu-wlock-{self.gpu_id}", daemon=True)
         watcher.start()
@@ -362,8 +366,8 @@ class GPULockManager:
             watcher.join(timeout=self.renew_interval + 1)
             self._clear_writer_meta()
             _safe_release(lock)
-            logger.info(
-                "GPU {} 写锁已释放 owner={} hold_ms={}",
+            logger.debug(
+                "GPU [{}] write lock released [{}] hold_ms={}",
                 self.gpu_id,
                 owner_text,
                 int((time.monotonic() - started) * 1000),
@@ -383,7 +387,7 @@ class GPULockManager:
             if redis_client.exists(self.write_key):
                 if time.monotonic() >= deadline:
                     logger.warning(
-                        "GPU {} 读锁等待超时 owner={} current_writer={}",
+                        "GPU {} read lock wait timed out owner={} current_writer={}",
                         self.gpu_id,
                         owner_text,
                         self.current_writer_owner_text(),
@@ -396,7 +400,7 @@ class GPULockManager:
                 redis_client.delete(reader_key)
                 if time.monotonic() >= deadline:
                     logger.warning(
-                        "GPU {} 读锁等待超时 owner={} current_writer={}",
+                        "GPU {} read lock wait timed out owner={} current_writer={}",
                         self.gpu_id,
                         owner_text,
                         self.current_writer_owner_text(),
@@ -413,7 +417,7 @@ class GPULockManager:
                 try:
                     redis_client.expire(reader_key, self.lease_ttl)
                 except Exception as exc:
-                    logger.warning("GPU {} 读锁续租失败：{}", self.gpu_id, exc)
+                    logger.warning("GPU {} read lease renewal failed: {}", self.gpu_id, exc)
 
         watcher = threading.Thread(target=_watchdog, name=f"gpu-rlock-{self.gpu_id}", daemon=True)
         watcher.start()
@@ -447,7 +451,7 @@ class GPULockManager:
             if not swept_once and remaining <= self.wait_timeout * 0.5:
                 removed = self.sweep_stale_readers(aggressive=True)
                 if removed:
-                    logger.warning("GPU {} drain 中途清扫僵尸读锁 count={}", self.gpu_id, removed)
+                    logger.warning("GPU {} swept stale read locks mid-drain count={}", self.gpu_id, removed)
                 swept_once = True
             time.sleep(0.2)
 
@@ -508,7 +512,7 @@ def _unload_resident_tts(owner: Mapping[str, str]) -> None:
         owner_text = " ".join(f"{key}={value}" for key, value in owner.items())
         unload_tts_pipeline(f"sing:{owner_text}")
     except Exception as exc:
-        logger.warning("唱歌任务启动前卸载 TTS pipeline 失败 owner={} err={}", owner, exc)
+        logger.warning("failed to unload TTS pipeline before sing task owner={} err={}", owner, exc)
 
 
 _shared_locks: dict[int, GPULockManager] = {}
@@ -546,7 +550,7 @@ def sweep_gpu_lock_state_on_worker_startup(gpu_id: int | None = None) -> int:
     except Exception:
         pass
     if removed:
-        logger.info("GPU {} worker 启动清扫残留读锁 count={}", locker.gpu_id, removed)
+        logger.info("GPU {} swept stale read locks on worker startup count={}", locker.gpu_id, removed)
     return removed
 
 

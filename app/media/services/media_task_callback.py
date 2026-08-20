@@ -24,7 +24,7 @@ async def notify_sing_media_task_failed(record: MediaTaskRecord) -> None:
     except Exception as exc:
         logger.warning(
             "sing media task callback failed{}: {}",
-            log_id_suffix(request_id),
+            log_id_suffix(request_id, label="request_id"),
             exc,
         )
         return

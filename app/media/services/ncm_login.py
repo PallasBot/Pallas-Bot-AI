@@ -43,25 +43,25 @@ class NCMLoginManager:
             session_path: Path = Path(SESSION_FILE)
             if session_path.exists():
                 if session_path.stat().st_size == 0:
-                    logger.warning("session文件为空")
+                    logger.warning("ncm session file is empty")
                     return
 
                 with session_path.open("r", encoding="utf-8") as f:
                     session_str: str = f.read().strip()
                     if not session_str:
-                        logger.warning("session文件为空")
+                        logger.warning("ncm session file is empty")
                         return
 
                 self.session = LoadSessionFromString(session_str)
-                logger.info("成功使用缓存的session登录")
+                logger.info("ncm session loaded from saved cache")
             else:
-                logger.info("未找到session文件，将创建新的session")
-                logger.info("私聊发送'网易云登录'来登录VIP账号")
+                logger.info("ncm session file not found, will create a new session")
+                logger.info("send '网易云登录' in private chat to log into the VIP account")
         except FileNotFoundError:
-            logger.info("未找到session文件，将创建新的session")
-            logger.info("私聊发送'网易云登录'来登录VIP账号")
+            logger.info("ncm session file not found, will create a new session")
+            logger.info("send '网易云登录' in private chat to log into the VIP account")
         except Exception as e:
-            logger.error(f"使用缓存的session登录失败: {e}")
+            logger.error("failed to login with cached ncm session: {}", e)
 
     async def _print_user_info(self) -> None:
         try:
@@ -72,11 +72,11 @@ class NCMLoginManager:
                 if isinstance(profile, dict):
                     nickname: str = profile.get("nickname", "Unknown")
                     user_id: int | str = profile.get("userId", "Unknown")
-                    logger.info(f"当前登录用户: {nickname} (ID: {user_id})")
+                    logger.info("current ncm user: {} (ID: {})", nickname, user_id)
             else:
-                logger.warning("无法获取有效的用户信息")
+                logger.warning("failed to get valid ncm user info")
         except Exception as e:
-            logger.warning(f"获取用户信息失败: {e}")
+            logger.warning("failed to fetch ncm user info: {}", e)
 
     def persist_session(self) -> None:
         if not self.session:
@@ -86,24 +86,24 @@ class NCMLoginManager:
         session_path.parent.mkdir(exist_ok=True, parents=True)
         with session_path.open("w", encoding="utf-8") as f:
             f.write(session_str)
-        logger.info("[+] 当前session已保存")
+        logger.info("ncm session persisted")
 
     def save_current_session(self) -> None:
         if not self.session:
             return
         try:
             self.persist_session()
-            logger.info("登录成功")
-            logger.info("可使用'网易云登出'退出账号")
+            logger.info("ncm login succeeded")
+            logger.info("send '网易云登出' in private chat to log out")
         except Exception as e:
-            logger.error(f"保存session失败: {e}")
+            logger.error("failed to save ncm session: {}", e)
 
     def get_session(self) -> str | None:
         if self.session:
             try:
                 return DumpSessionAsString(self.session)
             except Exception as e:
-                logger.error(f"获取session失败: {e}")
+                logger.error("failed to dump ncm session: {}", e)
                 return None
         return None
 
@@ -116,7 +116,7 @@ class NCMLoginManager:
             self.session = session
             self.save_current_session()
         except Exception as e:
-            logger.error(f"设置session失败: {e}")
+            logger.error("failed to set ncm session: {}", e)
 
     async def login_with_sms(self, phone: str, ctcode: int = 86) -> dict[str, Any]:
         try:
@@ -124,10 +124,10 @@ class NCMLoginManager:
                 result_data = await SetSendRegisterVerifcationCodeViaCellphone(phone, ctcode)
             if isinstance(result_data, dict):
                 return result_data
-            logger.warning("短信验证码返回异常")
+            logger.warning("unexpected sms code response")
             return {"code": 500, "message": "返回数据格式异常"}
         except Exception as e:
-            logger.error(f"发送验证码失败: {e}")
+            logger.error("failed to send sms code: {}", e)
             return {"code": 500, "message": str(e)}
 
     async def verify_sms(self, phone: str, captcha: str, ctcode: int = 86) -> dict[str, Any]:
@@ -138,11 +138,11 @@ class NCMLoginManager:
             self.session = LoadSessionFromString(dumped)
             self.persist_session()
             await self._print_user_info()
-            logger.info("登录成功")
-            logger.info("可使用'网易云登出'退出账号")
+            logger.info("ncm login succeeded")
+            logger.info("send '网易云登出' in private chat to log out")
             return {"code": 200, "message": "登录成功"}
         except Exception as e:
-            logger.error(f"登录失败: {e}")
+            logger.error("ncm login failed: {}", e)
             return {"code": 500, "message": str(e)}
 
     async def logout(self) -> dict[str, Any]:
@@ -150,20 +150,20 @@ class NCMLoginManager:
             async with ncm_request_session():
                 result: dict[str, Any] = await LoginLogout()
             if result.get("code") == 200:
-                logger.info("账号已退出")
+                logger.info("ncm account logged out")
             else:
-                logger.warning(f"登出失败: {result.get('message')}")
+                logger.warning("ncm logout failed: {}", result.get("message"))
 
             self.session = None
 
             session_path: Path = Path(SESSION_FILE)
             if session_path.exists():
                 session_path.unlink()
-                logger.info("已删除本地session文件")
+                logger.info("local ncm session file removed")
 
             return {"code": 200, "message": "登出成功"}
         except Exception as e:
-            logger.error(f"登出失败: {e}")
+            logger.error("ncm logout failed: {}", e)
             return {"code": 500, "message": str(e)}
 
 

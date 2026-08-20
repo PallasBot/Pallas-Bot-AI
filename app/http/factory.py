@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     register_startup_fact("endpoints", ",".join(sorted(enabled_endpoints)) or "none")
     emit_startup_summary(api_version=API_VERSION, role="api")
     yield
-    logger.info("AI 服务已关闭")
+    logger.info("AI service stopped")
 
 
 def create_app(*, enabled_endpoints: Iterable[str] | None = None) -> FastAPI:

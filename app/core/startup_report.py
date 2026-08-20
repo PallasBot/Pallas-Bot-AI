@@ -57,8 +57,8 @@ def emit_startup_summary(*, api_version: str, role: str = "api") -> None:
 
     parts = [f"v={api_version}", f"role={role}"]
     parts.extend(f"{key}={value}" for key, value in _collector.facts.items())
-    logger.info("启动摘要：{}", " | ".join(parts))
+    logger.info("startup summary: {}", " | ".join(parts))
 
     if _collector.warnings:
         warning_text = " | ".join(f"{key}={value}" for key, value in _collector.warnings.items())
-        logger.warning("启动降级：{}", warning_text)
+        logger.warning("startup degraded: {}", warning_text)

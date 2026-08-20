@@ -136,7 +136,11 @@ class SvcRegistry(BaseModel):
         """把 dict key 注入到每个 backend 的 name 字段(YAML 不用重复写)。"""
         for key, backend in self.backends.items():
             if backend.name and backend.name != key:
-                logger.warning("backend {} 的 name 字段 '{}' 与 dict key 不一致,优先用 dict key", key, backend.name)
+                logger.warning(
+                    "backend {} name '{}' differs from dict key, dict key wins",
+                    key,
+                    backend.name,
+                )
             backend.name = key
         return self
 
@@ -161,7 +165,7 @@ class SvcRegistry(BaseModel):
                 continue
             if not backend.script.is_file():
                 logger.debug(
-                    "backend {} 跳过: 脚本不存在 {}",
+                    "backend {} skipped: script not found {}",
                     name,
                     backend.script,
                 )
@@ -171,7 +175,7 @@ class SvcRegistry(BaseModel):
             missing = [f for f in backend.required_files if not (speaker_dir / f).is_file()]
             if missing:
                 logger.debug(
-                    "backend {} 跳过: speaker={} 缺文件 {}",
+                    "backend {} skipped: speaker={} missing files {}",
                     name,
                     speaker_dir.name,
                     missing,
@@ -216,13 +220,13 @@ def get_registry() -> SvcRegistry:
         try:
             _REGISTRY = load_registry(settings.svc_registry_path)
             logger.info(
-                "svc registry 已加载: backends={} fallback={}",
+                "svc registry loaded: backends={} fallback={}",
                 list(_REGISTRY.backends),
                 _REGISTRY.fallback_order,
             )
         except (FileNotFoundError, ValueError) as e:
             logger.error(
-                "svc registry 加载失败,降级为空注册表(后续 SVC 推理会全部失败): {}",
+                "failed to load svc registry, degrading to empty registry (all SVC inference will fail): {}",
                 e,
             )
             _REGISTRY = SvcRegistry(backends={}, fallback_order=[])

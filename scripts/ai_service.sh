@@ -62,6 +62,7 @@ start_api() {
   else
     api_launcher=(uv run --no-sync python -m app.run_api_with_pid "$API_PID_FILE")
   fi
+  export TQDM_DISABLE=1 NO_COLOR=1 PYTHONUNBUFFERED=1
   if command -v nohup >/dev/null 2>&1; then
     nohup "${api_launcher[@]}" >>"$API_LOG_FILE" 2>&1 &
   else

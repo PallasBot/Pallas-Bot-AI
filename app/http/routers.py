@@ -88,7 +88,7 @@ def build_api_router(enabled_endpoints: set[str] | frozenset[str]) -> APIRouter:
         try:
             loaded = loader()
         except ImportError as exc:
-            logger.warning("跳过路由 {}：缺少可选依赖 ({})", endpoint_name, exc)
+            logger.warning("skipping route {}: missing optional dependency ({})", endpoint_name, exc)
             continue
         if isinstance(loaded, tuple):
             for sub_router in loaded:

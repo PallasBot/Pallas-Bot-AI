@@ -122,7 +122,10 @@ def on_celery_worker_ready(**kwargs):
     register_startup_fact("concurrency", str(settings.celery_worker_concurrency))
     if not ping_redis_sync():
         register_startup_warning("redis", "unreachable")
-        logger.error("Redis 不可达：{}（任务队列与媒体任务状态依赖此项）", settings.redis_url)
+        logger.error(
+            "Redis unreachable at [{}]; task queue and media task status depend on it",
+            settings.redis_url,
+        )
     register_startup_fact("packages", ",".join(resolve_celery_task_packages()))
     emit_startup_summary(api_version=VERSION, role="celery")
 

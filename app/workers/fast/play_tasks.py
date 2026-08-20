@@ -55,12 +55,12 @@ def play_task(request_id: str, speaker: str = ""):
 
 async def _play_task_async(request_id: str, speaker: str = ""):
     try:
-        logger.info("play task started{} speaker={}", log_id_suffix(request_id), speaker or "<any>")
+        logger.info("play task started{} speaker={}", log_id_suffix(request_id, label="request_id"), speaker or "<any>")
         rand_music, source = get_random_song(speaker)
         if not rand_music:
             logger.warning(
                 "play task found no playable audio{} speaker={} splices_dir={} music_dir={}",
-                log_id_suffix(request_id),
+                log_id_suffix(request_id, label="request_id"),
                 speaker or "<any>",
                 SONG_PATH,
                 MUSIC_PATH,
@@ -87,7 +87,7 @@ async def _play_task_async(request_id: str, speaker: str = ""):
             progress_kwargs = {"song_id": song_id, "chunk_index": chunk_index, "key": key}
         logger.info(
             "play task selected audio{} speaker={} source={} path={} progress={}",
-            log_id_suffix(request_id),
+            log_id_suffix(request_id, label="request_id"),
             speaker or "<any>",
             source or "unknown",
             rand_music,
@@ -100,7 +100,7 @@ async def _play_task_async(request_id: str, speaker: str = ""):
         except Exception as exc:
             logger.exception(
                 "play task failed to read audio{} path={} error={}",
-                log_id_suffix(request_id),
+                log_id_suffix(request_id, label="request_id"),
                 rand_music,
                 exc,
             )
@@ -108,16 +108,16 @@ async def _play_task_async(request_id: str, speaker: str = ""):
             return False
 
         logger.info(
-            "play task sending callback{} path={} bytes={} progress={}",
-            log_id_suffix(request_id),
+            "play task sending audio callback{} path={} bytes={} progress={}",
+            log_id_suffix(request_id, label="request_id"),
             rand_music,
             len(audio_content),
             progress_kwargs or {},
         )
         await callback(request_id, audio=audio_content, **progress_kwargs)
-        logger.info("play task completed{} path={}", log_id_suffix(request_id), rand_music)
+        logger.info("play task completed{} path={}", log_id_suffix(request_id, label="request_id"), rand_music)
         return True
     except Exception as exc:
-        logger.exception("play task failed unexpectedly{} error={}", log_id_suffix(request_id), exc)
+        logger.exception("play task failed unexpectedly{} error={}", log_id_suffix(request_id, label="request_id"), exc)
         await callback(request_id, status="failed")
         return False

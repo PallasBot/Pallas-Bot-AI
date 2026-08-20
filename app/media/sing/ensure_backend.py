@@ -138,7 +138,7 @@ def _cleanup_failed_dest(dest: Path) -> None:
     try:
         shutil.rmtree(dest)
     except OSError as exc:
-        logger.warning("清理失败的 clone 目录失败: {} ({})", dest, exc)
+        logger.warning("failed to clean up failed clone dir: {} ({})", dest, exc)
 
 
 def _clone_branch(root: Path, rel: str, branch: str) -> tuple[bool, str]:

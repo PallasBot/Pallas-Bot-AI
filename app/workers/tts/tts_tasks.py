@@ -1,7 +1,7 @@
 import asyncio
 
 from app.core.celery import celery_app
-from app.core.logger import logger
+from app.core.logger import log_id_clause, logger
 from app.media.models import resolve_tts_request
 from app.media.services.callback import callback
 from app.media.services.translator import translate_for_tts
@@ -12,16 +12,15 @@ gpu_locker = get_gpu_locker()
 
 
 def tts_req(text: str, media_type: str = "wav"):
-    original_text = text
-    print(f"初始文本：{original_text}")
+    logger.debug("tts raw text: {}", text)
     text_lang_override = None
     translated_text = translate_for_tts(text)
     if translated_text:
         text = translated_text
         text_lang_override = "ja"
-        print(f"翻译结果: {text}")
+        logger.debug("tts translated text: {}", text)
     elif translated_text is None:
-        print("翻译未启用或失败，使用原文")
+        logger.debug("tts translation disabled or failed, use original text")
 
     req = resolve_tts_request(text=text, media_type=media_type)
     if text_lang_override:
@@ -30,7 +29,7 @@ def tts_req(text: str, media_type: str = "wav"):
     try:
         audio_data = tts_handle(req)
     except Exception as e:
-        print(f"TTS处理出错: {e}")
+        logger.error("tts processing failed: {}", e)
         return None
     return audio_data
 
@@ -46,6 +45,7 @@ def tts_task(request_id: str, text: str, media_type: str = "wav"):
 
 
 async def _tts_task_async(request_id: str, text: str, media_type: str = "wav"):
+    logger.info("tts task started{} media_type={}", log_id_clause(request_id, label="request_id"), media_type)
     try:
         with gpu_locker.acquire(
             unload_llm=True,
@@ -59,10 +59,12 @@ async def _tts_task_async(request_id: str, text: str, media_type: str = "wav"):
             # 未开启或翻译失败：保留原文与配置 text_lang（通常为 zh）
             audio_data = tts_handle(req)
     except Exception:
-        logger.exception("TTS 任务初始化或执行失败：request_id={}", request_id)
+        logger.exception("tts task init or run failed{}", log_id_clause(request_id, label="request_id"))
         await callback(request_id, status="failed")
         return
     if audio_data:
+        logger.info("tts task completed{} bytes={}", log_id_clause(request_id, label="request_id"), len(audio_data))
         await callback(request_id, audio=audio_data)
     else:
+        logger.warning("tts task produced no output{}", log_id_clause(request_id, label="request_id"))
         await callback(request_id, status="failed")

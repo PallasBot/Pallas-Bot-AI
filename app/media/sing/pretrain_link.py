@@ -28,7 +28,10 @@ def ensure_sing_pretrain_cwd_link(root: Path | None = None) -> bool:
     link = base / "pretrain"
 
     if not target.is_dir():
-        logger.warning("sing pretrain 目录不存在，无法创建兼容链接: {}", target)
+        logger.warning(
+            "sing pretrain dir missing, cannot create compat link: {}",
+            target,
+        )
         return False
 
     if _points_to_target(link, target) or _usable_pretrain_dir(link):
@@ -37,18 +40,19 @@ def ensure_sing_pretrain_cwd_link(root: Path | None = None) -> bool:
     if link.exists() or link.is_symlink():
         if not _try_remove_link(link):
             logger.warning(
-                "仓根已存在无法替换的 pretrain/，且未指向 {}；请手动改配置或删除后重启",
+                "repo root already has an irreplaceable pretrain/ not pointing at {}; "
+                "change config manually or delete it before restart",
                 target,
             )
             return False
 
     try:
         link.symlink_to(target, target_is_directory=True)
-        logger.info("已创建 pretrain 符号链接: {} -> {}", link, target)
+        logger.info("created pretrain symlink: {} -> {}", link, target)
         return True
     except OSError as exc:
         if platform.system() != "Windows":
-            logger.warning("创建 pretrain 符号链接失败: {}", exc)
+            logger.warning("failed to create pretrain symlink: {}", exc)
             return False
 
     # Windows 无管理员/开发者模式时 symlink 常失败，改用目录联接（无需提权）
@@ -60,16 +64,16 @@ def ensure_sing_pretrain_cwd_link(root: Path | None = None) -> bool:
             text=True,
         )
     except OSError as exc:
-        logger.warning("创建 pretrain 目录联接失败: {}", exc)
+        logger.warning("failed to create pretrain junction: {}", exc)
         return False
     if result.returncode != 0 or not (_points_to_target(link, target) or _usable_pretrain_dir(link)):
         logger.warning(
-            "创建 pretrain 目录联接失败 rc={} stderr={}",
+            "failed to create pretrain junction rc={} stderr={}",
             result.returncode,
             (result.stderr or result.stdout or "").strip()[-300:],
         )
         return False
-    logger.info("已创建 pretrain 目录联接: {} -> {}", link, target)
+    logger.info("created pretrain junction: {} -> {}", link, target)
     return True
 
 

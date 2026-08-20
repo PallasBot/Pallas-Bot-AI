@@ -84,7 +84,13 @@ def _try_backend(
     `find_output(output_path, since_mtime=...)` 按约定去找,避免 SoVITS 成功却误判失败。
     """
     cmd = build_command(backend, speaker_dir, song_path, output_path, key, model_path)
-    logger.info("svc inference try: backend={} speaker={} cmd={}", backend.name, speaker_dir.name, cmd)
+    logger.info(
+        "svc inference start: backend={} speaker={} script={} args={}",
+        backend.name,
+        speaker_dir.name,
+        Path(cmd[1]).name,
+        len(cmd) - 2,
+    )
 
     # 快照:调用前 output_dir 里目标格式文件的最大 mtime。
     # 用作 find_output 的过滤阈值,排除上次推理的残留(尤其是 SoVITS 那种 -o 是目录的情况)。
@@ -129,7 +135,7 @@ def _try_backend(
     actual_output = backend.find_output(output_path, since_mtime=pre_max_mtime)
     if actual_output is None:
         logger.warning(
-            "svc inference rc=0 but no fresh output: backend={} speaker={} expected={} dir={}",
+            "svc inference rc=0 but no new output: backend={} speaker={} expected={} dir={}",
             backend.name,
             speaker_dir.name,
             output_path,
@@ -169,7 +175,7 @@ def inference(
     output_dir.mkdir(parents=True, exist_ok=True)
     speaker_dir = (Path(settings.svc_models_root) / speaker).absolute()
     if not speaker_dir.is_dir():
-        logger.error("speaker dir 不存在: {}", speaker_dir)
+        logger.error("speaker dir missing: {}", speaker_dir)
         return None
 
     registry: SvcRegistry = get_registry()
@@ -184,7 +190,7 @@ def inference(
         if preferred.startswith("ddsp_") and not backend_script_present(preferred):
             started = schedule_ensure_svc_backend(preferred)
             logger.info(
-                "svc preferred backend 本地缺失，已安排后台拉取: id={} status={}（本次先用已有 backend）",
+                "svc preferred backend missing locally, scheduled background pull: id={} status={}",
                 preferred,
                 started.get("status"),
             )
@@ -192,8 +198,7 @@ def inference(
     candidates = registry.compatible_backends(speaker_dir)
     if not candidates:
         logger.error(
-            "speaker={} 在 {} 下没有可用的 backend(检查 .pt/.pth/config.json 是否齐备，"
-            "或 preferred DDSP 版本是否已拉取)",
+            "no usable backend for speaker={} under {} (check .pt/.pth/config.json, or preferred DDSP pulled)",
             speaker,
             speaker_dir,
         )
@@ -205,7 +210,7 @@ def inference(
     candidates = filter_backends_by_ddsp_checkpoint(candidates, probe_model)
     if before != [b.name for b in candidates]:
         logger.info(
-            "svc ddsp arch filter: speaker={} model={} before={} after={}",
+            "svc backend filter by checkpoint arch: speaker={} model={} before={} after={}",
             speaker,
             probe_model.name if probe_model else None,
             before,
@@ -213,7 +218,7 @@ def inference(
         )
     if not candidates:
         logger.error(
-            "speaker={} 的 checkpoint 与本地 DDSP backend 均不兼容（检查权重版本与 preferred_backend）",
+            "checkpoint of speaker={} incompatible with all local DDSP backends",
             speaker,
         )
         return None
@@ -221,7 +226,7 @@ def inference(
     candidates = order_backends_by_preference(candidates, preferred)
     if preferred and preferred not in {b.name for b in candidates}:
         logger.warning(
-            "svc preferred backend 与 checkpoint 不兼容已忽略: preferred={} speaker={} first={}",
+            "svc preferred backend incompatible with checkpoint, skipped: preferred={} speaker={} first={}",
             preferred,
             speaker,
             candidates[0].name if candidates else None,
@@ -242,7 +247,7 @@ def inference(
         # 6.3 需要 HF ContentVec；社区 config 常仍写 fairseq legacy 文件名
         if not adapt_speaker_config_for_ddsp63(speaker_dir):
             logger.error(
-                "speaker={} 无法准备 DDSP 6.3 ContentVec（需 contentvec/pytorch_model.bin）",
+                "speaker={} cannot prepare DDSP 6.3 ContentVec (needs contentvec/pytorch_model.bin)",
                 speaker,
             )
             candidates = [b for b in candidates if b.name != "ddsp_6.3"]
@@ -266,7 +271,7 @@ def inference(
         if result is not None:
             return result
 
-    logger.error("svc inference 用尽所有 backend 仍未成功: speaker={}", speaker)
+    logger.error("svc inference exhausted all backends: speaker={}", speaker)
     return None
 
 

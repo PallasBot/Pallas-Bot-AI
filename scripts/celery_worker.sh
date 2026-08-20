@@ -39,6 +39,8 @@ start_worker() {
     queue_args=( -Q "$WORKER_QUEUE" )
   fi
   echo "启动 celery worker${WORKER_QUEUE:+ queue=$WORKER_QUEUE} → $LOG_FILE"
+  # 压制上游库 tqdm 进度条/彩色/banner，避免洗入 worker 日志文件
+  export TQDM_DISABLE=1 NO_COLOR=1 PYTHONUNBUFFERED=1
   if command -v nohup >/dev/null 2>&1; then
     nohup uv run --no-sync celery -A app.core.celery worker --loglevel=warning "${queue_args[@]}" >>"$LOG_FILE" 2>&1 &
   else

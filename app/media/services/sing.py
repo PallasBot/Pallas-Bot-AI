@@ -2,7 +2,7 @@ from fastapi import HTTPException
 
 from app.core.celery import require_celery_task_package, resolve_celery_queue_for_task
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logger import log_id_clause, logger, short_log_id
 from app.media.models import resolve_sing_speaker
 
 
@@ -30,7 +30,13 @@ async def sing(
         args=(request_id, resolved, song_id, length, chunk_index, key),
         queue=resolve_celery_queue_for_task("sing"),
     )
-    logger.info(f"Task {task.id} started")
+    logger.info(
+        "sing task submitted{} speaker={} song_id={} task={}",
+        log_id_clause(request_id, label="request_id"),
+        resolved,
+        song_id,
+        short_log_id(task.id),
+    )
     return task.id
 
 
@@ -43,7 +49,12 @@ async def play(request_id: str, speaker: str = ""):
         args=(request_id, resolved),
         queue=resolve_celery_queue_for_task("play"),
     )
-    logger.info(f"Task {task.id} started")
+    logger.info(
+        "play task submitted{} speaker={} task={}",
+        log_id_clause(request_id, label="request_id"),
+        resolved or "default",
+        short_log_id(task.id),
+    )
     return request_id
 
 
@@ -55,5 +66,10 @@ async def download(request_id: str, song_id: int):
         args=(request_id, song_id),
         queue=resolve_celery_queue_for_task("request"),
     )
-    logger.info(f"Task {task.id} started")
+    logger.info(
+        "download task submitted{} song_id={} task={}",
+        log_id_clause(request_id, label="request_id"),
+        song_id,
+        short_log_id(task.id),
+    )
     return task.id

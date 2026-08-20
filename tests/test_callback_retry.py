@@ -19,7 +19,7 @@ def test_should_retry_callback_skips_read_timeout(monkeypatch: pytest.MonkeyPatc
     assert callback_mod.should_retry_callback(httpx.ReadTimeout("timed out")) is False
     assert warnings
     assert "ReadTimeout" in warnings[0]
-    assert "跳过重试" in warnings[0]
+    assert "skip retry" in warnings[0]
 
 
 def test_should_retry_callback_allows_connect_error() -> None:

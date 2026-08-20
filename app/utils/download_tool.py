@@ -2,6 +2,8 @@ import traceback
 
 import requests
 
+from app.core.logger import logger
+
 
 class DownloadTools:
     @staticmethod
@@ -19,5 +21,5 @@ class DownloadTools:
                 else:
                     return stream.content
         except Exception:
-            print(traceback.format_exc())
+            logger.error("download request failed: url={}\n{}", url, traceback.format_exc())
         return None

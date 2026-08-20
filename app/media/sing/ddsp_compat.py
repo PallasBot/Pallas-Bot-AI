@@ -81,7 +81,7 @@ def probe_ddsp_checkpoint_arch(model_path: Path) -> str:
             elif ndim == 2:
                 arch = ARCH_LINEAR
     except Exception as exc:
-        logger.debug("ddsp checkpoint 架构探测失败 path={} err={}", path, exc)
+        logger.debug("ddsp checkpoint arch probe failed path={} err={}", path, exc)
 
     _ARCH_CACHE[cache_key] = arch
     return arch
@@ -110,7 +110,7 @@ def filter_backends_by_ddsp_checkpoint(
             kept.append(backend)
             continue
         logger.info(
-            "backend {} 跳过: checkpoint 架构={}，该后端需要 {} model={}",
+            "backend {} skipped: checkpoint arch={}, needs {} model={}",
             backend.name,
             arch,
             required_arch_for_backend(backend.name),

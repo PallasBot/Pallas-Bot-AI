@@ -4,9 +4,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     log_level: str = "INFO"
-    log_format: str = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <7}</level> | <level>{message}</level>"
-    )
     log_loc_short: bool = Field(
         default=False,
         validation_alias=AliasChoices("log_loc_short", "LOG_LOC_SHORT"),

@@ -44,7 +44,7 @@ def test_stdlib_level_maps_names() -> None:
 def test_short_log_id_truncates(monkeypatch) -> None:
     monkeypatch.setattr("app.core.logger.settings.log_id_chars", 8)
     assert short_log_id("01KV95T5WZNKAMQWA8NZ4ZK8G") == "01KV95T5"
-    assert log_id_clause("01KV95T5WZNKAMQWA8NZ4ZK8G") == "单号=01KV95T5 "
+    assert log_id_clause("01KV95T5WZNKAMQWA8NZ4ZK8G") == "单号=01KV95T5"
 
 
 def test_short_log_id_omit_when_zero(monkeypatch) -> None:

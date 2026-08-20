@@ -165,10 +165,10 @@ def effective_log_format(console: bool = False) -> str:
         return (
             "<g>{time:MM-DD HH:mm:ss}</g> "
             "[<lvl>{level:<8}</lvl>] "
-            "<c>{extra[display_name]:<8}</c> "
+            "<c>{{extra[display_name]:<8}}</c> "
             "{message}\n{exception}"
         )
-    return "{time:MM-DD HH:mm:ss} [{level:<8}] {extra[display_name]:<8} {message}\n{exception}"
+    return "{time:MM-DD HH:mm:ss} [{level:<8}] {{extra[display_name]:<8}} {message}\n{exception}"
 
 
 def configure_logger():
@@ -200,7 +200,7 @@ def configure_logger():
         access_logger.add(
             log_path / "access.log",
             rotation=settings.log_rotation,
-            format="{time:MM-DD HH:mm:ss} [{level:<8}] {extra[display_name]:<8} {message}\n{exception}",
+            format="{time:MM-DD HH:mm:ss} [{level:<8}] {{extra[display_name]:<8}} {message}\n{exception}",
             filter=lambda record: "access" in record["extra"],
         )
 

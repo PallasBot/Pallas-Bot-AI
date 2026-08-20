@@ -46,7 +46,7 @@ svc_logfile() {
   case "$1" in
     media) echo "$LOG_DIR/celery-media.log" ;;
     fast)  echo "$LOG_DIR/celery-fast.log" ;;
-    api)   echo "$LOG_DIR/uvicorn.log" ;;
+    api)   echo "$LOG_DIR/api.log" ;;
   esac
 }
 
@@ -165,7 +165,7 @@ PY
       echo "[$svc] 提示: Redis 可达，但 ${wait_sec}s 内未检测到进程；可看日志末尾，或加大 PALLAS_START_WAIT_SEC"
     fi
   elif [[ "$(svc_kind "$svc")" == "api" ]]; then
-    echo "[$svc] 提示: 查看 logs/uvicorn.log；Bot 连 9099 失败多半是 API 未起来"
+    echo "[$svc] 提示: 查看 logs/api.log；Bot 连 9099 失败多半是 API 未起来"
   fi
   return 1
 }

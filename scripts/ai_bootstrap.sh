@@ -291,7 +291,7 @@ start_services() {
   # 分开启：media 失败时也不要挡住 API（Bot 连 9099 需要 API）
   local start_rc=0
   if ! "$ROOT/scripts/ctl.sh" start api; then
-    warn "API 启动失败，见 logs/uvicorn.log"
+    warn "API 启动失败，见 logs/api.log"
     start_rc=1
   fi
   if ! "$ROOT/scripts/ctl.sh" start media; then
@@ -316,7 +316,7 @@ health_check() {
   fi
   # Windows 常只有 python，没有 python3
   if ! curl -fsS --max-time 10 "${api_base}/health" | json_pretty; then
-    warn "健康检查失败；查看 logs/uvicorn.log 与 logs/celery-media.log"
+    warn "健康检查失败；查看 logs/api.log 与 logs/celery-media.log"
     return 1
   fi
   return 0

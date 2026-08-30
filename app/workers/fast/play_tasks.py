@@ -7,6 +7,7 @@ import anyio
 from app.core.celery import celery_app
 from app.core.logger import log_id_suffix, logger
 from app.media.services.callback import callback
+from app.workers.sing.cache_paths import speaker_cache_dir
 
 SONG_PATH = "resource/sing/splices/"
 MUSIC_PATH = "resource/music/"
@@ -25,9 +26,14 @@ def get_random_song(speaker: str = ""):
     source = None
     song_dir = Path(SONG_PATH)
     if song_dir.exists():
-        all_song = [
-            str(s) for s in song_dir.iterdir() if is_audio_file(s) and speaker in s.name and "_spliced0" not in s.name
-        ]
+        if speaker:
+            dirs = [speaker_cache_dir("splices", speaker)]
+        else:
+            dirs = [d for d in song_dir.iterdir() if d.is_dir()]
+        for d in dirs:
+            all_song.extend(
+                str(s) for s in d.iterdir() if is_audio_file(s) and "_spliced0" not in s.name
+            )
         if all_song:
             source = "splices"
 

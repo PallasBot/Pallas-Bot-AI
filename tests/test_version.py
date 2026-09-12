@@ -19,7 +19,7 @@ def test_version_is_exposed_by_http_api() -> None:
 
 def test_health_reports_package_version() -> None:
     app = create_app(enabled_endpoints=set())
-    health_route = next(route for route in app.routes if route.path == "/health")
+    health_route = next(route for route in app.routes if getattr(route, "path", None) == "/health")
 
     assert health_route.endpoint()["api_version"] == VERSION
 

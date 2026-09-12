@@ -7,7 +7,7 @@ license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.12, <3.13"
 dependencies = [
-    "fastapi (>=0.115.8,<0.116.0)",
+    "fastapi (>=0.115.8,<0.142.0)",
     "uvicorn[standard] (>=0.34.0,<0.35.0)",
     "loguru (>=0.7.3,<0.8.0)",
     "pydantic-settings (>=2.8.0,<3.0.0)",
@@ -82,12 +82,12 @@ tts = [
     "pytorch-lightning>=2.5.2",
     "onnxruntime-gpu>=1.22.0",
     "tqdm>=4.67.1",
-    "transformers (>=4.43.0, <4.51.0)",
+    "transformers (>=4.43.0, <4.54.0)",
     "peft>=0.15.2",
     "ffmpeg-python>=0.2.0",
     "g2p-en>=2.1.0",
-    # nltk 3.10+ inisec 会把仓内 .venv 当成 CWD 包而拦截 import regex
-    "nltk>=3.8.1,<3.10",
+    # nltk 3.10.1 的 inisec 会在仓内 .venv 场景拦截 import；3.10.3 已修复
+    "nltk>=3.10.3",
     "x-transformers>=2.3.23",
     "fast-langdetect>=0.3.2",
     "split-lang>=2.1.0",

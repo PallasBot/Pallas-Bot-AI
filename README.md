@@ -48,10 +48,12 @@ GPU 线为 **torch 2.7.1 + CUDA 12.8（cu128）**，支持 RTX 50 系（Blackwel
 ### 方式 B：Docker
 
 ```bash
-docker compose up -d redis
-# 或完整栈见 docker-compose.yml
+# 完整栈（Redis + AI + Bot 等），定义见 docker-compose.yml
+docker compose up -d
 curl -s http://127.0.0.1:9099/health | python3 -m json.tool
 ```
+
+只在本机跑 AI、想用容器 Redis 时，先 `docker compose up -d redis`，再按下方「手动启动」运行。
 
 全功能 GPU 镜像：`docker build -t pallasbot/pallas-bot-ai:latest .`
 
@@ -59,9 +61,12 @@ Bot 也在 Docker、且与本栈**不同网络**时：让 Bot 挂入固定网络
 
 ### 手动启动
 
+需要 Redis（Celery broker）；没有可先 `docker compose up -d redis`，或在 `.env` 设置 `REDIS_URL`。
+
 ```bash
 cp .env.example .env
 uv sync --all-groups --extra cpu   # 或 --extra gpu
+git submodule update --init --recursive
 uv run pallas-ai start
 ```
 
@@ -69,6 +74,7 @@ uv run pallas-ai start
 uv run pallas-ai status
 uv run pallas-ai stop
 uv run pallas-ai restart media
+uv run pallas-ai restart fast
 ```
 
 ### 自检与 API

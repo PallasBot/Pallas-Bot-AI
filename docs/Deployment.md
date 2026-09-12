@@ -163,7 +163,9 @@ uv run pallas-ai status
 uv run pallas-ai restart media
 # 轻任务（随机播放/点歌）单独重启；默认并发由 CELERY_FAST_WORKER_CONCURRENCY 控制
 uv run pallas-ai restart fast
-# 仅在需要清理遗留 Celery 任务状态时执行
+# 清理遗留 Celery 任务状态后再重启（媒体任务卡死、状态不一致时用）
+uv run pallas-ai restart-clean
+# 仅清理遗留 Celery 任务状态，不重启进程
 uv run pallas-ai purge-stale
 # 或
 ./scripts/ai_bootstrap.sh

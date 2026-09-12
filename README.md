@@ -33,9 +33,11 @@ cp .env.example .env
 ./scripts/ai_bootstrap.sh
 ```
 
-默认安装 **媒体栈**（`uv sync --all-groups --extra cpu`，含 torch），并启动 media worker + API。
+默认依次完成：安装 **媒体栈**（`uv sync --all-groups --extra cpu`，含 torch）→ 初始化子模块（`git submodule update --init --recursive`，含 DDSP-SVC / GPT-SoVITS / RVC）→ 启动 media worker + API。
 
 **Windows**：bootstrap 会用 `docker compose` 拉 Redis。请先安装并**启动** [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)（托盘就绪），或本机/WSL 自备 Redis 后在 `.env` 设置 `REDIS_URL`。普通聊天不需要本 Runtime。
+
+唱歌 / TTS 的音频处理需要 **ffmpeg** 在 PATH 中，bootstrap 会检测并提示（Windows 可 `winget install --id Gyan.FFmpeg -e`，装完新开终端）。
 
 | 场景 | 命令 |
 | --- | --- |
@@ -61,12 +63,12 @@ Bot 也在 Docker、且与本栈**不同网络**时：让 Bot 挂入固定网络
 
 ### 手动启动
 
-需要 Redis（Celery broker）；没有可先 `docker compose up -d redis`，或在 `.env` 设置 `REDIS_URL`。
+需要 Redis（Celery broker）；没有可先 `docker compose up -d redis`，或在 `.env` 设置 `REDIS_URL`。音频处理另需 **ffmpeg** 在 PATH。
 
 ```bash
 cp .env.example .env
-uv sync --all-groups --extra cpu   # 或 --extra gpu
-git submodule update --init --recursive
+uv sync --all-groups --extra cpu     # 或 --extra gpu
+git submodule update --init --recursive   # DDSP-SVC / GPT-SoVITS / RVC
 uv run pallas-ai start
 ```
 
@@ -76,6 +78,8 @@ uv run pallas-ai stop
 uv run pallas-ai restart media
 uv run pallas-ai restart fast
 ```
+
+日志在 `logs/`：`api.log`、`celery-media.log`、`celery-fast.log`。`pallas-ai` 是 API 与 media/fast worker 的统一入口，默认目标 `all`，也可只操作 `api` / `media` / `fast`（如 `uv run pallas-ai restart media`）。`restart-clean` 先清理遗留 Celery 任务状态再重启，`purge-stale` 仅清理任务状态。完整命令见 [docs/Deployment.md](docs/Deployment.md)。
 
 ### 自检与 API
 

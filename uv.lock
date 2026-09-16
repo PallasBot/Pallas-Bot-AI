@@ -23,7 +23,11 @@ conflicts = [[
 ]]
 
 [manifest]
-overrides = [{ name = "hydra-core", specifier = ">=1.3.2" }]
+overrides = [
+    { name = "hydra-core", specifier = ">=1.3.2" },
+    { name = "setuptools", marker = "sys_platform != 'win32'", specifier = ">=83" },
+    { name = "setuptools", marker = "sys_platform == 'win32'", specifier = ">=80,<82" },
+]
 
 [[package]]
 name = "absl-py"
@@ -2149,7 +2153,8 @@ sing = [
     { name = "praat-parselmouth" },
     { name = "pydub" },
     { name = "pyncm-async" },
-    { name = "pyworld" },
+    { name = "pyworld", version = "0.3.5", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "pyworld", version = "0.3.6", source = { git = "https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder?tag=v0.3.6#b545454af40553ed74583cb8773ba53419adee93" }, marker = "sys_platform != 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "pyyaml" },
     { name = "resampy" },
     { name = "scikit-learn" },
@@ -2236,7 +2241,8 @@ sing = [
     { name = "praat-parselmouth", specifier = ">=0.4.5" },
     { name = "pydub", specifier = ">=0.25.1" },
     { name = "pyncm-async", url = "https://files.pythonhosted.org/packages/52/14/8892c8bef54293eaf13c3ff95685a097d8a48272ce07b8600138f5c24d3e/pyncm_async-1.8.2.tar.gz" },
-    { name = "pyworld", specifier = ">=0.3.5" },
+    { name = "pyworld", marker = "sys_platform != 'win32'", git = "https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder?tag=v0.3.6" },
+    { name = "pyworld", marker = "sys_platform == 'win32'", specifier = ">=0.3.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "resampy", specifier = ">=0.4.3" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
@@ -2704,12 +2710,36 @@ wheels = [
 name = "pyworld"
 version = "0.3.5"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "sys_platform == 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a5/0f/c78d631ffbb4c1aaebf80ff2bf9e791213b381dbe404f9ce1a3eb3672931/pyworld-0.3.5.tar.gz", hash = "sha256:1b93e53cddb67a0e4faa34d6cf919ac6c662feb1c8c0ed901d71b595ab396aa3", size = 261021, upload-time = "2025-01-20T16:07:51.261Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b6/29/9c9c0dad7575faea3dbc3cbc8b69e0365b35912332068afd79a2b93d822d/pyworld-0.3.5-cp312-cp312-win_amd64.whl", hash = "sha256:59b48961c2ac34fb01efeb1a77d3eda69c41b676858cbc3a82dfb7602c0c762b", size = 222700, upload-time = "2025-01-21T15:58:47.959Z" },
+]
+
+[[package]]
+name = "pyworld"
+version = "0.3.6"
+source = { git = "https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder?tag=v0.3.6#b545454af40553ed74583cb8773ba53419adee93" }
+resolution-markers = [
+    "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu'",
+    "sys_platform == 'emscripten' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')",
+    "platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu'",
+    "sys_platform == 'emscripten' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu')",
+    "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu')",
+    "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "sys_platform == 'emscripten' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu')",
+]
+dependencies = [
+    { name = "numpy", marker = "sys_platform != 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
 ]
 
 [[package]]
@@ -2971,8 +3001,33 @@ wheels = [
 
 [[package]]
 name = "setuptools"
+version = "81.0.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/1c/73e719955c59b8e424d015ab450f51c0af856ae46ea2da83eba51cc88de1/setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a", size = 1198299, upload-time = "2026-02-06T21:10:39.601Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6", size = 1062021, upload-time = "2026-02-06T21:10:37.175Z" },
+]
+
+[[package]]
+name = "setuptools"
 version = "84.0.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu'",
+    "sys_platform == 'emscripten' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')",
+    "platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu'",
+    "sys_platform == 'emscripten' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu')",
+    "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu')",
+    "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "sys_platform == 'emscripten' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu'",
+    "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu')",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/6d/44/f5da03a8ef95d369145c5bb53050e7877c9f3d312e128605fd9504829143/setuptools-84.0.0.tar.gz", hash = "sha256:f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73", size = 1168449, upload-time = "2026-08-08T18:27:58.365Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl", hash = "sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670", size = 818216, upload-time = "2026-08-08T18:27:56.719Z" },
@@ -3181,7 +3236,8 @@ dependencies = [
     { name = "packaging" },
     { name = "pillow" },
     { name = "protobuf" },
-    { name = "setuptools" },
+    { name = "setuptools", version = "81.0.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "84.0.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "tensorboard-data-server" },
     { name = "werkzeug" },
 ]
@@ -3300,7 +3356,7 @@ dependencies = [
     { name = "fsspec", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "jinja2", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "networkx", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
-    { name = "setuptools", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "84.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "sympy", version = "1.13.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "typing-extensions", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
 ]
@@ -3324,7 +3380,8 @@ dependencies = [
     { name = "fsspec", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "jinja2", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "networkx", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
-    { name = "setuptools", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "81.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'win32' and extra == 'extra-13-pallas-bot-ai-cpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "84.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'win32' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "sympy", version = "1.13.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "typing-extensions", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_machine != 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (platform_python_implementation != 'CPython' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu') or (sys_platform == 'darwin' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
 ]
@@ -3361,7 +3418,8 @@ dependencies = [
     { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "nvidia-nvjitlink-cu12", version = "12.6.85", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "nvidia-nvtx-cu12", version = "12.6.77", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
-    { name = "setuptools", marker = "(platform_machine != 'x86_64' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "81.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'win32' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "84.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and sys_platform != 'win32' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "sympy", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "typing-extensions", marker = "(platform_machine != 'x86_64' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu' and extra != 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
@@ -3403,7 +3461,8 @@ dependencies = [
     { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_machine != 'x86_64' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "nvidia-nvjitlink-cu12", version = "12.8.61", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_machine != 'x86_64' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "nvidia-nvtx-cu12", version = "12.8.55", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-gpu') or (platform_machine != 'x86_64' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu') or (sys_platform != 'linux' and extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
-    { name = "setuptools", marker = "extra == 'extra-13-pallas-bot-ai-gpu'" },
+    { name = "setuptools", version = "81.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'win32' and extra == 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "84.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "sympy", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-13-pallas-bot-ai-gpu'" },
     { name = "triton", marker = "(sys_platform == 'linux' and extra == 'extra-13-pallas-bot-ai-gpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "typing-extensions", marker = "extra == 'extra-13-pallas-bot-ai-gpu'" },
@@ -3645,7 +3704,7 @@ name = "triton"
 version = "3.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "setuptools", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-13-pallas-bot-ai-cpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
+    { name = "setuptools", version = "84.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra != 'extra-13-pallas-bot-ai-cpu') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-13-pallas-bot-ai-cpu') or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/24/5f/950fb373bf9c01ad4eb5a8cd5eaf32cdf9e238c02f9293557a2129b9c4ac/triton-3.3.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9999e83aba21e1a78c1f36f21bce621b77bcaa530277a50484a7cb4a822f6e43", size = 155669138, upload-time = "2025-05-29T23:39:51.771Z" },

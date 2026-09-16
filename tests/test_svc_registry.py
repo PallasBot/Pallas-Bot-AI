@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,6 +22,19 @@ def test_build_env_allows_fairseq_checkpoint_load(monkeypatch) -> None:
     monkeypatch.delenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", raising=False)
     env = build_env()
     assert env.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD") == "1"
+
+
+def test_pyworld_imports_under_installed_setuptools() -> None:
+    """DDSP 推理子进程只做 `import pyworld`；pyworld 0.3.5 依赖已被 setuptools 82 移除的
+    pkg_resources，会把所有 backend 直接打崩。这里用子进程复刻真实启动方式，防止再次回归。"""
+    result = subprocess.run(
+        [sys.executable, "-c", "import pyworld; print(pyworld.__version__)"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_rvc_cli_uses_project_default_voice_parameters() -> None:

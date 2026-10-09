@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
+from app.core.logger import logger
 from pyncm_async import (
     CreateNewSession,
     DumpSessionAsString,
@@ -16,8 +17,6 @@ from pyncm_async.apis.login import (
     LoginViaCellphone,
     SetSendRegisterVerifcationCodeViaCellphone,
 )
-
-from app.core.logger import logger
 
 SESSION_FILE = "data/ncm/session.txt"
 

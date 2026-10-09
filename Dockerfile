@@ -93,6 +93,7 @@ RUN mkdir -p logs resource/chat/models resource/sing/models resource/tts
 
 # 复制应用代码
 COPY app/ ./app/
+COPY pyncm_async/ ./pyncm_async/
 COPY Docker/ ./Docker/
 COPY scripts/cuda.env scripts/cuda_env.sh ./scripts/
 COPY .env* ./

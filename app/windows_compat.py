@@ -36,7 +36,6 @@ def configure_windows_compatibility(
     environment.setdefault("TORCH_EXTENSIONS_DIR", str(root / ".torch_extensions" / role))
 
     for root in site_packages if site_packages is not None else _site_packages():
-        _patch_pyncm_async(root / "pyncm_async" / "apis" / "cloud.py")
         _patch_rwkv(root / "rwkv" / "model.py")
     return True
 
@@ -45,15 +44,6 @@ def _site_packages() -> list[Path]:
     paths = {Path(path) for path in site.getsitepackages()}
     paths.add(Path(sys.prefix) / "Lib" / "site-packages")
     return list(paths)
-
-
-def _patch_pyncm_async(path: Path) -> None:
-    if not path.is_file():
-        return
-    text = path.read_text(encoding="utf-8")
-    fixed = text.replace('objectKey.replace("/", "%2F")', "objectKey.replace('/', '%2F')", 1)
-    if fixed != text:
-        path.write_text(fixed, encoding="utf-8")
 
 
 def _patch_rwkv(path: Path) -> None:

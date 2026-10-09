@@ -29,7 +29,10 @@ requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "pyncm_async*"]
+
+[tool.setuptools.package-data]
+pyncm_async = ["LICENSE", "UPSTREAM.md", "LICENSES/*.txt"]
 
 [project.optional-dependencies]
 # CPU 线保持 2.5.1；GPU 线 2.7.1+cu128 以支持 Blackwell（RTX 50 / sm_120）
@@ -57,7 +60,6 @@ sing = [
     "numpy==1.26.4",
     "praat-parselmouth>=0.4.5",
     "pydub>=0.25.1",
-    "pyncm-async @ https://files.pythonhosted.org/packages/52/14/8892c8bef54293eaf13c3ff95685a097d8a48272ce07b8600138f5c24d3e/pyncm_async-1.8.2.tar.gz#sha256=3ea9914f3fbcd4a76ef1d34a4681cff3733507b54caa9aa79f1d04f0e8cd27a7",
     "pyworld>=0.3.5",
     "pyyaml>=6.0.2",
     "resampy>=0.4.3",

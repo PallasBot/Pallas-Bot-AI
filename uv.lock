@@ -2152,7 +2152,6 @@ sing = [
     { name = "numpy" },
     { name = "praat-parselmouth" },
     { name = "pydub" },
-    { name = "pyncm-async" },
     { name = "pyworld", version = "0.3.5", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "pyworld", version = "0.3.6", source = { git = "https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder?tag=v0.3.6#b545454af40553ed74583cb8773ba53419adee93" }, marker = "sys_platform != 'win32' or (extra == 'extra-13-pallas-bot-ai-cpu' and extra == 'extra-13-pallas-bot-ai-gpu')" },
     { name = "pyyaml" },
@@ -2240,7 +2239,6 @@ sing = [
     { name = "numpy", specifier = "==1.26.4" },
     { name = "praat-parselmouth", specifier = ">=0.4.5" },
     { name = "pydub", specifier = ">=0.25.1" },
-    { name = "pyncm-async", url = "https://files.pythonhosted.org/packages/52/14/8892c8bef54293eaf13c3ff95685a097d8a48272ce07b8600138f5c24d3e/pyncm_async-1.8.2.tar.gz" },
     { name = "pyworld", marker = "sys_platform != 'win32'", git = "https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder?tag=v0.3.6" },
     { name = "pyworld", marker = "sys_platform == 'win32'", specifier = ">=0.3.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
@@ -2566,18 +2564,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/49/2e/ced460408999b33da
 wheels = [
     { url = "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl", hash = "sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9", size = 1250147, upload-time = "2026-08-17T08:02:44.912Z" },
 ]
-
-[[package]]
-name = "pyncm-async"
-version = "1.8.2"
-source = { url = "https://files.pythonhosted.org/packages/52/14/8892c8bef54293eaf13c3ff95685a097d8a48272ce07b8600138f5c24d3e/pyncm_async-1.8.2.tar.gz" }
-dependencies = [
-    { name = "httpx" },
-]
-sdist = { hash = "sha256:3ea9914f3fbcd4a76ef1d34a4681cff3733507b54caa9aa79f1d04f0e8cd27a7" }
-
-[package.metadata]
-requires-dist = [{ name = "httpx" }]
 
 [[package]]
 name = "pyopenjtalk"

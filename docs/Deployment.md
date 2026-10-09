@@ -179,13 +179,13 @@ UVICORN_RELOAD=true uv run python -m app.run_api
 
 ## API Bearer Token
 
-Bot WebUI「媒体服务」里的 **Bearer Token** 须与 AI 侧 **`PALLAS_AI_API_TOKEN`** 一致。
+在 Bot WebUI「AI 配置 → 媒体 → 媒体服务 → 连接 → Bearer Token」配置，并与 AI 侧 **`PALLAS_AI_API_TOKEN`** 保持一致。
 
-- 非空时：`GET /api/ops/logs` 及推荐的 **`/v1/*`** 要求 `Authorization: Bearer <token>`
-- 留空：不对 Bearer 校验（仅建议本机调试）
+- 非空时：`GET /api/ops/logs` 及推荐的 **`/v1/*`** 要求 `Authorization: Bearer <token>`。
+- 留空时：普通 API 不校验 Bearer（仅建议本机调试）。但网易云搜索 `GET /v1/ncm/search` 和歌曲详情 `GET /v1/ncm/songs/{song_id}` 始终要求已配置 Bearer；未配置时返回 HTTP 503，缺失或错误的 Bearer 返回 HTTP 401。
 
 ```bash
-curl -H "Authorization: Bearer 你的token" "http://127.0.0.1:9099/api/ops/logs?kind=uvicorn&n=5"
+curl -H "Authorization: Bearer 你的token" "http://127.0.0.1:9099/v1/ops/logs?kind=uvicorn&n=5"
 curl -s http://127.0.0.1:9099/health | python3 -m json.tool
 ```
 

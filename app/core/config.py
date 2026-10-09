@@ -43,7 +43,10 @@ class Settings(BaseSettings):
     callback_max_retries: int = 3
     api_bearer_token: str = Field(
         default="",
-        description="与 Bot WebUI「AI 服务」Bearer Token 一致；非空时 /api/ops/logs 等需 Authorization Bearer",
+        description=(
+            "与 Bot WebUI「AI 配置 · 媒体」中的 Bearer Token 一致；非空时 /api/ops/logs 和 /v1/* 需 Bearer。"
+            "网易云搜索和歌曲详情始终要求配置该 token，未配置时返回 HTTP 503。"
+        ),
         validation_alias=AliasChoices("api_bearer_token", "PALLAS_AI_API_TOKEN", "API_BEARER_TOKEN"),
     )
 

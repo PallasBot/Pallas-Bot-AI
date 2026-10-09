@@ -29,6 +29,8 @@ Bot 侧请安装官方扩展 [`pallas-plugin-ai-media`](https://github.com/Palla
 ```bash
 cp .env.example .env
 # 编辑 CALLBACK_HOST / CALLBACK_PORT 指向已运行的 Bot（默认 localhost:8088）
+# 网易云搜索和详情始终要求配置该 token；未配置时返回 HTTP 503。
+# 在 Bot WebUI「AI 配置 → 媒体 → 媒体服务 → 连接 → Bearer Token」设置，并与此值保持一致。
 # 建议设置 PALLAS_AI_API_TOKEN，与 Bot / 插件 Bearer 一致
 ./scripts/ai_bootstrap.sh
 ```
@@ -89,7 +91,7 @@ curl -s http://127.0.0.1:9099/health | python3 -m json.tool
 
 关注 `media_tasks`、`tts` 等字段（按已启用端点返回）。`health` 中会提示推荐前缀 `/v1`。
 
-对外推荐 **`/v1`**（配置了 `PALLAS_AI_API_TOKEN` 时须带 Bearer）；`/api` 为兼容入口（deprecated）。
+对外推荐 **`/v1`**（配置了 `PALLAS_AI_API_TOKEN` 时须带 Bearer）；网易云搜索与歌曲详情始终要求配置该 token，未配置时返回 HTTP 503。`/api` 为兼容入口（deprecated）。
 
 ```bash
 # 示例：提交 TTS（request_id 由调用方生成，完成后走 Bot /callback）

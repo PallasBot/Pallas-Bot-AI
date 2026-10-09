@@ -22,3 +22,11 @@ def require_api_bearer_token(
         raise HTTPException(status_code=401, detail="缺少 Authorization Bearer")
     if (credentials.credentials or "") != expected:
         raise HTTPException(status_code=401, detail="Authorization Bearer 无效")
+
+
+def require_configured_api_bearer_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
+) -> None:
+    if not (settings.api_bearer_token or "").strip():
+        raise HTTPException(status_code=503, detail="API Bearer 未配置")
+    require_api_bearer_token(credentials)

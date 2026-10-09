@@ -1,10 +1,9 @@
 from pathlib import Path
 
-from pyncm_async import apis as ncm
-
 from app.core.logger import logger
 from app.media.services.ncm_login import ncm_request_session
 from app.utils.download_tool import DownloadTools
+from pyncm_async import apis as ncm
 
 
 async def download(song_id):
@@ -56,37 +55,61 @@ def request_file(url):
     return DownloadTools.request_file(url)
 
 
-async def get_song_title(song_id):
+async def get_song_detail(song_id):
     async with ncm_request_session():
         response = await ncm.track.GetTrackDetail(song_id)
-        return response["songs"][0]["name"]
+    songs = response.get("songs") if isinstance(response, dict) else None
+    if not isinstance(songs, list) or not songs or not isinstance(songs[0], dict):
+        return None
+
+    song = songs[0]
+    name = str(song.get("name") or "").strip()
+    if not name:
+        return None
+    raw_artists = song.get("ar")
+    artists = (
+        [
+            str(artist.get("name") or "").strip()
+            for artist in raw_artists
+            if isinstance(artist, dict) and str(artist.get("name") or "").strip()
+        ]
+        if isinstance(raw_artists, list)
+        else []
+    )
+    return {"name": name, "artists": artists}
 
 
-async def get_song_id(song_name: str):
+async def get_song_title(song_id):
+    detail = await get_song_detail(song_id)
+    return detail["name"] if detail else None
+
+
+async def get_song_id(song_name: str, *, exclude_vip: bool = True):
     if not song_name:
         return None
 
     async with ncm_request_session():
         res = await ncm.cloudsearch.GetSearchResult(song_name, 1, 10)
 
-    if "result" not in res or "songCount" not in res["result"]:
+    result = res.get("result") if isinstance(res, dict) else None
+    if not isinstance(result, dict) or not result.get("songCount"):
         return None
 
-    if res["result"]["songCount"] == 0:
+    songs = result.get("songs")
+    if not isinstance(songs, list):
         return None
 
-    for song in res["result"]["songs"]:
-        privilege = song["privilege"]
-        if "chargeInfoList" not in privilege:
+    for song in songs:
+        if not isinstance(song, dict):
             continue
-
-        charge_info_list = privilege["chargeInfoList"]
-        if len(charge_info_list) == 0:
-            continue
-
-        if charge_info_list[0]["chargeType"] == 1:
-            continue
-
-        return song["id"]
+        if exclude_vip:
+            privilege = song.get("privilege")
+            charge_info_list = privilege.get("chargeInfoList") if isinstance(privilege, dict) else None
+            if not isinstance(charge_info_list, list) or not charge_info_list:
+                continue
+            if not isinstance(charge_info_list[0], dict) or charge_info_list[0].get("chargeType") == 1:
+                continue
+        if song.get("id") is not None:
+            return song["id"]
 
     return None

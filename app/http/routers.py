@@ -15,7 +15,7 @@ MEDIA_CORE_ENDPOINTS = frozenset({
 
 _PACKAGE_EXTRA_ENDPOINTS: dict[str, frozenset[str]] = {
     "chat": frozenset({"chat"}),
-    "sing": frozenset({"sing", "ncm_login"}),
+    "sing": frozenset({"sing", "ncm_login", "ncm_music"}),
     "tts": frozenset({"tts"}),
 }
 
@@ -63,6 +63,10 @@ def _load_ncm_login() -> APIRouter:
     return import_module("app.http.endpoints.ncm_login").router
 
 
+def _load_ncm_music() -> APIRouter:
+    return import_module("app.http.endpoints.ncm_music").router
+
+
 def _load_ops_logs() -> APIRouter:
     return import_module("app.http.endpoints.ops_logs").router
 
@@ -75,6 +79,7 @@ ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
     "media_models": _load_media_models,
     "tts": _load_tts,
     "ncm_login": _load_ncm_login,
+    "ncm_music": _load_ncm_music,
     "ops_logs": _load_ops_logs,
 }
 

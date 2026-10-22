@@ -10,7 +10,10 @@ from app.media.store import MediaTaskRecord, get_record, store_task_record, upda
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app(enabled_endpoints={"media_tasks"}))
+    return TestClient(
+        create_app(enabled_endpoints={"media_tasks"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -98,7 +101,10 @@ def test_health_includes_media_tasks(client: TestClient) -> None:
 
 
 def test_health_includes_tts() -> None:
-    client = TestClient(create_app(enabled_endpoints={"media_tasks", "tts"}))
+    client = TestClient(
+        create_app(enabled_endpoints={"media_tasks", "tts"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
     response = client.get("/health")
     assert response.status_code == 200
     body = response.json()

@@ -58,14 +58,18 @@ Bot 与本栈不同网络时：`AI_SERVER_HOST=pallasbot-ai`，本侧 `CALLBACK_
 
 ### 步骤
 
-1. 依赖（媒体栈，含 torch）：
+1. 依赖（媒体栈，含 torch；当前候选尚不可部署）：
+
+当前候选的完整解析已超时，`uv.lock` 尚未更新，依赖与模型栈未安装/验证。以下命令暂不可作为部署指令。
 
 ```bash
 uv sync --all-groups --extra cpu   # 或 --extra gpu
 git submodule update --init --recursive
 ```
 
-`--extra gpu` 使用 **torch 2.7.1 + cu128**（含 RTX 50 / `sm_120`）；需宿主机 NVIDIA 驱动支持 CUDA 12.8。CPU 线仍为 torch 2.5.1。从旧 cu124 安装升级后须重新 `uv sync --extra gpu`（或 `PALLAS_GPU=1 ./scripts/ai_bootstrap.sh`）。
+候选目标是 `--extra gpu` 使用 **torch 2.13.0 + cu130**，以保留 RTX 50 / `sm_120` 支持；CPU 线使用 torch 2.13.0 + torchaudio 2.11.0。仅本次 RTX 3060 验证候选使用 `--extra gpu-cu126`，不是通用 CUDA 12.6 或 Blackwell 选项。`cpu`、`gpu` 与 `gpu-cu126` 三个 extra 互斥；驱动需支持所选 CUDA 运行时。目标版本在完成解析与验收前不构成可用性声明。
+
+RVC WebUI 源码仍由子模块保留，但 Gradio 不属于主 API 安装集合；独立 WebUI 尚无已验证的安全运行环境。本部署步骤不会安装它，也不要把子模块中的旧 requirements 装进主环境。
 
 按需收窄 group：`sing` / `tts` / `chat`（遗留 RWKV）。
 

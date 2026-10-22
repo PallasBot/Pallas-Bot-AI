@@ -44,10 +44,15 @@ class Settings(BaseSettings):
     api_bearer_token: str = Field(
         default="",
         description=(
-            "与 Bot WebUI「AI 配置 · 媒体」中的 Bearer Token 一致；非空时 /api/ops/logs 和 /v1/* 需 Bearer。"
-            "网易云搜索和歌曲详情始终要求配置该 token，未配置时返回 HTTP 503。"
+            "与 Bot 的 AI Bearer Token 一致；/api 与 /v1 的所有业务 API 均要求 Bearer，未配置时返回 HTTP 503。"
         ),
         validation_alias=AliasChoices("api_bearer_token", "PALLAS_AI_API_TOKEN", "API_BEARER_TOKEN"),
+    )
+    api_max_request_bytes: int = Field(
+        default=1_048_576,
+        ge=1,
+        description="/api 与 /v1 业务 JSON 请求体上限（字节）",
+        validation_alias=AliasChoices("api_max_request_bytes", "API_MAX_REQUEST_BYTES"),
     )
 
     sing_speakers: dict = {"帕拉斯": "pallas", "牛牛": "pallas"}

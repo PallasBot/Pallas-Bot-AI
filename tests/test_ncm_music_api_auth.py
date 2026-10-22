@@ -9,7 +9,10 @@ from app.http.factory import create_app
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app(enabled_endpoints={"ncm_music"}))
+    return TestClient(
+        create_app(enabled_endpoints={"ncm_music"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
 
 
 def test_ncm_endpoints_fail_closed_without_configured_token(

@@ -10,7 +10,10 @@ def test_post_play_endpoint_accepts_request_body(monkeypatch) -> None:
         return "task-123"
 
     monkeypatch.setattr("app.http.endpoints.sing.play", fake_play)
-    client = TestClient(create_app(enabled_endpoints={"sing"}))
+    client = TestClient(
+        create_app(enabled_endpoints={"sing"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
 
     response = client.post("/api/play/req-123", json={"speaker": "pallas"})
 
@@ -19,7 +22,10 @@ def test_post_play_endpoint_accepts_request_body(monkeypatch) -> None:
 
 
 def test_legacy_get_play_endpoint_is_disabled() -> None:
-    client = TestClient(create_app(enabled_endpoints={"sing"}))
+    client = TestClient(
+        create_app(enabled_endpoints={"sing"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
 
     response = client.get("/api/play/amiya")
 

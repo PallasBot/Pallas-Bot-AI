@@ -195,7 +195,10 @@ def test_api_tts_translator_endpoints(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setenv("AI_DEPLOY_MODE", "source")
     monkeypatch.chdir(tmp_path)
     (tmp_path / "data").mkdir()
-    client = TestClient(create_app(enabled_endpoints={"media_models"}))
+    client = TestClient(
+        create_app(enabled_endpoints={"media_models"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
     got = client.get("/api/media/models/tts/translator")
     assert got.status_code == 200
     body = got.json()
@@ -218,7 +221,10 @@ def test_api_media_models_endpoints(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     (tmp_path / "resource/tts/ref_audio").mkdir(parents=True)
     (tmp_path / "resource/tts/ref_audio/a.wav").write_bytes(b"x")
     (tmp_path / "data").mkdir()
-    client = TestClient(create_app(enabled_endpoints={"media_models"}))
+    client = TestClient(
+        create_app(enabled_endpoints={"media_models"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
     speakers = client.get("/api/media/models/sing/speakers")
     assert speakers.status_code == 200
     assert "speakers" in speakers.json()

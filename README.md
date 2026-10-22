@@ -47,7 +47,7 @@ cp .env.example .env
 | 只装不启动 | `./scripts/ai_bootstrap.sh --no-start` |
 | 媒体 + NVIDIA GPU torch | `PALLAS_GPU=1 ./scripts/ai_bootstrap.sh` |
 
-GPU 线为 **torch 2.7.1 + CUDA 12.8（cu128）**，支持 RTX 50 系（Blackwell / `sm_120`）。驱动需足够新；从旧 cu124 环境升级后请用上表 GPU 命令或控制台「仅重装依赖」重装。
+依赖矩阵目前仍是**未验收候选，不能用于部署**：完整解析超时、锁未更新，候选依赖和模型栈未安装/验证。目标是默认 GPU cu130 以保留 Blackwell（`sm_120`）支持、CPU 使用 torch 2.13.0 + torchaudio 2.11.0；仅本次 RTX 3060 验证候选使用 `gpu-cu126`，它不是通用 CUDA 12.6 或 Blackwell 选项。`cpu`、`gpu` 与 `gpu-cu126` 互斥；驱动需支持所选 CUDA 运行时。
 
 ### 方式 B：Docker
 

@@ -17,11 +17,11 @@
 
 | 能力 | 典型 API | 说明 |
 | --- | --- | --- |
-| 唱歌 / TTS | `/v1/sing/*`、`/v1/tts/*`（推荐）；`/api/*` 兼容 | 主路径媒体任务；`/v1` 在配置 Token 时强制 Bearer |
+| 唱歌 / TTS | `/v1/sing/*`、`/v1/tts/*`（推荐）；`/api/*` 兼容 | 所有业务 API 均强制 Bearer，并限制 JSON 请求体大小 |
 | 媒体任务 / 模型 | `/v1/media/*` | voices、defaults、异步任务等 |
 | 酒后 RWKV | `POST /api/chat/{id}` 等 | 可选遗留路径；与 Bot 内核 Provider 聊天无关 |
 
-任务完成后经 `/callback` 回推 Bot。群口令侧见官方扩展 [Plugin-Ai-Media](https://github.com/PallasBot/Plugin-Ai-Media)。
+任务完成后经带 Bearer 的 `/callback` 回推 Bot。`/health`、`/api/health` 与 API docs 为公开的最小信息入口。群口令侧见官方扩展 [Plugin-Ai-Media](https://github.com/PallasBot/Plugin-Ai-Media)。
 
 ## 与 Bot 的边界
 

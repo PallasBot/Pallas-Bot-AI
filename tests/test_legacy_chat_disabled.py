@@ -14,7 +14,7 @@ from app.media.services.chat import chat
 def test_legacy_chat_endpoint_enqueues_chat_task(monkeypatch) -> None:
     app = create_app(enabled_endpoints=[])
     app.include_router(chat_router, prefix="/api")
-    client = TestClient(app)
+    client = TestClient(app, headers={"Authorization": "Bearer test-api-token"})
 
     captured: dict[str, object] = {}
 

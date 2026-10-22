@@ -7,4 +7,4 @@ from app.core.config import settings
 
 @pytest.fixture(autouse=True)
 def isolate_api_auth(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "api_bearer_token", "")
+    monkeypatch.setattr(settings, "api_bearer_token", "test-api-token")

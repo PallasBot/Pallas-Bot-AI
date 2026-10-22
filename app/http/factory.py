@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.core.logger import logger
 from app.core.startup_report import emit_startup_summary, register_startup_fact
+from app.http.middleware import APIRequestBoundaryMiddleware
 from app.http.routers import build_api_router, resolve_enabled_endpoints
 from app.http.v1_router import build_v1_router
 from app.version import VERSION
@@ -31,9 +32,10 @@ def create_app(*, enabled_endpoints: Iterable[str] | None = None) -> FastAPI:
     app = FastAPI(
         lifespan=lifespan,
         title="Pallas Bot AI",
-        description="媒体侧车 API。推荐使用 `/v1`（Bearer 鉴权）；`/api` 为兼容入口，后续废弃。",
+        description="媒体侧车 API。`/api` 与 `/v1` 的业务路由均需 Bearer 鉴权。",
         version=API_VERSION,
     )
+    app.add_middleware(APIRequestBoundaryMiddleware)
     app.state.enabled_endpoints = selected
     app.include_router(build_api_router(selected), prefix="/api")
     app.include_router(build_v1_router(selected), prefix="/v1")

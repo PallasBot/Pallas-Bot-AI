@@ -1,10 +1,11 @@
 from collections.abc import Callable
 from importlib import import_module
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.core.celery import celery_task_package_enabled
 from app.core.logger import logger
+from app.http.deps.api_auth import require_api_bearer_token
 
 MEDIA_CORE_ENDPOINTS = frozenset({
     "media_assets",
@@ -85,7 +86,7 @@ ENDPOINT_LOADERS: dict[str, Callable[[], APIRouter | tuple[APIRouter, ...]]] = {
 
 
 def build_api_router(enabled_endpoints: set[str] | frozenset[str]) -> APIRouter:
-    router = APIRouter()
+    router = APIRouter(dependencies=[Depends(require_api_bearer_token)])
     for endpoint_name in sorted(enabled_endpoints):
         loader = ENDPOINT_LOADERS.get(endpoint_name)
         if loader is None:

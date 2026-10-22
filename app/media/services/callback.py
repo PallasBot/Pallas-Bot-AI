@@ -8,12 +8,11 @@ CALLBACK_URL = f"http://{settings.callback_host}:{settings.callback_port}/callba
 
 
 def should_retry_callback(exc: BaseException) -> bool:
+    if not (settings.api_bearer_token or "").strip():
+        return False
     # ReadTimeout：请求体多半已送达，Bot 可能仍在发语音；再重试会重复投递。
     if isinstance(exc, httpx.ReadTimeout):
-        logger.warning(
-            "callback ReadTimeout, skip retry to avoid duplicate delivery: {}",
-            exc,
-        )
+        logger.warning("callback ReadTimeout, skip retry to avoid duplicate delivery")
         return False
     return not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code >= 500
 
@@ -38,8 +37,17 @@ async def send_callback(
     use_file_timeout: bool = False,
 ):
     timeout = resolve_callback_timeout(use_file_timeout=use_file_timeout)
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(url, data=data, files=files, timeout=timeout)
+    token = (settings.api_bearer_token or "").strip()
+    if not token:
+        raise RuntimeError("AI callback Bearer token is not configured")
+    async with httpx.AsyncClient(trust_env=False) as client:
+        resp = await client.post(
+            url,
+            data=data,
+            files=files,
+            timeout=timeout,
+            headers={"Authorization": f"Bearer {token}"},
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -86,17 +94,15 @@ async def callback(
             )
         except httpx.HTTPStatusError as err:
             logger.warning(
-                "bot callback failed{} http={} url={}",
+                "bot callback failed{} http={}",
                 log_id_suffix(request_id, label="request_id"),
                 err.response.status_code,
-                callback_url,
             )
         except Exception as exc:
-            logger.exception(
-                "bot callback error{} status=failed url={} error={}",
+            logger.error(
+                "bot callback error{} status=failed error_type={}",
                 log_id_suffix(request_id, label="request_id"),
-                callback_url,
-                exc,
+                type(exc).__name__,
             )
         return
 
@@ -133,16 +139,14 @@ async def callback(
         )
     except httpx.HTTPStatusError as err:
         logger.warning(
-            "bot callback failed{} http={} url={}",
+            "bot callback failed{} http={}",
             log_id_suffix(request_id, label="request_id"),
             err.response.status_code,
-            callback_url,
         )
     except Exception as exc:
-        logger.exception(
-            "bot callback error{} status={} url={} error={}",
+        logger.error(
+            "bot callback error{} status={} error_type={}",
             log_id_suffix(request_id, label="request_id"),
             status,
-            callback_url,
-            exc,
+            type(exc).__name__,
         )

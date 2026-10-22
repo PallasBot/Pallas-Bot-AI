@@ -11,7 +11,10 @@ from app.media.services.service_logs import resolve_service_log_path, tail_log_l
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app(enabled_endpoints={"ops_logs"}))
+    return TestClient(
+        create_app(enabled_endpoints={"ops_logs"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
 
 
 def test_resolve_service_log_path_prefers_uvicorn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

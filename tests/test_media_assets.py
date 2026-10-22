@@ -129,7 +129,10 @@ def test_start_download_job_docker_forbidden(tmp_path: Path, monkeypatch: pytest
 
 
 def test_api_media_assets_status() -> None:
-    client = TestClient(create_app(enabled_endpoints={"media_assets"}))
+    client = TestClient(
+        create_app(enabled_endpoints={"media_assets"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
     resp = client.get("/api/media/assets/status")
     assert resp.status_code == 200
     body = resp.json()
@@ -140,7 +143,10 @@ def test_api_media_assets_status() -> None:
 
 def test_api_media_assets_download_docker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_DEPLOY_MODE", "docker")
-    client = TestClient(create_app(enabled_endpoints={"media_assets"}))
+    client = TestClient(
+        create_app(enabled_endpoints={"media_assets"}),
+        headers={"Authorization": "Bearer test-api-token"},
+    )
     resp = client.post("/api/media/assets/download")
     assert resp.status_code == 409
 

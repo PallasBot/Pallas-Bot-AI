@@ -23,9 +23,9 @@ async def notify_sing_media_task_failed(record: MediaTaskRecord) -> None:
         await send_callback(callback_url, {"status": "failed"})
     except Exception as exc:
         logger.warning(
-            "sing media task callback failed{}: {}",
+            "sing media task callback failed{} error_type={}",
             log_id_suffix(request_id, label="request_id"),
-            exc,
+            type(exc).__name__,
         )
         return
     update_task_record(record.task_id, bot_callback_notified=True)

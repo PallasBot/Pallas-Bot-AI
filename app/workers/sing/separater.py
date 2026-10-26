@@ -10,6 +10,14 @@ from app.utils.gpu_locker import GPULockManager
 from app.workers.media_device import cuda_env_prefix
 
 
+def offline_env_prefix() -> str:
+    """让 demucs 子进程离线读取本地模型缓存，跳过 HuggingFace 联网探测。"""
+    if platform.system() == "Windows":
+        # 引号避免 `set` 把值后的空格并入变量
+        return 'set "HF_HUB_OFFLINE=1" && '
+    return "HF_HUB_OFFLINE=1 "
+
+
 def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockManager = None):
     model = "hdemucs_mmi"
     stem = song_path.stem
@@ -26,7 +34,7 @@ def separate(song_path: Path, output_dir: Path, key: int = 0, locker: GPULockMan
 
     if (not vocals_with_stem.exists() and not vocals_with_stem.exists()) or not no_vocals_0key.exists():
         # 这个库没提供 APIs，暂时简单粗暴用命令行了
-        cmd = cuda_env_prefix()
+        cmd = cuda_env_prefix() + offline_env_prefix()
         # 与 SVC 一致：必须用当前 venv 解释器，避免 Windows 落到系统 python
         py = f'"{sys.executable}"' if " " in sys.executable else sys.executable
         cmd += f"{py} -m demucs --two-stems=vocals --mp3 --mp3-bitrate 128 -n {model} {str(song_path)} -o {output_dir}"
